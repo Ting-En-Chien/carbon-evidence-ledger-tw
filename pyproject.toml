@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "carbon_ledger"
+version = "0.1.0"
+description = "An auditable data pipeline that maps synthetic Taiwanese exporter activity records to GHG Protocol, EU CBAM, and IFRS S2 data readiness."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "pandas",
+    "duckdb",
+    "pandera",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+# Minimal beginner-friendly rules: syntax/undefined names and import order.
+select = ["E", "F", "I"]
