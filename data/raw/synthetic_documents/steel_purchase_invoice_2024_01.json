@@ -1,0 +1,15 @@
+{
+  "is_synthetic": true,
+  "company_name": "Demo Fasteners Taiwan Ltd. (Synthetic)",
+  "disclaimer": "This document is fictional test data created only to exercise the Carbon Evidence Ledger data pipeline. It does not represent a real purchase invoice or real company operations.",
+  "source_document_id": "doc_steel_001",
+  "document_type": "material_purchase_invoice",
+  "document_date": "2024-01-15",
+  "reporting_period_start": "2024-01-01",
+  "reporting_period_end": "2024-01-31",
+  "issuer": "Demo Steel Supplier (Synthetic)",
+  "site_id": "site_twn_factory_01",
+  "material": "steel wire rod",
+  "purchased_quantity_tonnes": 150.0,
+  "unit": "t"
+}

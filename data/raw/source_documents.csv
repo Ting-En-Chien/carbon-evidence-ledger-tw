@@ -1,0 +1,6 @@
+source_document_id,file_name,document_type,document_date,issuer,data_origin,is_synthetic,notes
+doc_electricity_001,electricity_bill_2024_01.json,electricity_bill,2024-01-31,Demo Taiwan Power Utility (Synthetic),synthetic_generated,true,Fictional test data for Demo Fasteners Taiwan Ltd. (Synthetic). Not a real utility bill.
+doc_gas_001,natural_gas_invoice_2024_01.json,natural_gas_invoice,2024-01-31,Demo Gas Supplier (Synthetic),synthetic_generated,true,Fictional test data for Demo Fasteners Taiwan Ltd. (Synthetic). Not a real natural-gas invoice.
+doc_diesel_001,diesel_receipt_2024_01.json,fuel_receipt,2024-01-31,Demo Fuel Station (Synthetic),synthetic_generated,true,Fictional test data for Demo Fasteners Taiwan Ltd. (Synthetic). Not a real fuel receipt.
+doc_steel_001,steel_purchase_invoice_2024_01.json,material_purchase_invoice,2024-01-15,Demo Steel Supplier (Synthetic),synthetic_generated,true,Fictional test data for Demo Fasteners Taiwan Ltd. (Synthetic). Not a real purchase invoice.
+doc_production_001,production_log_2024_01.json,production_log,2024-01-31,Demo Fasteners Taiwan Ltd. (Synthetic),synthetic_generated,true,Fictional test data for Demo Fasteners Taiwan Ltd. (Synthetic). Not a real production log.
