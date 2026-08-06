@@ -1,0 +1,2 @@
+scenario_id,product_id,product_description,assumed_cn_code,cn_classification_status,annex_i_in_scope,annex_ii_direct_only,relevant_greenhouse_gas,reference_id,requires_human_review,notes
+scenario_synthetic_cn7318_fasteners,prod_fastener_m10,Synthetic M10 iron or steel fasteners,7318,assumed_for_demo,true,true,CO2,ref_eu_cbam_regulation_2023_956,true,"CN 7318 is assumed only for the synthetic technical demonstration. Formal customs classification has not been performed. This scenario activates the optional CBAM adapter and does not change the framework-neutral core ledger."
