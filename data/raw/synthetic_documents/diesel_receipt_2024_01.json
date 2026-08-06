@@ -1,0 +1,15 @@
+{
+  "is_synthetic": true,
+  "company_name": "Demo Fasteners Taiwan Ltd. (Synthetic)",
+  "disclaimer": "This document is fictional test data created only to exercise the Carbon Evidence Ledger data pipeline. It does not represent a real fuel receipt or real company operations.",
+  "source_document_id": "doc_diesel_001",
+  "document_type": "fuel_receipt",
+  "document_date": "2024-01-31",
+  "reporting_period_start": "2024-01-01",
+  "reporting_period_end": "2024-01-31",
+  "issuer": "Demo Fuel Station (Synthetic)",
+  "site_id": "site_twn_factory_01",
+  "process_use": "company_vehicle",
+  "diesel_quantity_litres": 1200.0,
+  "unit": "L"
+}

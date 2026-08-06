@@ -1,0 +1,14 @@
+{
+  "is_synthetic": true,
+  "company_name": "Demo Fasteners Taiwan Ltd. (Synthetic)",
+  "disclaimer": "This document is fictional test data created only to exercise the Carbon Evidence Ledger data pipeline. It does not represent a real utility bill or real company operations.",
+  "source_document_id": "doc_electricity_001",
+  "document_type": "electricity_bill",
+  "document_date": "2024-01-31",
+  "reporting_period_start": "2024-01-01",
+  "reporting_period_end": "2024-01-31",
+  "issuer": "Demo Taiwan Power Utility (Synthetic)",
+  "site_id": "site_twn_factory_01",
+  "electricity_usage_kwh": 50000.0,
+  "unit": "kWh"
+}
