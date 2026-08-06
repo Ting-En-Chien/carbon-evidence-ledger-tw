@@ -58,6 +58,8 @@ def test_electricity_factor_is_ready_0_474() -> None:
     assert row["numerator_unit"] == "kgCO2e"
     assert row["denominator_unit"] == "kWh"
     assert row["factor_status"] == "ready"
+    assert row["valid_from"] == "2024-01-01"
+    assert row["valid_to"] == "2024-12-31"
 
 
 def test_natural_gas_co2_factor_value() -> None:
@@ -159,6 +161,8 @@ def test_natural_gas_factors_blocked_by_missing_heating_value() -> None:
         gas_rows["required_conversion"]
         == "verified_natural_gas_heating_value_m3_to_TJ"
     ).all()
+    assert (gas_rows["valid_from"].astype(str).str.strip() == "").all()
+    assert (gas_rows["valid_to"].astype(str).str.strip() == "").all()
     assert "natural_gas" in set(
         result.calculation_dependencies["activity_type"]
     )
@@ -177,6 +181,8 @@ def test_diesel_factors_blocked_by_missing_heating_value() -> None:
         diesel_rows["required_conversion"]
         == "verified_diesel_heating_value_L_to_TJ"
     ).all()
+    assert (diesel_rows["valid_from"].astype(str).str.strip() == "").all()
+    assert (diesel_rows["valid_to"].astype(str).str.strip() == "").all()
     assert "diesel" in set(result.calculation_dependencies["activity_type"])
 
 
