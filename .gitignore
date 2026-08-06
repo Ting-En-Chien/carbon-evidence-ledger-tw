@@ -225,3 +225,4 @@ private_data/
 outputs/*
 !outputs/.gitkeep
 .DS_Store
+cursor_handoff/
