@@ -59,7 +59,13 @@ Auditable carbon work needs more than a number. It needs:
 - which year or validity period applies
 
 That is why each factor stores `source_reference_id`, `source_locator`,
-`factor_year`, and validity dates.
+`factor_year`, and validity dates when they are known.
+
+For this prototype:
+
+- the electricity factor uses an explicit 2024 calendar-year validity window
+- natural-gas and diesel combustion factors leave `valid_from` / `valid_to`
+  blank, so Phase 5B does not assert an applicability period for those rows
 
 ## Official references registered
 
@@ -106,6 +112,7 @@ All six fuel rows have:
 
 - `factor_status = registered_missing_conversion`
 - a named conversion requirement
+- blank `valid_from` and `valid_to` in this prototype
 
 ## Why electricity can be ready while fuel factors remain blocked
 
