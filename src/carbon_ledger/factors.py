@@ -70,6 +70,20 @@ DEPENDENCY_COLUMNS = [
     "notes",
 ]
 
+ENGINEERING_CONVERSION_COLUMNS = [
+    "conversion_id",
+    "source_unit",
+    "target_unit",
+    "multiplier",
+    "conversion_type",
+    "source_reference_id",
+    "source_locator",
+    "status",
+    "allowed_use",
+    "prohibited_use",
+    "notes",
+]
+
 ALLOWED_FACTOR_STATUSES = {
     "ready",
     "registered_missing_conversion",
@@ -92,6 +106,7 @@ class FactorRegistryResult:
     gwp_values: pd.DataFrame
     regulatory_references: pd.DataFrame
     calculation_dependencies: pd.DataFrame
+    engineering_conversions: pd.DataFrame
     issues: pd.DataFrame
 
 
@@ -169,6 +184,12 @@ def load_calculation_dependencies(reference_directory: Path) -> pd.DataFrame:
     return _read_csv(path)
 
 
+def load_engineering_conversions(reference_directory: Path) -> pd.DataFrame:
+    """Load engineering_conversions.csv from a reference directory."""
+    path = Path(reference_directory) / "engineering_conversions.csv"
+    return _read_csv(path)
+
+
 def _check_required_columns(
     table: pd.DataFrame,
     required: list[str],
@@ -228,7 +249,7 @@ def _check_unique_ids(
 
 
 def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
-    """Load and validate the Phase 5A factor registry without calculating."""
+    """Load and validate the factor registry without calculating."""
     reference_path = Path(reference_directory)
     issues: list[dict[str, Any]] = []
 
@@ -236,6 +257,7 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
     gwp_values = load_gwp_values(reference_path)
     regulatory_references = load_regulatory_references(reference_path)
     calculation_dependencies = load_calculation_dependencies(reference_path)
+    engineering_conversions = load_engineering_conversions(reference_path)
 
     factors_ok = _check_required_columns(
         emission_factors, EMISSION_FACTOR_COLUMNS, "emission_factors", issues
@@ -253,6 +275,12 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
         calculation_dependencies,
         DEPENDENCY_COLUMNS,
         "calculation_dependencies",
+        issues,
+    )
+    conversions_ok = _check_required_columns(
+        engineering_conversions,
+        ENGINEERING_CONVERSION_COLUMNS,
+        "engineering_conversions",
         issues,
     )
 
@@ -326,6 +354,106 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
         }
     else:
         dependency_activity_types = set()
+
+    if conversions_ok:
+        _check_unique_ids(
+            engineering_conversions,
+            "conversion_id",
+            "engineering_conversions",
+            issues,
+        )
+        for offset, row in enumerate(
+            engineering_conversions.to_dict(orient="records")
+        ):
+            row_number = offset + 1
+            multiplier = _parse_finite_positive(row.get("multiplier"))
+            if multiplier is None:
+                raw = row.get("multiplier")
+                try:
+                    number = float(str(raw).strip())
+                    code = (
+                        "NON_FINITE_VALUE"
+                        if not math.isfinite(number)
+                        else "NON_POSITIVE_VALUE"
+                    )
+                except (TypeError, ValueError):
+                    code = "NON_POSITIVE_VALUE"
+                issues.append(
+                    _issue(
+                        table_name="engineering_conversions",
+                        row_number=row_number,
+                        issue_code=code,
+                        issue_message=(
+                            f"multiplier must be a finite number greater "
+                            f"than zero, got {raw!r}."
+                        ),
+                    )
+                )
+
+            source_ref = str(row.get("source_reference_id", "")).strip()
+            if source_ref and source_ref not in reference_ids:
+                issues.append(
+                    _issue(
+                        table_name="engineering_conversions",
+                        row_number=row_number,
+                        issue_code="MISSING_REFERENCE",
+                        issue_message=(
+                            f"source_reference_id {source_ref!r} "
+                            "does not exist in regulatory_references."
+                        ),
+                    )
+                )
+
+            status = str(row.get("status", "")).strip()
+            if status != "ready":
+                issues.append(
+                    _issue(
+                        table_name="engineering_conversions",
+                        row_number=row_number,
+                        issue_code="INVALID_CONVERSION_STATUS",
+                        issue_message=(
+                            f"status must equal ready for Phase 7B, "
+                            f"got {status!r}."
+                        ),
+                    )
+                )
+
+            if _is_blank(row.get("source_unit")):
+                issues.append(
+                    _issue(
+                        table_name="engineering_conversions",
+                        row_number=row_number,
+                        issue_code="BLANK_SOURCE_UNIT",
+                        issue_message="source_unit must be non-blank.",
+                    )
+                )
+            if _is_blank(row.get("target_unit")):
+                issues.append(
+                    _issue(
+                        table_name="engineering_conversions",
+                        row_number=row_number,
+                        issue_code="BLANK_TARGET_UNIT",
+                        issue_message="target_unit must be non-blank.",
+                    )
+                )
+            if _is_blank(row.get("allowed_use")):
+                issues.append(
+                    _issue(
+                        table_name="engineering_conversions",
+                        row_number=row_number,
+                        issue_code="BLANK_ALLOWED_USE",
+                        issue_message="allowed_use must be non-blank.",
+                    )
+                )
+            if _is_blank(row.get("prohibited_use")):
+                issues.append(
+                    _issue(
+                        table_name="engineering_conversions",
+                        row_number=row_number,
+                        issue_code="BLANK_PROHIBITED_USE",
+                        issue_message="prohibited_use must be non-blank.",
+                    )
+                )
 
     if factors_ok:
         _check_unique_ids(
@@ -465,5 +593,6 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
         gwp_values=gwp_values,
         regulatory_references=regulatory_references,
         calculation_dependencies=calculation_dependencies,
+        engineering_conversions=engineering_conversions,
         issues=issue_frame,
     )
