@@ -1,4 +1,4 @@
-# Carbon Evidence Ledger UI (Phase 8 / 8B / 8C / 8D / 8E)
+# Carbon Evidence Ledger UI (Phase 8 + Phase 9A)
 
 ## Intended user
 
@@ -7,9 +7,8 @@ CBAM, IFRS S2, emission factors, and QA terminology.
 
 ## Visual design direction
 
-Phase 8D established a clean SaaS application shell.
-Phase 8E adds meaningful data visualization and richer semantic color without
-returning to marketing-hero or custom SVG experiments.
+Phase 8 established a clean SaaS application shell with meaningful charts.
+Phase 9A adds a Data Intake wizard that matches the same SaaS visual system.
 
 Shared traits:
 
@@ -20,25 +19,27 @@ Shared traits:
 - bilingual chart titles, legends, and one-sentence explanations
 - no custom SVG / chart HTML / dumped Vega JSON in the UI
 
-## Dashboard visualizations
+## Navigation
 
-1. **活動計算狀態** — donut of calculation-status counts
-2. **各活動目前狀態** — horizontal status bars per activity
-3. **目前已能計算的排放量** — total plus contribution bars for calculated
-   activities only (blocked rows never appear as zero)
+1. Dashboard
+2. Data Intake (Phase 9A)
+3. Activity Data
+4. Issues & Actions
+5. Frameworks
+6. Audit & Export
 
-## Framework / Issues visualizations
+## Data Intake (Phase 9A)
 
-- GHG: activity classification counts (explicitly not emissions share)
-- CBAM / IFRS: compact role / readiness count bars
-- Issues: missing-data type bars
+Wizard steps: upload → map columns/values → confirm → validation result.
+
+Uploaded CSV/XLSX files stay in memory. Validated intake does **not** replace
+the demo pipeline result in this phase. See `docs/data_intake.md`.
 
 ## Bilingual architecture
 
 `src/carbon_ledger/ui/i18n.py` is the single translation source.
-Chart category labels use the same friendly status helpers as tables.
 
 ## Limitations
 
-Synthetic demo only. No historical trends, fake readiness scores, estimated
-missing emissions, or company-wide totals beyond currently calculated rows.
+Synthetic demo analysis remains the calculation source until Phase 9B.
+No PDF extraction and no uploaded-data carbon calculation in Phase 9A.

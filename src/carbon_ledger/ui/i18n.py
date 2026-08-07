@@ -20,6 +20,7 @@ STATE_LANGUAGE = "ui_language"
 MESSAGES: dict[str, dict[str, str]] = {
     # Navigation
     "nav.dashboard": {"zh-TW": "總覽", "en": "Dashboard"},
+    "nav.intake": {"zh-TW": "資料匯入", "en": "Data Intake"},
     "nav.activity": {"zh-TW": "活動資料", "en": "Activity Data"},
     "nav.issues": {"zh-TW": "待處理問題", "en": "Issues & Actions"},
     "nav.frameworks": {"zh-TW": "準則分析", "en": "Frameworks"},
@@ -176,6 +177,13 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "成品產出",
         "en": "Finished-goods output",
     },
+    "activity.third_party_transport": {
+        "zh-TW": "第三方運輸",
+        "en": "Third-party transport",
+    },
+    "activity.scrap_output": {"zh-TW": "廢料產出", "en": "Scrap output"},
+    "activity.other": {"zh-TW": "其他", "en": "Other"},
+    "activity.unknown": {"zh-TW": "未知", "en": "Unknown"},
     # GHG / CBAM roles
     "ghg.scope_1": {"zh-TW": "Scope 1", "en": "Scope 1"},
     "ghg.scope_2": {"zh-TW": "Scope 2", "en": "Scope 2"},
@@ -766,6 +774,201 @@ MESSAGES: dict[str, dict[str, str]] = {
     "act.status_strip": {
         "zh-TW": "目前狀態",
         "en": "Current status",
+    },
+    # Phase 9A Data Intake
+    "intake.title": {"zh-TW": "匯入公司資料", "en": "Import company data"},
+    "intake.subtitle": {
+        "zh-TW": "上傳 CSV 或 Excel，確認欄位後再進行碳資料分析。",
+        "en": (
+            "Upload a CSV or Excel file, confirm columns, "
+            "then prepare data for carbon analysis."
+        ),
+    },
+    "intake.intro": {
+        "zh-TW": (
+            "第一次使用？\n\n"
+            "你只需要準備一份表格，每一列代表一筆活動資料，例如：\n"
+            "- 外購電力\n"
+            "- 天然氣\n"
+            "- 柴油\n"
+            "- 採購鋼材\n"
+            "- 生產數量"
+        ),
+        "en": (
+            "First time here?\n\n"
+            "Prepare one table where each row is an activity, for example:\n"
+            "- Purchased electricity\n"
+            "- Natural gas\n"
+            "- Diesel\n"
+            "- Purchased steel\n"
+            "- Production quantity"
+        ),
+    },
+    "intake.step1": {"zh-TW": "01 上傳檔案", "en": "01 Upload file"},
+    "intake.step2": {"zh-TW": "02 對應欄位", "en": "02 Map columns"},
+    "intake.step3": {"zh-TW": "03 確認資料", "en": "03 Confirm data"},
+    "intake.step4": {"zh-TW": "04 檢查結果", "en": "04 Validation result"},
+    "intake.upload_label": {
+        "zh-TW": "選擇公司資料檔案",
+        "en": "Choose a company data file",
+    },
+    "intake.upload_help": {
+        "zh-TW": "目前支援 CSV 與 XLSX。PDF 帳單與掃描文件將在後續版本支援。",
+        "en": (
+            "CSV and XLSX are supported now. "
+            "PDF invoices and scanned documents come later."
+        ),
+    },
+    "intake.template_button": {
+        "zh-TW": "下載空白範本 (.csv)",
+        "en": "Download blank template (.csv)",
+    },
+    "intake.example_button": {
+        "zh-TW": "下載範例檔 (.csv)",
+        "en": "Download example file (.csv)",
+    },
+    "intake.example_label": {
+        "zh-TW": "範例資料，不會自動匯入",
+        "en": "Example data only; it is not imported automatically.",
+    },
+    "intake.col_help_activity_type": {
+        "zh-TW": "activity_type：活動類型，例如外購電力、天然氣、柴油、採購鋼材",
+        "en": (
+            "activity_type: activity type, e.g. purchased electricity, "
+            "natural gas, diesel, purchased steel"
+        ),
+    },
+    "intake.col_help_activity_value": {
+        "zh-TW": "activity_value：實際數量或用量",
+        "en": "activity_value: the actual quantity or usage amount",
+    },
+    "intake.col_help_unit": {
+        "zh-TW": "unit：單位，例如 kWh、m3、L、t",
+        "en": "unit: unit of measure, e.g. kWh, m3, L, t",
+    },
+    "intake.col_help_start": {
+        "zh-TW": "activity_start_date：資料期間開始日",
+        "en": "activity_start_date: reporting period start date",
+    },
+    "intake.col_help_end": {
+        "zh-TW": "activity_end_date：資料期間結束日",
+        "en": "activity_end_date: reporting period end date",
+    },
+    "intake.preview_title": {"zh-TW": "檔案預覽", "en": "File preview"},
+    "intake.file_name": {"zh-TW": "檔名", "en": "File name"},
+    "intake.file_type": {"zh-TW": "檔案類型", "en": "File type"},
+    "intake.row_count": {"zh-TW": "列數", "en": "Rows"},
+    "intake.col_count": {"zh-TW": "欄數", "en": "Columns"},
+    "intake.sheet_label": {"zh-TW": "選擇工作表", "en": "Choose worksheet"},
+    "intake.sheet_name": {"zh-TW": "工作表", "en": "Worksheet"},
+    "intake.err_too_large": {
+        "zh-TW": "檔案太大。\n目前單一檔案上限為 10 MB。",
+        "en": "The file is too large.\nThe current limit is 10 MB per file.",
+    },
+    "intake.err_encoding": {
+        "zh-TW": "請將 CSV 另存為 UTF-8 編碼後再上傳。",
+        "en": "Please re-save the CSV as UTF-8 and upload again.",
+    },
+    "intake.err_unsupported": {
+        "zh-TW": "目前僅支援 CSV 與 XLSX 檔案。",
+        "en": "Only CSV and XLSX files are supported right now.",
+    },
+    "intake.map_activity_type": {
+        "zh-TW": "活動類型欄位",
+        "en": "Activity type column",
+    },
+    "intake.map_activity_value": {
+        "zh-TW": "活動數量欄位",
+        "en": "Activity amount column",
+    },
+    "intake.map_unit": {"zh-TW": "單位欄位", "en": "Unit column"},
+    "intake.dates_in_file": {
+        "zh-TW": "日期在檔案欄位中",
+        "en": "Dates are in file columns",
+    },
+    "intake.dates_period": {
+        "zh-TW": "使用同一資料期間",
+        "en": "Use one reporting period",
+    },
+    "intake.map_start": {"zh-TW": "開始日期欄位", "en": "Start date column"},
+    "intake.map_end": {"zh-TW": "結束日期欄位", "en": "End date column"},
+    "intake.period_start": {"zh-TW": "開始日期", "en": "Start date"},
+    "intake.period_end": {"zh-TW": "結束日期", "en": "End date"},
+    "intake.value_map_activity": {
+        "zh-TW": "活動類型對應",
+        "en": "Activity type mapping",
+    },
+    "intake.value_map_unit": {"zh-TW": "單位對應", "en": "Unit mapping"},
+    "intake.choose": {"zh-TW": "請選擇", "en": "Please choose"},
+    "intake.source_name": {"zh-TW": "資料來源名稱", "en": "Source name"},
+    "intake.site_id": {"zh-TW": "場址 ID", "en": "Site ID"},
+    "intake.document_date": {"zh-TW": "文件日期", "en": "Document date"},
+    "intake.data_quality": {"zh-TW": "資料品質", "en": "Data quality"},
+    "intake.quality.primary": {
+        "zh-TW": "公司原始紀錄",
+        "en": "Primary company record",
+    },
+    "intake.quality.secondary": {"zh-TW": "二級資料", "en": "Secondary data"},
+    "intake.quality.estimated": {"zh-TW": "估算資料", "en": "Estimated data"},
+    "intake.quality.unknown": {"zh-TW": "不確定", "en": "Unknown"},
+    "intake.confirm_title": {
+        "zh-TW": "確認匯入資料",
+        "en": "Confirm imported data",
+    },
+    "intake.advanced": {"zh-TW": "進階欄位", "en": "Advanced fields"},
+    "intake.col.activity": {"zh-TW": "活動", "en": "Activity"},
+    "intake.col.amount": {"zh-TW": "數量", "en": "Amount"},
+    "intake.col.unit": {"zh-TW": "單位", "en": "Unit"},
+    "intake.col.start": {"zh-TW": "開始日期", "en": "Start date"},
+    "intake.col.end": {"zh-TW": "結束日期", "en": "End date"},
+    "intake.col.quality": {"zh-TW": "資料品質", "en": "Data quality"},
+    "intake.col.review": {
+        "zh-TW": "需要人工確認",
+        "en": "Needs human review",
+    },
+    "intake.result_accepted": {"zh-TW": "可接受", "en": "Accepted"},
+    "intake.result_rejected": {"zh-TW": "需要修正", "en": "Needs correction"},
+    "intake.result_total": {"zh-TW": "總筆數", "en": "Total rows"},
+    "intake.success": {
+        "zh-TW": "資料格式檢查完成。",
+        "en": "Data-format checks completed.",
+    },
+    "intake.partial": {
+        "zh-TW": "有部分資料需要修正。",
+        "en": "Some rows need correction.",
+    },
+    "intake.rejected_title": {
+        "zh-TW": "需要修正的資料",
+        "en": "Rows that need correction",
+    },
+    "intake.rej.row": {"zh-TW": "原始列", "en": "Source row"},
+    "intake.rej.field": {"zh-TW": "欄位", "en": "Field"},
+    "intake.rej.issue": {"zh-TW": "問題", "en": "Issue"},
+    "intake.rej.value": {"zh-TW": "目前值", "en": "Current value"},
+    "intake.next_phase": {
+        "zh-TW": (
+            "資料格式已準備完成。\n"
+            "下一階段會將通過驗證的資料接入排放計算與準則分析。"
+        ),
+        "en": (
+            "Data format is ready.\n"
+            "A later phase will connect accepted rows to emissions "
+            "calculation and framework analysis."
+        ),
+    },
+    "intake.demo_notice": {
+        "zh-TW": "目前匯入資料尚未取代示範分析結果。",
+        "en": (
+            "Uploaded data does not replace the demo analysis results yet."
+        ),
+    },
+    "intake.run_validation": {
+        "zh-TW": "執行格式檢查",
+        "en": "Run format checks",
+    },
+    "intake.continue_mapping": {
+        "zh-TW": "繼續對應欄位",
+        "en": "Continue to column mapping",
     },
     "fw.purpose_ghg": {
         "zh-TW": "把公司活動分類到 Scope 1、2、3 或不適用。",

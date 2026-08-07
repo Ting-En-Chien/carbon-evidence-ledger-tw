@@ -1,7 +1,7 @@
 """Carbon Evidence Ledger — bilingual professional Streamlit application.
 
-Phase 8D presents a clean SaaS application dashboard shell.
-Accounting logic stays in the tested pipeline.
+Phase 9A adds structured CSV/XLSX company-data intake.
+Demo pipeline accounting logic stays unchanged until Phase 9B.
 """
 
 from __future__ import annotations
@@ -59,6 +59,11 @@ dashboard_page = st.Page(
     icon=":material/dashboard:",
     default=True,
 )
+intake_page = st.Page(
+    "app_pages/data_intake.py",
+    title=t("nav.intake", lang),
+    icon=":material/upload_file:",
+)
 activity_page = st.Page(
     "app_pages/activity_explorer.py",
     title=t("nav.activity", lang),
@@ -81,7 +86,14 @@ audit_page = st.Page(
 )
 
 navigation = st.navigation(
-    [dashboard_page, activity_page, issues_page, frameworks_page, audit_page],
+    [
+        dashboard_page,
+        intake_page,
+        activity_page,
+        issues_page,
+        frameworks_page,
+        audit_page,
+    ],
     position="sidebar",
 )
 

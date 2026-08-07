@@ -387,6 +387,7 @@ def test_no_page_produces_uncaught_streamlit_exception() -> None:
     at = _run_app()
     pages = [
         "app_pages/dashboard.py",
+        "app_pages/data_intake.py",
         "app_pages/activity_explorer.py",
         "app_pages/issues_actions.py",
         "app_pages/frameworks.py",

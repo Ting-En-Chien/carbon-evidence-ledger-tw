@@ -33,6 +33,17 @@ STATE_ERROR = "ui_error"
 STATE_FOCUS_RECORD = "focus_record_id"
 STATE_RUN_ANALYSIS_REQUEST = "run_analysis_request"
 
+# Phase 9A structured intake (session-only; never written to disk)
+STATE_INTAKE_FILE_HASH = "uploaded_file_hash"
+STATE_INTAKE_FILE_NAME = "uploaded_file_name"
+STATE_INTAKE_TABLE = "uploaded_table"
+STATE_INTAKE_BYTES = "uploaded_file_bytes"
+STATE_INTAKE_SHEET = "intake_selected_sheet"
+STATE_INTAKE_MAPPING = "intake_mapping"
+STATE_INTAKE_METADATA = "intake_metadata"
+STATE_INTAKE_RESULT = "validated_intake_result"
+STATE_INTAKE_STEP = "intake_wizard_step"
+
 
 def _default_adapter_flags() -> dict[str, bool]:
     return {
@@ -75,6 +86,8 @@ def initialize_ui_state(session_state: Any, *, force: bool = False) -> None:
         session_state[STATE_FOCUS_RECORD] = None
     if STATE_RUN_ANALYSIS_REQUEST not in session_state:
         session_state[STATE_RUN_ANALYSIS_REQUEST] = False
+    if STATE_INTAKE_STEP not in session_state:
+        session_state[STATE_INTAKE_STEP] = 1
     if STATE_TUTORIAL_OPEN_COUNT not in session_state:
         session_state[STATE_TUTORIAL_OPEN_COUNT] = 0
     ensure_tutorial_state(session_state)
@@ -181,3 +194,25 @@ def get_focus_record(session_state: Any) -> str | None:
 def request_run_analysis(session_state: Any) -> None:
     """Ask the shell to run analysis on the next sidebar pass."""
     session_state[STATE_RUN_ANALYSIS_REQUEST] = True
+
+
+def clear_intake_state(session_state: Any) -> None:
+    """Clear Phase 9A intake session values without touching demo results."""
+    for key in (
+        STATE_INTAKE_FILE_HASH,
+        STATE_INTAKE_FILE_NAME,
+        STATE_INTAKE_TABLE,
+        STATE_INTAKE_BYTES,
+        STATE_INTAKE_SHEET,
+        STATE_INTAKE_MAPPING,
+        STATE_INTAKE_METADATA,
+        STATE_INTAKE_RESULT,
+        STATE_INTAKE_STEP,
+    ):
+        if key in session_state:
+            del session_state[key]
+
+
+def get_intake_result(session_state: Any) -> Any | None:
+    """Return the validated intake result stored in session, if any."""
+    return session_state.get(STATE_INTAKE_RESULT)
