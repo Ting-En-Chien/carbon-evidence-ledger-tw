@@ -13,6 +13,7 @@ dependencies = [
     "pandas",
     "duckdb",
     "pandera",
+    "streamlit>=1.60,<2",
 ]
 
 [project.optional-dependencies]

@@ -53,11 +53,13 @@ This repository currently includes:
 - optional IFRS S2 climate-data readiness mapping
 - framework-neutral core QA exception register
 - reproducible end-to-end pipeline runner and export bundle
+- professional Streamlit web demonstration on the same tested pipeline
 
 ## Technology stack
 
 - Python 3.11+ (local development may use Python 3.13)
 - pandas, DuckDB, Pandera
+- Streamlit
 - pytest, Ruff
 - Git and GitHub Actions
 
@@ -83,6 +85,36 @@ Copy the environment example if you need a local `.env` later:
 ```bash
 cp .env.example .env
 ```
+
+## Professional web demo
+
+Launch the Streamlit application from the repository root:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+The UI uses the same tested pipeline and does not implement separate accounting
+logic. The interface now includes:
+
+- Traditional Chinese / English localization (Traditional Chinese default)
+- first-time tutorial and glossary
+- beginner-first explanations with progressive technical disclosure
+- Phase 8D clean SaaS dashboard shell (sidebar navigation + compact overview)
+- Phase 8E meaningful Vega-Lite status / classification charts from live results
+
+Visitors land on a populated synthetic demonstration with five product areas:
+
+- **總覽 / Dashboard** — KPI cards, calculation-status charts, calculable
+  emissions panel with contribution bars, attention cards, and activity overview
+- **活動資料 / Activity Data** — record drill-down from evidence to
+  calculation and framework use
+- **待處理問題 / Issues & Actions** — operational core QA task list
+- **準則分析 / Frameworks** — separate GHG Protocol, EU CBAM, and IFRS S2 views
+- **稽核與匯出 / Audit & Export** — download-first audit bundle and issue CSV
+
+Keep all existing disclaimers: this remains a synthetic demonstration, not
+production compliance software.
 
 ## Quick Demo
 
