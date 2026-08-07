@@ -38,20 +38,21 @@ Three frameworks stay separate and answer different questions:
 - **IFRS S2** — climate-metrics and value-chain **data readiness** signals
   (not a compliance score or assurance opinion)
 
-## Current status (Phase 0)
+## Current prototype capabilities
 
-Phase 0 contains **only the software scaffold**:
+This repository currently includes:
 
-- Python package layout (`src/carbon_ledger`)
-- project metadata and dependencies
-- a minimal CLI (`--version`)
-- smoke tests
-- Ruff and pytest configuration
-- GitHub Actions CI
-- placeholder directories for future data, SQL, config, and docs
-
-No carbon calculations, emission factors, regulatory rules, or synthetic
-activity records have been added yet.
+- provenance-aware evidence ingestion
+- schema validation and safe unit normalization
+- official emission-factor and regulatory reference registry
+- engineering conversion registry
+- deterministic factor matching and calculation readiness
+- limited auditable emissions calculation
+- GHG Protocol mapping
+- optional EU CBAM data-role mapping
+- optional IFRS S2 climate-data readiness mapping
+- framework-neutral core QA exception register
+- reproducible end-to-end pipeline runner and export bundle
 
 ## Technology stack
 
@@ -83,7 +84,32 @@ Copy the environment example if you need a local `.env` later:
 cp .env.example .env
 ```
 
-## Verify the scaffold
+## Quick Demo
+
+Run the synthetic end-to-end demo with all optional adapters:
+
+```bash
+python -m carbon_ledger run-demo \
+  --run-id portfolio_demo \
+  --all-adapters
+```
+
+Outputs are written to:
+
+```text
+outputs/portfolio_demo/
+```
+
+That directory contains CSV result tables and `manifest.json`. Generated
+`outputs/` artifacts are ignored by Git.
+
+Core-only demo:
+
+```bash
+python -m carbon_ledger run-demo --run-id core_demo
+```
+
+## Verify
 
 ```bash
 make version
@@ -107,6 +133,16 @@ They are not presented as actual company operational data.
 No real company is named in the public synthetic dataset. Every synthetic
 document will carry an explicit synthetic-data marker. Real source data from
 any future private pilot must stay out of Git.
+
+## Important current limits
+
+- Natural gas and diesel remain blocked until applicable verified heating
+  values exist
+- Purchased steel still has no configured calculation factor
+- CN 7318 is a demonstration assumption, not a formal customs determination
+- CBAM is an optional downstream adapter
+- IFRS S2 evaluation is readiness only, not a compliance assessment
+- This prototype is not production-ready
 
 ## Limitations and disclaimer
 
