@@ -154,13 +154,25 @@ def _build_from_rows(
     readiness: list[dict[str, object]] | None = None,
     calculations: list[dict[str, object]] | None = None,
 ) -> pd.DataFrame:
+    """Build QA issues from optional row lists.
+
+    ``None`` means use the default single successful row for that table.
+    An explicit empty list means an empty DataFrame for that table.
+    """
     rules = load_qa_rules(CONFIG_DIR)
+    activity_rows = (
+        [_activity_row()] if activities is None else activities
+    )
+    rejection_rows = [] if rejections is None else rejections
+    normalized_rows = [_norm_row()] if normalized is None else normalized
+    readiness_rows = [_ready_row()] if readiness is None else readiness
+    calculation_rows = [_calc_row()] if calculations is None else calculations
     return build_core_qa_issues(
-        pd.DataFrame(activities or [_activity_row()]),
-        pd.DataFrame(rejections or []),
-        pd.DataFrame(normalized or [_norm_row()]),
-        pd.DataFrame(readiness or [_ready_row()]),
-        pd.DataFrame(calculations or [_calc_row()]),
+        pd.DataFrame(activity_rows),
+        pd.DataFrame(rejection_rows),
+        pd.DataFrame(normalized_rows),
+        pd.DataFrame(readiness_rows),
+        pd.DataFrame(calculation_rows),
         rules,
     )
 

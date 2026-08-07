@@ -139,6 +139,28 @@ def _frame_usable(frame: pd.DataFrame, required_columns: tuple[str, ...]) -> boo
     return all(column in frame.columns for column in required_columns)
 
 
+def _stage_frame_usable(frame: pd.DataFrame) -> bool:
+    """A stage frame is usable only when it has rows and a record_id column."""
+    return not frame.empty and _has_column(frame, "record_id")
+
+
+def _missing_stage_reason(stage_label: str) -> str:
+    if stage_label == "normalization":
+        return (
+            "Normalization result is missing because normalized_records is "
+            "empty or does not include a usable record_id column."
+        )
+    if stage_label == "readiness":
+        return (
+            "Activity-readiness result is missing because activity_readiness "
+            "is empty or does not include a usable record_id column."
+        )
+    return (
+        "Calculation result is missing because calculation_results is empty "
+        "or does not include a usable record_id column."
+    )
+
+
 def _issue_from_rule(
     *,
     issue_id: str,
@@ -348,7 +370,7 @@ def _evaluate_activity(
     source_document_id = _text(activity.get("source_document_id"))
     issues: list[dict[str, Any]] = []
 
-    # Schema-level problems for required source frames.
+    # Empty or schemaless required stage frames are consistency failures.
     for flag_name, stage_label in (
         ("normalized_ok", "normalization"),
         ("readiness_ok", "readiness"),
@@ -359,10 +381,7 @@ def _evaluate_activity(
                 _pipeline_consistency_issue(
                     record_id=record_id,
                     source_document_id=source_document_id,
-                    reason=(
-                        f"Required {stage_label} result frame is empty or "
-                        "missing a record_id column."
-                    ),
+                    reason=_missing_stage_reason(stage_label),
                     rules_by_id=rules_by_id,
                     issue_id_suffix=f"missing_{stage_label}_frame",
                 )
@@ -645,13 +664,13 @@ def build_core_qa_issues(
     issues.extend(_build_ingestion_issues(rejections, rules_by_id))
 
     schema_flags = {
-        "normalized_ok": _has_column(normalized, "record_id"),
-        "readiness_ok": _has_column(readiness, "record_id"),
-        "calculation_ok": _has_column(calculations, "record_id"),
+        "normalized_ok": _stage_frame_usable(normalized),
+        "readiness_ok": _stage_frame_usable(readiness),
+        "calculation_ok": _stage_frame_usable(calculations),
     }
 
-    # Empty frames with the column present are usable (zero matches → missing).
-    # Missing record_id column is not usable.
+    # Empty frames and frames without record_id are treated as unusable stage
+    # inputs and produce one critical consistency issue per accepted activity.
     activity_ids: set[str] = set()
     if _has_column(activities, "record_id"):
         for value in activities["record_id"].tolist():
