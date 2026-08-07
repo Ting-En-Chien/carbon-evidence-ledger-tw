@@ -413,7 +413,8 @@ def render_calculation_status_donut(
     """Dashboard donut: calculation-status counts."""
     frame = calculation_status_distribution(result, lang)
     st.markdown(f"**{t('chart.calc_status.title', lang)}**")
-    st.caption(t("chart.calc_status.help", lang, n=int(frame["count"].sum()) if not frame.empty else 0))
+    activity_count = int(frame["count"].sum()) if not frame.empty else 0
+    st.caption(t("chart.calc_status.help", lang, n=activity_count))
     if frame.empty:
         return frame
     # Vega-Lite color from column requires domain/range lists for reliability.

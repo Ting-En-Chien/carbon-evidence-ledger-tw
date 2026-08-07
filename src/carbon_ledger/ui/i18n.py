@@ -693,7 +693,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "chart.calc_status.help": {
         "zh-TW": "顯示目前 {n} 筆活動資料中，哪些已能計算、哪些仍缺資料。",
-        "en": "Shows which of the {n} activities can be calculated and which still have gaps.",
+        "en": (
+            "Shows which of the {n} activities can be calculated "
+            "and which still have gaps."
+        ),
     },
     "chart.activity_status.title": {
         "zh-TW": "各活動目前狀態",
@@ -705,7 +708,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "chart.emissions_contrib.help": {
         "zh-TW": "目前已計算排放量的來源活動（缺少資料的活動不會以 0 呈現）。",
-        "en": "Activities contributing to currently calculated emissions (gaps are not shown as zero).",
+        "en": (
+            "Activities contributing to currently calculated emissions "
+            "(gaps are not shown as zero)."
+        ),
     },
     "chart.emissions_contrib.empty": {
         "zh-TW": "目前尚無已完成計算的活動排放量。",
@@ -717,7 +723,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "chart.ghg_scope.help": {
         "zh-TW": "此圖顯示活動分類筆數，不代表各 Scope 的排放量占比。",
-        "en": "This chart shows activity classification counts, not emissions share by Scope.",
+        "en": (
+            "This chart shows activity classification counts, "
+            "not emissions share by Scope."
+        ),
     },
     "chart.cbam_roles.title": {
         "zh-TW": "CBAM 資料角色筆數",
@@ -733,7 +742,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "chart.ifrs_ready.help": {
         "zh-TW": "依目前評估結果統計準備狀態筆數，不是合規分數。",
-        "en": "Counts of readiness statuses from the current evaluation — not a compliance score.",
+        "en": (
+            "Counts of readiness statuses from the current evaluation "
+            "— not a compliance score."
+        ),
     },
     "chart.issue_gaps.title": {
         "zh-TW": "缺少資料類型",

@@ -527,15 +527,18 @@ def render_global_header(lang: str) -> None:
         vertical_alignment="center",
     )
     with brand:
+        toolbar_style = (
+            "border:none;margin:0;padding:0;min-height:48px;"
+        )
         st.markdown(
-            f"""
-            <div class="cel-toolbar" style="border:none;margin:0;padding:0;min-height:48px;">
-              <div class="cel-brand-row">
-                <div class="cel-mark" aria-hidden="true"></div>
-                <p class="cel-brand-name">{t("brand.name", lang)}</p>
-              </div>
-            </div>
-            """,
+            (
+                f'<div class="cel-toolbar" style="{toolbar_style}">'
+                '<div class="cel-brand-row">'
+                '<div class="cel-mark" aria-hidden="true"></div>'
+                f'<p class="cel-brand-name">{t("brand.name", lang)}</p>'
+                "</div>"
+                "</div>"
+            ),
             unsafe_allow_html=True,
         )
     with utilities:

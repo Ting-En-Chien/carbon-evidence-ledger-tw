@@ -163,7 +163,12 @@ with strip[4]:
     qa_label = str(overview_row.get("qa_label", "—"))
     qa_kind = (
         "warning"
-        if ("高" in qa_label or "High" in qa_label or "Critical" in qa_label or "重大" in qa_label)
+        if (
+            "高" in qa_label
+            or "High" in qa_label
+            or "Critical" in qa_label
+            or "重大" in qa_label
+        )
         else "success"
     )
     render_status_badge(qa_label, kind=qa_kind)
