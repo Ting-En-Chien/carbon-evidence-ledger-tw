@@ -3,23 +3,34 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 import pandas as pd
 import streamlit as st
 
 from carbon_ledger.domain import ACTIVITY_TYPES, SUPPORTED_UNITS
 from carbon_ledger.intake import (
+    CONFIDENCE_HIGH,
+    CONFIDENCE_LOW,
+    CONFIDENCE_MEDIUM,
     ColumnMapping,
+    FieldSuggestion,
     IntakeError,
     IntakeMetadata,
     blank_template_csv_bytes,
     build_and_validate_intake,
     default_value_maps,
+    detect_header_row,
     example_csv_bytes,
     example_preview_rows,
     list_xlsx_sheet_names,
+    load_raw_tabular_frame,
     parse_uploaded_table,
-    suggest_column_mapping,
+    rank_xlsx_worksheets,
+    reference_only_columns,
+    suggest_column_mapping_with_confidence,
+    worksheet_detection_labels,
+    year_month_transform_preview,
 )
 from carbon_ledger.ui.components import (
     inject_design_system,
@@ -32,12 +43,17 @@ from carbon_ledger.ui.state import (
     STATE_INTAKE_BYTES,
     STATE_INTAKE_FILE_HASH,
     STATE_INTAKE_FILE_NAME,
+    STATE_INTAKE_HEADER_CONFIRMED,
+    STATE_INTAKE_HEADER_ROW,
     STATE_INTAKE_MAPPING,
     STATE_INTAKE_METADATA,
     STATE_INTAKE_RESULT,
     STATE_INTAKE_SHEET,
+    STATE_INTAKE_SHEET_CONFIRMED,
+    STATE_INTAKE_SHOW_MAPPING_EDITOR,
     STATE_INTAKE_STEP,
     STATE_INTAKE_TABLE,
+    STATE_INTAKE_YEAR_MONTH_CONFIRMED,
     clear_intake_state,
     get_language,
 )
@@ -61,6 +77,16 @@ ACTIVITY_LABEL_TO_CODE = {
 }
 
 UNIT_OPTIONS = [t("intake.choose", lang)] + list(SUPPORTED_UNITS)
+
+INTERPRET_FIELD_ORDER = (
+    "activity_type",
+    "activity_value",
+    "unit",
+    "site_id",
+    "year_month",
+    "activity_start_date",
+    "activity_end_date",
+)
 
 
 def _step_indicator(active: int) -> None:
@@ -88,6 +114,182 @@ def _activity_select_label(code: str) -> str:
     if not code:
         return t("intake.choose", lang)
     return f"{t(f'activity.{code}', lang)} / {code}"
+
+
+def _confidence_caption(confidence: str) -> str:
+    if confidence == CONFIDENCE_HIGH:
+        return t("intake.confidence_high", lang)
+    if confidence == CONFIDENCE_MEDIUM:
+        return t("intake.confidence_medium", lang)
+    return t("intake.confidence_low", lang)
+
+
+def _column_index(options: list[str], preferred: str, *, allow_preselect: bool) -> int:
+    if allow_preselect and preferred and preferred in options:
+        return options.index(preferred)
+    return 0
+
+
+def _action_button(
+    label: str,
+    help_text: str,
+    *,
+    key: str,
+    primary: bool = False,
+) -> bool:
+    st.caption(help_text)
+    return st.button(
+        label,
+        type="primary" if primary else "secondary",
+        key=key,
+    )
+
+
+def _suggestion(
+    detailed: dict[str, FieldSuggestion],
+    field_name: str,
+) -> FieldSuggestion:
+    return detailed.get(
+        field_name,
+        FieldSuggestion(field_name, "", CONFIDENCE_LOW),
+    )
+
+
+def _usable_suggestion(suggestion: FieldSuggestion) -> bool:
+    return bool(suggestion.source_column) and suggestion.confidence in {
+        CONFIDENCE_HIGH,
+        CONFIDENCE_MEDIUM,
+    }
+
+
+def _required_suggestions_ready(detailed: dict[str, FieldSuggestion]) -> bool:
+    return all(
+        _usable_suggestion(_suggestion(detailed, field_name))
+        for field_name in ("activity_type", "activity_value", "unit")
+    )
+
+
+def _sample_year_month_value(table: Any, column: str) -> Any | None:
+    if not column or column not in table.frame.columns:
+        return None
+    for item in table.frame[column].tolist():
+        if item is not None and str(item).strip():
+            return item
+    return None
+
+
+def _default_date_mode(detailed: dict[str, FieldSuggestion]) -> str:
+    ym = _suggestion(detailed, "year_month")
+    start = _suggestion(detailed, "activity_start_date")
+    end = _suggestion(detailed, "activity_end_date")
+    if (
+        _usable_suggestion(ym)
+        and not (
+            _usable_suggestion(start)
+            and _usable_suggestion(end)
+        )
+    ):
+        return "year_month"
+    if _usable_suggestion(start) and _usable_suggestion(end):
+        return "file"
+    return "period"
+
+
+def _render_natural_interpretation(
+    table: Any,
+    detailed: dict[str, FieldSuggestion],
+) -> None:
+    st.markdown(f"### {t('intake.interpret.title', lang)}")
+    st.markdown(t("intake.interpret.intro", lang))
+    for field_name in INTERPRET_FIELD_ORDER:
+        suggestion = _suggestion(detailed, field_name)
+        if not _usable_suggestion(suggestion):
+            continue
+        column = suggestion.source_column
+        st.markdown(f"• 「{column}」")
+        if field_name == "year_month":
+            sample = _sample_year_month_value(table, column)
+            example = str(sample).strip() if sample is not None else "2025-01"
+            start_text = "2025-01-01"
+            end_text = "2025-01-31"
+            if sample is not None:
+                try:
+                    preview = year_month_transform_preview(sample)
+                    example = preview["source"]
+                    start_text = preview["activity_start_date"]
+                    end_text = preview["activity_end_date"]
+                except ValueError:
+                    pass
+            body = t(
+                "intake.interpret.year_month",
+                lang,
+                example=example,
+                start=start_text,
+                end=end_text,
+            )
+            st.markdown(body.replace("\n", "  \n"))
+        else:
+            key = {
+                "activity_type": "intake.interpret.activity_type",
+                "activity_value": "intake.interpret.activity_value",
+                "unit": "intake.interpret.unit",
+                "site_id": "intake.interpret.site_id",
+                "activity_start_date": "intake.interpret.start",
+                "activity_end_date": "intake.interpret.end",
+            }.get(field_name)
+            if key:
+                st.markdown(t(key, lang))
+
+
+def _mapping_from_suggestions(
+    table: Any,
+    detailed: dict[str, FieldSuggestion],
+) -> ColumnMapping:
+    date_mode = _default_date_mode(detailed)
+    activity_type_column = _suggestion(detailed, "activity_type").source_column
+    activity_value_column = _suggestion(detailed, "activity_value").source_column
+    unit_column = _suggestion(detailed, "unit").source_column
+    site_column = _suggestion(detailed, "site_id").source_column
+    year_month_column = _suggestion(detailed, "year_month").source_column
+    start_date_column = _suggestion(detailed, "activity_start_date").source_column
+    end_date_column = _suggestion(detailed, "activity_end_date").source_column
+
+    use_year_month = date_mode == "year_month"
+    use_file_dates = date_mode == "file"
+    period_start = date(2024, 1, 1) if date_mode == "period" else None
+    period_end = date(2024, 1, 31) if date_mode == "period" else None
+
+    draft = ColumnMapping(
+        activity_type_column=activity_type_column,
+        activity_value_column=activity_value_column,
+        unit_column=unit_column,
+        site_column=site_column if _usable_suggestion(
+            _suggestion(detailed, "site_id")
+        ) else "",
+        use_file_dates=use_file_dates,
+        use_year_month=use_year_month,
+        year_month_column=year_month_column if use_year_month else "",
+        year_month_confirmed=use_year_month,
+        start_date_column=start_date_column if use_file_dates else "",
+        end_date_column=end_date_column if use_file_dates else "",
+        period_start=period_start,
+        period_end=period_end,
+    )
+    activity_map, unit_map = default_value_maps(table, draft)
+    draft.activity_type_value_map = activity_map
+    draft.unit_value_map = unit_map
+    return draft
+
+
+def _default_metadata(table: Any) -> IntakeMetadata:
+    return IntakeMetadata(
+        source_name=table.file_name,
+        site_id="site_main",
+        document_date=date(2024, 1, 31),
+        data_quality_tier="unknown",
+        intake_run_id="ui_intake",
+        ingested_at=pd.Timestamp.now(tz="UTC"),
+    )
 
 
 render_page_header(t("intake.title", lang), t("intake.subtitle", lang))
@@ -125,11 +327,12 @@ with dl_cols[1]:
     )
 
 st.caption(t("intake.example_label", lang))
-st.caption(t("intake.col_help_activity_type", lang))
-st.caption(t("intake.col_help_activity_value", lang))
-st.caption(t("intake.col_help_unit", lang))
-st.caption(t("intake.col_help_start", lang))
-st.caption(t("intake.col_help_end", lang))
+with st.expander(t("intake.advanced_canonical", lang)):
+    st.caption(t("intake.col_help_activity_type", lang))
+    st.caption(t("intake.col_help_activity_value", lang))
+    st.caption(t("intake.col_help_unit", lang))
+    st.caption(t("intake.col_help_start", lang))
+    st.caption(t("intake.col_help_end", lang))
 st.dataframe(example_preview_rows(), hide_index=True, width="stretch")
 
 if uploaded is not None:
@@ -158,30 +361,146 @@ if uploaded is not None:
     st.session_state[STATE_INTAKE_FILE_NAME] = file_name
 
     sheet_name = st.session_state.get(STATE_INTAKE_SHEET)
+    sheet_confirmed = bool(st.session_state.get(STATE_INTAKE_SHEET_CONFIRMED))
     extension = file_name.lower().rsplit(".", 1)[-1]
     if extension == "xlsx":
         try:
             sheets = list_xlsx_sheet_names(file_bytes)
+            ranked = rank_xlsx_worksheets(file_bytes)
         except Exception:
             st.error(t("intake.err_unsupported", lang))
             st.stop()
-        if not sheets:
+        if not sheets or not ranked:
             st.error(t("intake.err_unsupported", lang))
             st.stop()
-        default_index = sheets.index(sheet_name) if sheet_name in sheets else 0
-        sheet_name = st.selectbox(
-            t("intake.sheet_label", lang),
-            options=sheets,
-            index=default_index,
-            key="intake_sheet_selector",
-        )
-        st.session_state[STATE_INTAKE_SHEET] = sheet_name
+
+        suggested = ranked[0]
+        if len(sheets) > 1 and not sheet_confirmed:
+            st.markdown(f"**{t('intake.suggest_sheet_title', lang)}**")
+            st.markdown(f"### {suggested.sheet_name}")
+            st.markdown(t("intake.detect_result", lang))
+            for label in worksheet_detection_labels(suggested):
+                st.markdown(f"- {label}")
+            btn_cols = st.columns(2)
+            with btn_cols[0]:
+                if _action_button(
+                    t("intake.use_suggested_sheet", lang),
+                    t("intake.btn.use_sheet_help", lang),
+                    key="intake_use_suggested_sheet",
+                    primary=True,
+                ):
+                    st.session_state[STATE_INTAKE_SHEET] = suggested.sheet_name
+                    st.session_state[STATE_INTAKE_SHEET_CONFIRMED] = True
+                    st.rerun()
+            with btn_cols[1]:
+                if _action_button(
+                    t("intake.choose_other_sheet", lang),
+                    t("intake.btn.other_sheet_help", lang),
+                    key="intake_choose_other_sheet",
+                ):
+                    st.session_state["intake_sheet_picker_open"] = True
+            if st.session_state.get("intake_sheet_picker_open"):
+                default_index = (
+                    sheets.index(sheet_name) if sheet_name in sheets else 0
+                )
+                picked = st.selectbox(
+                    t("intake.sheet_label", lang),
+                    options=sheets,
+                    index=default_index,
+                    key="intake_sheet_selector",
+                )
+                if _action_button(
+                    t("intake.header_confirm", lang),
+                    t("intake.btn.header_help", lang),
+                    key="intake_confirm_sheet",
+                    primary=True,
+                ):
+                    st.session_state[STATE_INTAKE_SHEET] = picked
+                    st.session_state[STATE_INTAKE_SHEET_CONFIRMED] = True
+                    st.session_state["intake_sheet_picker_open"] = False
+                    st.rerun()
+            st.stop()
+
+        if not sheet_confirmed:
+            st.session_state[STATE_INTAKE_SHEET] = suggested.sheet_name
+            st.session_state[STATE_INTAKE_SHEET_CONFIRMED] = True
+            sheet_name = suggested.sheet_name
+        else:
+            sheet_name = (
+                st.session_state.get(STATE_INTAKE_SHEET) or suggested.sheet_name
+            )
+
+    header_row = st.session_state.get(STATE_INTAKE_HEADER_ROW)
+    header_confirmed = bool(st.session_state.get(STATE_INTAKE_HEADER_CONFIRMED))
+
+    if not header_confirmed:
+        try:
+            raw = load_raw_tabular_frame(
+                data=file_bytes,
+                file_extension=extension,
+                sheet_name=sheet_name,
+            )
+            detection = detect_header_row(raw)
+        except Exception:
+            st.error(t("intake.err_unsupported", lang))
+            st.stop()
+
+        if detection.needs_confirmation:
+            st.markdown(f"**{t('intake.header_ask', lang)}**")
+            options = list(detection.candidate_rows) or [
+                detection.header_row_index
+            ]
+            labels = {
+                idx: t("intake.header_row_label", lang, row=idx + 1)
+                for idx in options
+            }
+            selected_idx = st.radio(
+                t("intake.header_ask", lang),
+                options=options,
+                index=options.index(detection.header_row_index)
+                if detection.header_row_index in options
+                else 0,
+                format_func=lambda idx: labels.get(idx, str(idx + 1)),
+                key="intake_header_radio",
+            )
+            preview_rows = []
+            for idx in options[:5]:
+                if idx < len(raw):
+                    preview_rows.append(
+                        {
+                            t("intake.header_row_label", lang, row=idx + 1): " | ".join(
+                                str(v) if v is not None else ""
+                                for v in raw.iloc[idx].tolist()[:8]
+                            )
+                        }
+                    )
+            if preview_rows:
+                st.dataframe(
+                    pd.DataFrame(preview_rows),
+                    hide_index=True,
+                    width="stretch",
+                )
+            if _action_button(
+                t("intake.header_confirm", lang),
+                t("intake.btn.header_help", lang),
+                key="intake_confirm_header",
+                primary=True,
+            ):
+                st.session_state[STATE_INTAKE_HEADER_ROW] = int(selected_idx)
+                st.session_state[STATE_INTAKE_HEADER_CONFIRMED] = True
+                st.rerun()
+            st.stop()
+
+        st.session_state[STATE_INTAKE_HEADER_ROW] = detection.header_row_index
+        st.session_state[STATE_INTAKE_HEADER_CONFIRMED] = True
+        header_row = detection.header_row_index
 
     try:
         table = parse_uploaded_table(
             file_name=file_name,
             data=file_bytes,
             sheet_name=sheet_name,
+            header_row=int(header_row) if header_row is not None else None,
         )
     except IntakeError as exc:
         if exc.code == "INVALID_ENCODING":
@@ -209,10 +528,19 @@ if uploaded is not None:
         st.write(len(table.columns))
     if table.sheet_name:
         st.caption(f"{t('intake.sheet_name', lang)}: {table.sheet_name}")
+    st.caption(
+        t("intake.header_row_label", lang, row=table.header_row_index + 1)
+    )
     st.dataframe(table.frame.head(20), hide_index=True, width="stretch")
 
-    if st.button(t("intake.continue_mapping", lang), type="primary"):
+    if _action_button(
+        t("intake.continue_mapping", lang),
+        t("intake.btn.continue_help", lang),
+        key="intake_continue_to_interpret",
+        primary=True,
+    ):
         st.session_state[STATE_INTAKE_STEP] = 2
+        st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = False
         st.rerun()
 
 table = st.session_state.get(STATE_INTAKE_TABLE)
@@ -222,210 +550,360 @@ if table is None:
 if int(st.session_state.get(STATE_INTAKE_STEP, 1)) < 2:
     st.stop()
 
-st.write("")
-render_section_header(t("intake.step2", lang))
-suggestions = suggest_column_mapping(list(table.columns))
-column_options = [t("intake.choose", lang)] + list(table.columns)
-
-
-def _column_index(preferred: str) -> int:
-    if preferred and preferred in table.columns:
-        return column_options.index(preferred)
-    return 0
-
-
-map_cols = st.columns(3)
-with map_cols[0]:
-    activity_type_col = st.selectbox(
-        t("intake.map_activity_type", lang),
-        options=column_options,
-        index=_column_index(suggestions.get("activity_type", "")),
-        key="intake_map_activity_type",
-    )
-with map_cols[1]:
-    activity_value_col = st.selectbox(
-        t("intake.map_activity_value", lang),
-        options=column_options,
-        index=_column_index(suggestions.get("activity_value", "")),
-        key="intake_map_activity_value",
-    )
-with map_cols[2]:
-    unit_col = st.selectbox(
-        t("intake.map_unit", lang),
-        options=column_options,
-        index=_column_index(suggestions.get("unit", "")),
-        key="intake_map_unit",
-    )
-
-date_mode = st.radio(
-    label=t("intake.dates_in_file", lang) + " / " + t("intake.dates_period", lang),
-    options=["file", "period"],
-    format_func=lambda key: (
-        t("intake.dates_in_file", lang)
-        if key == "file"
-        else t("intake.dates_period", lang)
-    ),
-    horizontal=True,
-    key="intake_date_mode",
-)
-use_file_dates = date_mode == "file"
-
-start_col = ""
-end_col = ""
-period_start: date | None = None
-period_end: date | None = None
-if use_file_dates:
-    date_cols = st.columns(2)
-    with date_cols[0]:
-        start_col = st.selectbox(
-            t("intake.map_start", lang),
-            options=column_options,
-            index=_column_index(suggestions.get("activity_start_date", "")),
-            key="intake_map_start",
-        )
-    with date_cols[1]:
-        end_col = st.selectbox(
-            t("intake.map_end", lang),
-            options=column_options,
-            index=_column_index(suggestions.get("activity_end_date", "")),
-            key="intake_map_end",
-        )
-else:
-    period_cols = st.columns(2)
-    with period_cols[0]:
-        period_start = st.date_input(
-            t("intake.period_start", lang),
-            value=date(2024, 1, 1),
-            key="intake_period_start",
-        )
-    with period_cols[1]:
-        period_end = st.date_input(
-            t("intake.period_end", lang),
-            value=date(2024, 1, 31),
-            key="intake_period_end",
-        )
-
-choose_label = t("intake.choose", lang)
-activity_type_column = "" if activity_type_col == choose_label else activity_type_col
-activity_value_column = (
-    "" if activity_value_col == choose_label else activity_value_col
-)
-unit_column = "" if unit_col == choose_label else unit_col
-start_date_column = "" if start_col == choose_label else start_col
-end_date_column = "" if end_col == choose_label else end_col
-
-draft_mapping = ColumnMapping(
-    activity_type_column=activity_type_column,
-    activity_value_column=activity_value_column,
-    unit_column=unit_column,
-    use_file_dates=use_file_dates,
-    start_date_column=start_date_column,
-    end_date_column=end_date_column,
-    period_start=period_start,
-    period_end=period_end,
-)
-suggested_activity_map, suggested_unit_map = default_value_maps(table, draft_mapping)
-
-st.markdown(f"**{t('intake.value_map_activity', lang)}**")
-activity_type_value_map: dict[str, str] = {}
-if activity_type_column:
-    for source_value, suggestion in suggested_activity_map.items():
-        default_label = _activity_select_label(suggestion)
-        index = (
-            ACTIVITY_OPTIONS.index(default_label)
-            if default_label in ACTIVITY_OPTIONS
-            else 0
-        )
-        selected = st.selectbox(
-            source_value,
-            options=ACTIVITY_OPTIONS,
-            index=index,
-            key=f"intake_act_map_{source_value}",
-        )
-        activity_type_value_map[source_value] = ACTIVITY_LABEL_TO_CODE.get(
-            selected, ""
-        )
-
-st.markdown(f"**{t('intake.value_map_unit', lang)}**")
-unit_value_map: dict[str, str] = {}
-if unit_column:
-    for source_value, suggestion in suggested_unit_map.items():
-        default_unit = suggestion if suggestion in UNIT_OPTIONS else choose_label
-        index = UNIT_OPTIONS.index(default_unit)
-        selected_unit = st.selectbox(
-            source_value,
-            options=UNIT_OPTIONS,
-            index=index,
-            key=f"intake_unit_map_{source_value}",
-        )
-        unit_value_map[source_value] = (
-            "" if selected_unit == choose_label else selected_unit
-        )
-
-meta_cols = st.columns(2)
-with meta_cols[0]:
-    source_name = st.text_input(
-        t("intake.source_name", lang),
-        value=table.file_name,
-        key="intake_source_name",
-    )
-    site_id = st.text_input(
-        t("intake.site_id", lang),
-        value="site_main",
-        key="intake_site_id",
-    )
-with meta_cols[1]:
-    document_date = st.date_input(
-        t("intake.document_date", lang),
-        value=date(2024, 1, 31),
-        key="intake_document_date",
-    )
-    quality_label = st.selectbox(
-        t("intake.data_quality", lang),
-        options=[label for _, label in QUALITY_OPTIONS],
-        index=0,
-        key="intake_data_quality",
-    )
-
-mapping = ColumnMapping(
-    activity_type_column=activity_type_column,
-    activity_value_column=activity_value_column,
-    unit_column=unit_column,
-    use_file_dates=use_file_dates,
-    start_date_column=start_date_column,
-    end_date_column=end_date_column,
-    period_start=period_start if isinstance(period_start, date) else None,
-    period_end=period_end if isinstance(period_end, date) else None,
-    activity_type_value_map=activity_type_value_map,
-    unit_value_map=unit_value_map,
-)
-metadata = IntakeMetadata(
-    source_name=source_name.strip() or table.file_name,
-    site_id=site_id.strip() or "site_main",
-    document_date=document_date
-    if isinstance(document_date, date)
-    else date(2024, 1, 31),
-    data_quality_tier=QUALITY_LABEL_TO_CODE.get(quality_label, "unknown"),
-    intake_run_id="ui_intake",
-    ingested_at=pd.Timestamp.now(tz="UTC"),
-)
-st.session_state[STATE_INTAKE_MAPPING] = mapping
-st.session_state[STATE_INTAKE_METADATA] = metadata
-
-if st.button(t("intake.run_validation", lang), type="primary"):
-    try:
-        result = build_and_validate_intake(table, mapping, metadata)
-    except IntakeError as exc:
-        st.error(exc.message)
-        st.stop()
-    st.session_state[STATE_INTAKE_RESULT] = result
-    st.session_state[STATE_INTAKE_STEP] = 4
-    st.rerun()
-
 result = st.session_state.get(STATE_INTAKE_RESULT)
+detailed = suggest_column_mapping_with_confidence(list(table.columns))
+show_editor = bool(st.session_state.get(STATE_INTAKE_SHOW_MAPPING_EDITOR))
+
+# Confirmation / editor only while there is no validated result yet.
 if result is None:
+    st.write("")
+    render_section_header(t("intake.step2", lang))
+    st.info(t("intake.no_rename", lang))
+    _render_natural_interpretation(table, detailed)
+
+    ref_cols = reference_only_columns(list(table.columns))
+    if ref_cols:
+        st.caption(t("intake.reference_only_note", lang))
+
+    ready = _required_suggestions_ready(detailed)
+    if not show_editor:
+        st.markdown(f"**{t('intake.interpret.ask', lang)}**")
+        if not ready:
+            st.warning(t("intake.interpret.need_help", lang))
+            if _action_button(
+                t("intake.btn.fix", lang),
+                t("intake.btn.fix_help", lang),
+                key="intake_fix_required",
+                primary=True,
+            ):
+                st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
+                st.rerun()
+            st.stop()
+
+        btn_cols = st.columns(2)
+        with btn_cols[0]:
+            if _action_button(
+                t("intake.btn.accept", lang),
+                t("intake.btn.accept_help", lang),
+                key="intake_accept_interpretation",
+                primary=True,
+            ):
+                mapping = _mapping_from_suggestions(table, detailed)
+                metadata = _default_metadata(table)
+                st.session_state[STATE_INTAKE_MAPPING] = mapping
+                st.session_state[STATE_INTAKE_METADATA] = metadata
+                st.session_state[STATE_INTAKE_YEAR_MONTH_CONFIRMED] = (
+                    mapping.year_month_confirmed
+                )
+                try:
+                    validated = build_and_validate_intake(table, mapping, metadata)
+                except IntakeError as exc:
+                    st.error(exc.message)
+                    st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
+                    st.stop()
+                st.session_state[STATE_INTAKE_RESULT] = validated
+                st.session_state[STATE_INTAKE_STEP] = 4
+                st.rerun()
+        with btn_cols[1]:
+            if _action_button(
+                t("intake.btn.fix", lang),
+                t("intake.btn.fix_help", lang),
+                key="intake_fix_interpretation",
+            ):
+                st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
+                st.rerun()
+        st.stop()
+
+    # Technical mapping controls — only after the beginner asks to fix.
+    column_options = [t("intake.choose", lang)] + list(table.columns)
+
+    def _select_for(
+        field_name: str,
+        label_key: str,
+        widget_key: str,
+        *,
+        required: bool = False,
+    ) -> str:
+        suggestion = _suggestion(detailed, field_name)
+        preferred = suggestion.source_column
+        confidence = suggestion.confidence
+        allow_preselect = confidence in {CONFIDENCE_HIGH, CONFIDENCE_MEDIUM}
+        if required and confidence == CONFIDENCE_LOW:
+            st.caption(t("intake.mapping_unknown", lang))
+        selected = st.selectbox(
+            t(label_key, lang),
+            options=column_options,
+            index=_column_index(
+                column_options,
+                preferred,
+                allow_preselect=allow_preselect,
+            ),
+            key=widget_key,
+            help=_confidence_caption(confidence),
+        )
+        choose_label = t("intake.choose", lang)
+        return "" if selected == choose_label else selected
+
+    map_cols = st.columns(3)
+    with map_cols[0]:
+        activity_type_column = _select_for(
+            "activity_type",
+            "intake.map_activity_type",
+            "intake_map_activity_type",
+            required=True,
+        )
+    with map_cols[1]:
+        activity_value_column = _select_for(
+            "activity_value",
+            "intake.map_activity_value",
+            "intake_map_activity_value",
+            required=True,
+        )
+    with map_cols[2]:
+        unit_column = _select_for(
+            "unit",
+            "intake.map_unit",
+            "intake_map_unit",
+            required=True,
+        )
+
+    site_column = _select_for(
+        "site_id",
+        "intake.map_site",
+        "intake_map_site",
+    )
+
+    default_date_mode = _default_date_mode(detailed)
+    if "intake_date_mode" not in st.session_state:
+        st.session_state["intake_date_mode"] = default_date_mode
+
+    date_mode = st.radio(
+        label=(
+            t("intake.dates_in_file", lang)
+            + " / "
+            + t("intake.dates_year_month", lang)
+            + " / "
+            + t("intake.dates_period", lang)
+        ),
+        options=["file", "year_month", "period"],
+        format_func=lambda key: {
+            "file": t("intake.dates_in_file", lang),
+            "year_month": t("intake.dates_year_month", lang),
+            "period": t("intake.dates_period", lang),
+        }[key],
+        horizontal=True,
+        key="intake_date_mode",
+    )
+
+    use_file_dates = date_mode == "file"
+    use_year_month = date_mode == "year_month"
+    start_date_column = ""
+    end_date_column = ""
+    year_month_column = ""
+    period_start: date | None = None
+    period_end: date | None = None
+    year_month_confirmed = bool(
+        st.session_state.get(STATE_INTAKE_YEAR_MONTH_CONFIRMED, False)
+    )
+
+    if use_file_dates:
+        date_cols = st.columns(2)
+        with date_cols[0]:
+            start_date_column = _select_for(
+                "activity_start_date",
+                "intake.map_start",
+                "intake_map_start",
+            )
+        with date_cols[1]:
+            end_date_column = _select_for(
+                "activity_end_date",
+                "intake.map_end",
+                "intake_map_end",
+            )
+    elif use_year_month:
+        year_month_column = _select_for(
+            "year_month",
+            "intake.map_year_month",
+            "intake_map_year_month",
+        )
+        if year_month_column and year_month_column in table.frame.columns:
+            sample_value = _sample_year_month_value(table, year_month_column)
+            if sample_value is not None:
+                try:
+                    preview = year_month_transform_preview(sample_value)
+                    st.markdown(f"**{year_month_column}**")
+                    st.write(preview["source"])
+                    st.markdown(
+                        f"**{t('intake.year_month_preview_title', lang)}**"
+                    )
+                    st.write(
+                        f"{t('intake.field.start', lang)}: "
+                        f"{preview['activity_start_date']}"
+                    )
+                    st.write(
+                        f"{t('intake.field.end', lang)}: "
+                        f"{preview['activity_end_date']}"
+                    )
+                except ValueError:
+                    st.warning(t("intake.mapping_unknown", lang))
+            year_month_confirmed = st.checkbox(
+                t("intake.year_month_confirm", lang),
+                value=year_month_confirmed,
+                key="intake_year_month_confirm_box",
+            )
+            st.session_state[STATE_INTAKE_YEAR_MONTH_CONFIRMED] = (
+                year_month_confirmed
+            )
+    else:
+        period_cols = st.columns(2)
+        with period_cols[0]:
+            period_start = st.date_input(
+                t("intake.period_start", lang),
+                value=date(2024, 1, 1),
+                key="intake_period_start",
+            )
+        with period_cols[1]:
+            period_end = st.date_input(
+                t("intake.period_end", lang),
+                value=date(2024, 1, 31),
+                key="intake_period_end",
+            )
+
+    draft_mapping = ColumnMapping(
+        activity_type_column=activity_type_column,
+        activity_value_column=activity_value_column,
+        unit_column=unit_column,
+        site_column=site_column,
+        use_file_dates=use_file_dates,
+        use_year_month=use_year_month,
+        year_month_column=year_month_column,
+        year_month_confirmed=year_month_confirmed,
+        start_date_column=start_date_column,
+        end_date_column=end_date_column,
+        period_start=period_start,
+        period_end=period_end,
+    )
+    suggested_activity_map, suggested_unit_map = default_value_maps(
+        table, draft_mapping
+    )
+
+    st.markdown(f"**{t('intake.value_map_activity', lang)}**")
+    activity_type_value_map: dict[str, str] = {}
+    if activity_type_column:
+        for source_value, suggestion in suggested_activity_map.items():
+            default_label = _activity_select_label(suggestion)
+            index = (
+                ACTIVITY_OPTIONS.index(default_label)
+                if default_label in ACTIVITY_OPTIONS
+                else 0
+            )
+            selected = st.selectbox(
+                source_value,
+                options=ACTIVITY_OPTIONS,
+                index=index,
+                key=f"intake_act_map_{source_value}",
+            )
+            activity_type_value_map[source_value] = ACTIVITY_LABEL_TO_CODE.get(
+                selected, ""
+            )
+
+    st.markdown(f"**{t('intake.value_map_unit', lang)}**")
+    unit_value_map: dict[str, str] = {}
+    choose_label = t("intake.choose", lang)
+    if unit_column:
+        for source_value, suggestion in suggested_unit_map.items():
+            default_unit = (
+                suggestion if suggestion in UNIT_OPTIONS else choose_label
+            )
+            index = UNIT_OPTIONS.index(default_unit)
+            selected_unit = st.selectbox(
+                source_value,
+                options=UNIT_OPTIONS,
+                index=index,
+                key=f"intake_unit_map_{source_value}",
+            )
+            unit_value_map[source_value] = (
+                "" if selected_unit == choose_label else selected_unit
+            )
+
+    meta_cols = st.columns(2)
+    with meta_cols[0]:
+        source_name = st.text_input(
+            t("intake.source_name", lang),
+            value=table.file_name,
+            key="intake_source_name",
+        )
+        site_id = st.text_input(
+            t("intake.site_id", lang),
+            value="site_main",
+            key="intake_site_id",
+            help=t("intake.map_site", lang),
+        )
+    with meta_cols[1]:
+        document_date = st.date_input(
+            t("intake.document_date", lang),
+            value=date(2024, 1, 31),
+            key="intake_document_date",
+        )
+        quality_label = st.selectbox(
+            t("intake.data_quality", lang),
+            options=[label for _, label in QUALITY_OPTIONS],
+            index=0,
+            key="intake_data_quality",
+        )
+
+    with st.expander(t("intake.advanced_canonical", lang)):
+        st.caption(
+            "activity_type / activity_value / unit / "
+            "activity_start_date / activity_end_date / site_id"
+        )
+
+    mapping = ColumnMapping(
+        activity_type_column=activity_type_column,
+        activity_value_column=activity_value_column,
+        unit_column=unit_column,
+        site_column=site_column,
+        use_file_dates=use_file_dates,
+        use_year_month=use_year_month,
+        year_month_column=year_month_column,
+        year_month_confirmed=year_month_confirmed,
+        start_date_column=start_date_column,
+        end_date_column=end_date_column,
+        period_start=period_start if isinstance(period_start, date) else None,
+        period_end=period_end if isinstance(period_end, date) else None,
+        activity_type_value_map=activity_type_value_map,
+        unit_value_map=unit_value_map,
+    )
+    metadata = IntakeMetadata(
+        source_name=source_name.strip() or table.file_name,
+        site_id=site_id.strip() or "site_main",
+        document_date=document_date
+        if isinstance(document_date, date)
+        else date(2024, 1, 31),
+        data_quality_tier=QUALITY_LABEL_TO_CODE.get(quality_label, "unknown"),
+        intake_run_id="ui_intake",
+        ingested_at=pd.Timestamp.now(tz="UTC"),
+    )
+    st.session_state[STATE_INTAKE_MAPPING] = mapping
+    st.session_state[STATE_INTAKE_METADATA] = metadata
+
+    if _action_button(
+        t("intake.run_validation", lang),
+        t("intake.btn.validate_help", lang),
+        key="intake_run_validation",
+        primary=True,
+    ):
+        try:
+            validated = build_and_validate_intake(table, mapping, metadata)
+        except IntakeError as exc:
+            st.error(exc.message)
+            st.stop()
+        st.session_state[STATE_INTAKE_RESULT] = validated
+        st.session_state[STATE_INTAKE_STEP] = 4
+        st.rerun()
     st.stop()
 
+# Results
 st.write("")
 render_section_header(t("intake.step3", lang))
 accepted = result.accepted_activities
@@ -437,6 +915,7 @@ if accepted is not None and not accepted.empty:
             "unit",
             "activity_start_date",
             "activity_end_date",
+            "site_id",
             "data_quality_tier",
             "human_review_status",
         ]
@@ -454,6 +933,7 @@ if accepted is not None and not accepted.empty:
             "unit": t("intake.col.unit", lang),
             "activity_start_date": t("intake.col.start", lang),
             "activity_end_date": t("intake.col.end", lang),
+            "site_id": t("intake.field.site_id", lang),
             "data_quality_tier": t("intake.col.quality", lang),
             "human_review_status": t("intake.col.review", lang),
         }

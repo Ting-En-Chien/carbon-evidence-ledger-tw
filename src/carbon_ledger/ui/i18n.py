@@ -786,6 +786,8 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "intake.intro": {
         "zh-TW": (
+            "不需要先修改原本 Excel 欄位名稱。\n"
+            "系統會先嘗試辨識你的欄位，再請你確認是否正確。\n\n"
             "第一次使用？\n\n"
             "你只需要準備一份表格，每一列代表一筆活動資料，例如：\n"
             "- 外購電力\n"
@@ -795,6 +797,9 @@ MESSAGES: dict[str, dict[str, str]] = {
             "- 生產數量"
         ),
         "en": (
+            "You do not need to rename your Excel columns first.\n"
+            "The system will try to recognize your columns, "
+            "then ask you to confirm.\n\n"
             "First time here?\n\n"
             "Prepare one table where each row is an activity, for example:\n"
             "- Purchased electricity\n"
@@ -803,6 +808,212 @@ MESSAGES: dict[str, dict[str, str]] = {
             "- Purchased steel\n"
             "- Production quantity"
         ),
+    },
+    "intake.no_rename": {
+        "zh-TW": (
+            "不需要先修改原本 Excel 欄位名稱。\n"
+            "系統會先嘗試辨識你的欄位，再請你確認是否正確。"
+        ),
+        "en": (
+            "You do not need to rename your Excel columns first.\n"
+            "The system will try to recognize your columns, then ask you to confirm."
+        ),
+    },
+    "intake.suggest_sheet_title": {
+        "zh-TW": "建議使用工作表",
+        "en": "Suggested worksheet",
+    },
+    "intake.detect_result": {"zh-TW": "偵測結果：", "en": "Detection result:"},
+    "intake.use_suggested_sheet": {
+        "zh-TW": "使用建議工作表",
+        "en": "Use suggested worksheet",
+    },
+    "intake.choose_other_sheet": {
+        "zh-TW": "選擇其他工作表",
+        "en": "Choose another worksheet",
+    },
+    "intake.header_ask": {
+        "zh-TW": "哪一列是欄位名稱？",
+        "en": "Which row contains the column names?",
+    },
+    "intake.header_confirm": {
+        "zh-TW": "確認欄位名稱列",
+        "en": "Confirm header row",
+    },
+    "intake.header_row_label": {
+        "zh-TW": "第 {row} 列",
+        "en": "Row {row}",
+    },
+    "intake.confidence_high": {
+        "zh-TW": "系統已辨識",
+        "en": "Recognized by the system",
+    },
+    "intake.confidence_medium": {
+        "zh-TW": "請確認",
+        "en": "Please confirm",
+    },
+    "intake.confidence_low": {
+        "zh-TW": "需要你選擇",
+        "en": "Needs your choice",
+    },
+    "intake.mapping_unknown": {
+        "zh-TW": "我們無法確定這一欄代表什麼。請從下方選擇它的用途。",
+        "en": (
+            "We could not determine what this column means. "
+            "Please choose its purpose below."
+        ),
+    },
+    "intake.map_site": {"zh-TW": "廠區／場址欄位", "en": "Site / plant column"},
+    "intake.field.activity_type": {"zh-TW": "活動類型", "en": "Activity type"},
+    "intake.field.activity_value": {"zh-TW": "活動數量", "en": "Activity amount"},
+    "intake.field.unit": {"zh-TW": "單位", "en": "Unit"},
+    "intake.field.site_id": {"zh-TW": "廠區／場址", "en": "Site / plant"},
+    "intake.field.start": {"zh-TW": "開始日期", "en": "Start date"},
+    "intake.field.end": {"zh-TW": "結束日期", "en": "End date"},
+    "intake.field.year_month": {
+        "zh-TW": "年月（月報期間）",
+        "en": "Year-month (monthly period)",
+    },
+    "intake.dates_year_month": {
+        "zh-TW": "使用檔案中的年月欄位",
+        "en": "Use a year-month column in the file",
+    },
+    "intake.map_year_month": {
+        "zh-TW": "年月欄位",
+        "en": "Year-month column",
+    },
+    "intake.year_month_preview_title": {
+        "zh-TW": "系統將轉換為：",
+        "en": "The system will convert this to:",
+    },
+    "intake.year_month_confirm": {
+        "zh-TW": "確認此年月轉換",
+        "en": "Confirm this year-month conversion",
+    },
+    "intake.reference_only_note": {
+        "zh-TW": (
+            "檔案中的「排放係數／排放量／計算結果」欄位僅供參考，"
+            "不會當作本系統的計算依據。"
+        ),
+        "en": (
+            "Uploaded emission-factor / emission-result columns are reference only "
+            "and are not used as this system's calculation truth."
+        ),
+    },
+    "intake.mapping_preview": {
+        "zh-TW": "欄位對應建議",
+        "en": "Suggested column mappings",
+    },
+    "intake.interpret.title": {
+        "zh-TW": "我們看懂這份 Excel 了 ✓",
+        "en": "We understand this Excel file ✓",
+    },
+    "intake.interpret.intro": {
+        "zh-TW": "我們會這樣讀取你的資料：",
+        "en": "Here is how we will read your data:",
+    },
+    "intake.interpret.activity_type": {
+        "zh-TW": (
+            "用來判斷每筆資料是外購電力、天然氣、柴油或其他活動。"
+        ),
+        "en": (
+            "Used to tell whether each row is purchased electricity, "
+            "natural gas, diesel, or another activity."
+        ),
+    },
+    "intake.interpret.activity_value": {
+        "zh-TW": "作為每筆活動的實際數量。",
+        "en": "Used as the actual quantity for each activity.",
+    },
+    "intake.interpret.unit": {
+        "zh-TW": "作為 kWh、m³、L、kg、t 等計量單位。",
+        "en": "Used as the unit of measure, such as kWh, m³, L, kg, or t.",
+    },
+    "intake.interpret.site_id": {
+        "zh-TW": "用來區分資料所屬的場址。",
+        "en": "Used to tell which site each row belongs to.",
+    },
+    "intake.interpret.year_month": {
+        "zh-TW": (
+            "用來建立每筆活動的資料期間。\n"
+            "例如 {example} 會轉成 {start} ～ {end}。"
+        ),
+        "en": (
+            "Used to build the reporting period for each activity.\n"
+            "For example, {example} becomes {start} – {end}."
+        ),
+    },
+    "intake.interpret.start": {
+        "zh-TW": "作為每筆活動的開始日期。",
+        "en": "Used as the start date for each activity.",
+    },
+    "intake.interpret.end": {
+        "zh-TW": "作為每筆活動的結束日期。",
+        "en": "Used as the end date for each activity.",
+    },
+    "intake.interpret.ask": {
+        "zh-TW": "這和你的 Excel 內容相符嗎？",
+        "en": "Does this match your Excel content?",
+    },
+    "intake.interpret.need_help": {
+        "zh-TW": (
+            "有些欄位我們還不確定，需要你幫忙確認後才能繼續。"
+        ),
+        "en": (
+            "Some columns are still unclear. "
+            "Please adjust them before continuing."
+        ),
+    },
+    "intake.btn.accept": {
+        "zh-TW": "正確，繼續",
+        "en": "Looks right, continue",
+    },
+    "intake.btn.accept_help": {
+        "zh-TW": "接受目前的資料辨識結果，前往資料檢查。",
+        "en": "Accept the current reading and continue to data checks.",
+    },
+    "intake.btn.fix": {
+        "zh-TW": "有地方不對",
+        "en": "Something is wrong",
+    },
+    "intake.btn.fix_help": {
+        "zh-TW": "修改系統對 Excel 欄位的理解。",
+        "en": "Change how the system reads your Excel columns.",
+    },
+    "intake.btn.validate_help": {
+        "zh-TW": "只檢查資料能否轉成系統格式，不會開始計算碳排。",
+        "en": (
+            "Only checks whether the data can become the system format. "
+            "It will not start carbon calculation."
+        ),
+    },
+    "intake.btn.continue_help": {
+        "zh-TW": "查看系統如何讀取你的 Excel 欄位。",
+        "en": "See how the system will read your Excel columns.",
+    },
+    "intake.btn.use_sheet_help": {
+        "zh-TW": "使用建議的工作表繼續讀取資料。",
+        "en": "Continue using the suggested worksheet.",
+    },
+    "intake.btn.other_sheet_help": {
+        "zh-TW": "改選其他工作表。",
+        "en": "Pick a different worksheet instead.",
+    },
+    "intake.btn.header_help": {
+        "zh-TW": "確認哪一列是欄位名稱，然後繼續。",
+        "en": "Confirm which row has the column names, then continue.",
+    },
+    "intake.btn.show_advanced": {
+        "zh-TW": "顯示進階設定",
+        "en": "Show advanced settings",
+    },
+    "intake.btn.show_advanced_help": {
+        "zh-TW": "檢視系統內部欄位名稱與其他進階選項。",
+        "en": "View internal field names and other advanced options.",
+    },
+    "intake.advanced_canonical": {
+        "zh-TW": "進階：系統內部欄位名稱",
+        "en": "Advanced: internal field names",
     },
     "intake.step1": {"zh-TW": "01 上傳檔案", "en": "01 Upload file"},
     "intake.step2": {"zh-TW": "02 對應欄位", "en": "02 Map columns"},
@@ -963,12 +1174,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "intake.run_validation": {
-        "zh-TW": "執行格式檢查",
-        "en": "Run format checks",
+        "zh-TW": "資料格式檢查",
+        "en": "Check data format",
     },
     "intake.continue_mapping": {
-        "zh-TW": "繼續對應欄位",
-        "en": "Continue to column mapping",
+        "zh-TW": "繼續",
+        "en": "Continue",
     },
     "fw.purpose_ghg": {
         "zh-TW": "把公司活動分類到 Scope 1、2、3 或不適用。",

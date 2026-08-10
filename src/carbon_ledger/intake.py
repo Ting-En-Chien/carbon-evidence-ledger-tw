@@ -2,10 +2,15 @@
 
 Pure presentation-independent logic. Streamlit must not be imported here.
 Uploaded bytes are processed in memory only; nothing is written to disk.
+
+Interpretation helpers (worksheet ranking, header detection, column aliases,
+year-month transforms) adapt to real-world spreadsheets. Users must confirm
+uncertain mappings before canonical records are built.
 """
 
 from __future__ import annotations
 
+import calendar
 import hashlib
 import math
 import re
@@ -40,6 +45,10 @@ BLANK_TEMPLATE_COLUMNS = (
 SOURCE_DOCUMENT_NOTES = "User-uploaded structured activity-data file."
 UNMAPPED_SENTINEL = ""
 
+CONFIDENCE_HIGH = "high"
+CONFIDENCE_MEDIUM = "medium"
+CONFIDENCE_LOW = "low"
+
 ISSUE_MISSING_REQUIRED_MAPPING = "MISSING_REQUIRED_MAPPING"
 ISSUE_INVALID_ACTIVITY_VALUE = "INVALID_ACTIVITY_VALUE"
 ISSUE_UNSUPPORTED_UNIT = "UNSUPPORTED_UNIT"
@@ -51,42 +60,142 @@ ISSUE_SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
 ISSUE_UNSUPPORTED_FILE_TYPE = "UNSUPPORTED_FILE_TYPE"
 ISSUE_FILE_TOO_LARGE = "FILE_TOO_LARGE"
 ISSUE_INVALID_ENCODING = "INVALID_ENCODING"
+ISSUE_YEAR_MONTH_NOT_CONFIRMED = "YEAR_MONTH_NOT_CONFIRMED"
 
-COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
-    "activity_type": (
-        "activity_type",
-        "activity",
-        "type",
-        "活動類型",
-        "活動",
-        "項目",
-    ),
-    "activity_value": (
-        "activity_value",
-        "amount",
-        "value",
-        "quantity",
-        "usage",
-        "數量",
-        "用量",
-        "活動量",
-    ),
-    "unit": ("unit", "單位"),
-    "activity_start_date": (
-        "activity_start_date",
-        "start_date",
-        "period_start",
-        "開始日期",
-        "起始日期",
-    ),
-    "activity_end_date": (
-        "activity_end_date",
-        "end_date",
-        "period_end",
-        "結束日期",
-        "結束日",
-    ),
+# High-confidence aliases are specific business labels.
+# Medium-confidence aliases are usable but ambiguous and need confirmation.
+COLUMN_ALIAS_RULES: dict[str, dict[str, tuple[str, ...]]] = {
+    "activity_type": {
+        CONFIDENCE_HIGH: (
+            "activity_type",
+            "activity type",
+            "活動類型",
+            "能源別",
+            "能源種類",
+            "能源項目",
+            "energy",
+            "energy type",
+            "fuel type",
+        ),
+        CONFIDENCE_MEDIUM: (
+            "activity",
+            "type",
+            "項目",
+            "類別",
+            "活動",
+        ),
+    },
+    "activity_value": {
+        CONFIDENCE_HIGH: (
+            "activity_value",
+            "activity value",
+            "活動量",
+            "使用量",
+            "耗用量",
+            "消耗量",
+            "能源使用量",
+            "consumption",
+            "usage",
+            "amount",
+            "quantity",
+            "value",
+        ),
+        CONFIDENCE_MEDIUM: (
+            "數量",
+            "用量",
+        ),
+    },
+    "unit": {
+        CONFIDENCE_HIGH: (
+            "unit",
+            "單位",
+            "計量單位",
+            "uom",
+            "unit of measure",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "site_id": {
+        CONFIDENCE_HIGH: (
+            "site_id",
+            "site",
+            "廠區",
+            "場址",
+            "據點",
+            "工廠",
+            "廠別",
+            "location",
+            "plant",
+            "facility",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "year_month": {
+        CONFIDENCE_HIGH: (
+            "年月",
+            "月份",
+            "year month",
+            "year_month",
+            "year-month",
+            "month",
+        ),
+        CONFIDENCE_MEDIUM: (
+            "期間",
+            "period",
+            "日期",
+            "date",
+        ),
+    },
+    "activity_start_date": {
+        CONFIDENCE_HIGH: (
+            "activity_start_date",
+            "start_date",
+            "start date",
+            "period_start",
+            "period start",
+            "開始日期",
+            "起始日期",
+            "期間開始",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "activity_end_date": {
+        CONFIDENCE_HIGH: (
+            "activity_end_date",
+            "end_date",
+            "end date",
+            "period_end",
+            "period end",
+            "結束日期",
+            "截止日期",
+            "期間結束",
+            "結束日",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
 }
+
+# Backward-compatible flat alias map used by older call sites / docs.
+COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
+    field_name: rules.get(CONFIDENCE_HIGH, ()) + rules.get(CONFIDENCE_MEDIUM, ())
+    for field_name, rules in COLUMN_ALIAS_RULES.items()
+}
+
+# Uploaded calculation-like columns are source/reference only.
+REFERENCE_ONLY_ALIASES: tuple[str, ...] = (
+    "排放係數",
+    "排放量",
+    "排放量 (kgco2e)",
+    "排放量(kgco2e)",
+    "kgco2e",
+    "co2e",
+    "計算結果",
+    "emission factor",
+    "emission_factor",
+    "emissions",
+    "calculated emissions",
+    "calculation result",
+)
 
 ACTIVITY_VALUE_ALIASES: dict[str, str] = {
     "electricity": "grid_electricity",
@@ -159,6 +268,59 @@ REJECTION_COLUMNS = (
     "uploaded_value",
 )
 
+HEADER_SCAN_ROWS = 15
+_YEAR_MONTH_RE = re.compile(
+    r"^\s*(?P<year>\d{4})\s*[-/年.]\s*(?P<month>\d{1,2})\s*月?\s*$"
+)
+_PROSE_HINTS = (
+    "說明",
+    "注意",
+    "請先",
+    "本表",
+    "填寫說明",
+    "instruction",
+    "readme",
+    "help",
+    "note:",
+    "請閱讀",
+)
+_ACTIVITY_TEXT_HINTS = (
+    "電力",
+    "天然氣",
+    "柴油",
+    "能源",
+    "electric",
+    "gas",
+    "diesel",
+    "fuel",
+    "steel",
+    "鋼",
+)
+_UNIT_TEXT_HINTS = (
+    "kwh",
+    "mwh",
+    "m3",
+    "m³",
+    "kg",
+    "公升",
+    "噸",
+    "度",
+)
+_WEAK_POSITIVE_SHEET_NAMES = {
+    "活動數據": 3,
+    "活動資料": 3,
+    "data": 2,
+    "sheet1": 1,
+    "january": 1,
+}
+_WEAK_NEGATIVE_SHEET_NAMES = {
+    "說明": -4,
+    "readme": -4,
+    "help": -4,
+    "instruction": -4,
+    "instructions": -4,
+}
+
 
 @dataclass(frozen=True)
 class UploadedTable:
@@ -172,6 +334,8 @@ class UploadedTable:
     columns: tuple[str, ...]
     frame: pd.DataFrame
     byte_length: int
+    header_row_index: int = 0
+    header_needs_confirmation: bool = False
 
 
 @dataclass
@@ -181,13 +345,52 @@ class ColumnMapping:
     activity_type_column: str = ""
     activity_value_column: str = ""
     unit_column: str = ""
+    site_column: str = ""
     use_file_dates: bool = True
+    use_year_month: bool = False
+    year_month_column: str = ""
+    year_month_confirmed: bool = False
     start_date_column: str = ""
     end_date_column: str = ""
     period_start: date | None = None
     period_end: date | None = None
     activity_type_value_map: dict[str, str] = field(default_factory=dict)
     unit_value_map: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class FieldSuggestion:
+    """One suggested mapping from an uploaded column to a semantic field."""
+
+    field: str
+    source_column: str
+    confidence: str
+
+
+@dataclass(frozen=True)
+class WorksheetScore:
+    """Deterministic structural score for one worksheet."""
+
+    sheet_name: str
+    score: float
+    data_row_count: int
+    column_count: int
+    has_numeric: bool
+    has_date_like: bool
+    has_unit_like: bool
+    has_activity_like: bool
+    signal_summary: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class HeaderDetectionResult:
+    """Result of scanning the first rows for a plausible header."""
+
+    header_row_index: int
+    confidence: str
+    needs_confirmation: bool
+    candidate_rows: tuple[int, ...]
+    preview: tuple[tuple[str, ...], ...]
 
 
 @dataclass
@@ -316,22 +519,131 @@ def example_preview_rows() -> pd.DataFrame:
 
 
 def _normalize_header(value: str) -> str:
-    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+    text = str(value or "").strip().lower()
+    text = text.replace("_", " ").replace("-", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def is_reference_only_column(column_name: str) -> bool:
+    """Return True when a column looks like uploaded calc/factor output."""
+    normalized = _normalize_header(column_name)
+    if not normalized:
+        return False
+    for alias in REFERENCE_ONLY_ALIASES:
+        alias_norm = _normalize_header(alias)
+        if normalized == alias_norm or alias_norm in normalized:
+            return True
+    if "排放" in str(column_name) and (
+        "係數" in str(column_name) or "量" in str(column_name)
+    ):
+        return True
+    return False
+
+
+def reference_only_columns(columns: list[str] | tuple[str, ...]) -> list[str]:
+    """Return uploaded columns treated as source/reference only."""
+    return [col for col in columns if is_reference_only_column(col)]
+
+
+def _alias_match_confidence(column_name: str, field_name: str) -> str:
+    if is_reference_only_column(column_name):
+        return CONFIDENCE_LOW
+    normalized = _normalize_header(column_name)
+    rules = COLUMN_ALIAS_RULES.get(field_name, {})
+    for alias in rules.get(CONFIDENCE_HIGH, ()):
+        if normalized == _normalize_header(alias):
+            return CONFIDENCE_HIGH
+    for alias in rules.get(CONFIDENCE_MEDIUM, ()):
+        if normalized == _normalize_header(alias):
+            return CONFIDENCE_MEDIUM
+    return CONFIDENCE_LOW
+
+
+def suggest_column_mapping_with_confidence(
+    columns: list[str] | tuple[str, ...],
+) -> dict[str, FieldSuggestion]:
+    """Suggest semantic mappings with confidence; never claim reference cols."""
+    usable = [col for col in columns if not is_reference_only_column(col)]
+    claimed: set[str] = set()
+    suggestions: dict[str, FieldSuggestion] = {}
+
+    # Prefer start/end date fields over ambiguous year-month when both exist.
+    field_order = (
+        "activity_type",
+        "activity_value",
+        "unit",
+        "site_id",
+        "activity_start_date",
+        "activity_end_date",
+        "year_month",
+    )
+
+    for field_name in field_order:
+        best_col = ""
+        best_confidence = CONFIDENCE_LOW
+        best_rank = 99
+        for col in usable:
+            if col in claimed:
+                continue
+            confidence = _alias_match_confidence(col, field_name)
+            if confidence == CONFIDENCE_LOW:
+                continue
+            rank = 0 if confidence == CONFIDENCE_HIGH else 1
+            if rank < best_rank:
+                best_col = col
+                best_confidence = confidence
+                best_rank = rank
+        if best_col and best_confidence != CONFIDENCE_LOW:
+            suggestions[field_name] = FieldSuggestion(
+                field=field_name,
+                source_column=best_col,
+                confidence=best_confidence,
+            )
+            claimed.add(best_col)
+        else:
+            suggestions[field_name] = FieldSuggestion(
+                field=field_name,
+                source_column="",
+                confidence=CONFIDENCE_LOW,
+            )
+
+    # If both start and end are present, drop year_month auto-suggestion.
+    start_suggestion = suggestions.get(
+        "activity_start_date",
+        FieldSuggestion("", "", ""),
+    )
+    end_suggestion = suggestions.get(
+        "activity_end_date",
+        FieldSuggestion("", "", ""),
+    )
+    if start_suggestion.source_column and end_suggestion.source_column:
+        ym = suggestions.get("year_month")
+        if ym and ym.source_column:
+            suggestions["year_month"] = FieldSuggestion(
+                field="year_month",
+                source_column="",
+                confidence=CONFIDENCE_LOW,
+            )
+
+    return suggestions
 
 
 def suggest_column_mapping(columns: list[str] | tuple[str, ...]) -> dict[str, str]:
-    """Deterministic column suggestions from aliases; empty when unmatched."""
-    normalized = {_normalize_header(col): col for col in columns}
-    suggestions: dict[str, str] = {}
-    for target, aliases in COLUMN_ALIASES.items():
-        matched = ""
-        for alias in aliases:
-            key = _normalize_header(alias)
-            if key in normalized:
-                matched = normalized[key]
-                break
-        suggestions[target] = matched
-    return suggestions
+    """Deterministic column suggestions from aliases; empty when unmatched.
+
+    High- and medium-confidence matches are returned for user confirmation.
+    Low-confidence matches remain empty (never auto-selected).
+    """
+    detailed = suggest_column_mapping_with_confidence(columns)
+    return {
+        field_name: (
+            suggestion.source_column
+            if suggestion.confidence in {CONFIDENCE_HIGH, CONFIDENCE_MEDIUM}
+            else ""
+        )
+        for field_name, suggestion in detailed.items()
+    }
 
 
 def suggest_activity_type(value: Any) -> str:
@@ -373,15 +685,515 @@ def distinct_values(frame: pd.DataFrame, column: str) -> list[str]:
     return sorted(values)
 
 
+def parse_year_month_period(value: Any) -> tuple[date, date]:
+    """Parse a year-month label into inclusive calendar month bounds.
+
+    Supports forms such as ``2025-01``, ``2025/01``, and ``2025年1月``.
+    Leap years are handled via ``calendar.monthrange``.
+    """
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        raise ValueError("year-month value is missing")
+    if isinstance(value, datetime):
+        year, month = value.year, value.month
+    elif isinstance(value, date):
+        year, month = value.year, value.month
+    else:
+        text = str(value).strip()
+        if not text:
+            raise ValueError("year-month value is missing")
+        # Excel serial / Timestamp-like via pandas when unambiguous full date.
+        match = _YEAR_MONTH_RE.match(text)
+        if match:
+            year = int(match.group("year"))
+            month = int(match.group("month"))
+        else:
+            parsed = pd.to_datetime(text, errors="coerce")
+            if pd.isna(parsed):
+                raise ValueError(f"unrecognized year-month value: {text!r}")
+            timestamp = pd.Timestamp(parsed)
+            year, month = int(timestamp.year), int(timestamp.month)
+    if month < 1 or month > 12:
+        raise ValueError(f"invalid month in year-month value: {month}")
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, 1), date(year, month, last_day)
+
+
+def year_month_transform_preview(value: Any) -> dict[str, str]:
+    """Return a beginner-facing preview of a confirmed year-month transform."""
+    start, end = parse_year_month_period(value)
+    return {
+        "source": str(value).strip(),
+        "activity_start_date": start.isoformat(),
+        "activity_end_date": end.isoformat(),
+    }
+
+
 def list_xlsx_sheet_names(data: bytes) -> list[str]:
     """Return workbook sheet names without writing to disk."""
     frame_dict = pd.read_excel(
         BytesIO(data),
         sheet_name=None,
+        header=None,
         dtype=object,
         engine="openpyxl",
     )
     return list(frame_dict.keys())
+
+
+def _cell_text(value: Any) -> str:
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return ""
+    return str(value).strip()
+
+
+def _is_numeric_cell(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return math.isfinite(float(value))
+    text = _cell_text(value).replace(",", "")
+    if not text:
+        return False
+    try:
+        number = float(text)
+    except ValueError:
+        return False
+    return math.isfinite(number)
+
+
+def _is_date_like_cell(value: Any) -> bool:
+    if isinstance(value, (datetime, date, pd.Timestamp)):
+        return True
+    text = _cell_text(value)
+    if not text:
+        return False
+    if _YEAR_MONTH_RE.match(text):
+        return True
+    parsed = pd.to_datetime(text, errors="coerce")
+    return not pd.isna(parsed)
+
+
+def _row_nonempty_count(row: pd.Series) -> int:
+    return sum(1 for value in row.tolist() if _cell_text(value))
+
+
+def _row_looks_like_header(row: pd.Series) -> bool:
+    values = [_cell_text(value) for value in row.tolist()]
+    nonempty = [value for value in values if value]
+    if len(nonempty) < 2:
+        return False
+    textish = 0
+    numericish = 0
+    long_prose = 0
+    for value in nonempty:
+        if _is_numeric_cell(value):
+            numericish += 1
+        else:
+            textish += 1
+        if len(value) > 40:
+            long_prose += 1
+    if long_prose >= max(1, len(nonempty) // 2):
+        return False
+    if textish < max(2, len(nonempty) - 1):
+        return False
+    if numericish > textish:
+        return False
+    return True
+
+
+def detect_header_row(raw_frame: pd.DataFrame) -> HeaderDetectionResult:
+    """Detect the most plausible header row in the first scan window."""
+    if raw_frame is None or raw_frame.empty:
+        return HeaderDetectionResult(
+            header_row_index=0,
+            confidence=CONFIDENCE_LOW,
+            needs_confirmation=True,
+            candidate_rows=(0,),
+            preview=tuple(),
+        )
+
+    limit = min(HEADER_SCAN_ROWS, len(raw_frame))
+    scored: list[tuple[float, int]] = []
+    for index in range(limit):
+        row = raw_frame.iloc[index]
+        nonempty = _row_nonempty_count(row)
+        if nonempty < 2:
+            continue
+        score = float(nonempty * 3)
+        if _row_looks_like_header(row):
+            score += 25
+        # Prefer rows followed by tabular data.
+        following = raw_frame.iloc[index + 1 : min(index + 4, len(raw_frame))]
+        if not following.empty:
+            numeric_follow = 0
+            populated_follow = 0
+            for _, follow_row in following.iterrows():
+                vals = [_cell_text(v) for v in follow_row.tolist()]
+                populated = [v for v in vals if v]
+                if len(populated) >= 2:
+                    populated_follow += 1
+                numeric_follow += sum(1 for v in populated if _is_numeric_cell(v))
+            score += populated_follow * 6
+            score += min(numeric_follow, 6) * 2
+        # Penalize report-title / prose rows.
+        joined = " ".join(_cell_text(v) for v in row.tolist())
+        if any(hint in joined for hint in _PROSE_HINTS):
+            score -= 20
+        if nonempty <= 2 and any(len(_cell_text(v)) > 30 for v in row.tolist()):
+            score -= 15
+        # Alias hits are a strong positive signal.
+        alias_hits = 0
+        for value in row.tolist():
+            text = _cell_text(value)
+            if not text or is_reference_only_column(text):
+                continue
+            for field_name in COLUMN_ALIAS_RULES:
+                if _alias_match_confidence(text, field_name) != CONFIDENCE_LOW:
+                    alias_hits += 1
+                    break
+        score += alias_hits * 8
+        scored.append((score, index))
+
+    if not scored:
+        preview = tuple(
+            tuple(_cell_text(v) for v in raw_frame.iloc[i].tolist())
+            for i in range(min(5, len(raw_frame)))
+        )
+        return HeaderDetectionResult(
+            header_row_index=0,
+            confidence=CONFIDENCE_LOW,
+            needs_confirmation=True,
+            candidate_rows=(0,),
+            preview=preview,
+        )
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    best_score, best_index = scored[0]
+    second_score = scored[1][0] if len(scored) > 1 else float("-inf")
+    needs_confirmation = False
+    confidence = CONFIDENCE_HIGH
+    if best_score < 20:
+        confidence = CONFIDENCE_LOW
+        needs_confirmation = True
+    elif best_score - second_score < 8:
+        confidence = CONFIDENCE_MEDIUM
+        needs_confirmation = True
+    elif best_index != 0 and best_score < 35:
+        confidence = CONFIDENCE_MEDIUM
+        needs_confirmation = True
+
+    candidate_rows = tuple(index for _, index in scored[:5])
+    preview_indices = sorted(set(candidate_rows[:3]) | {best_index})
+    preview = tuple(
+        tuple(_cell_text(v) for v in raw_frame.iloc[i].tolist())
+        for i in preview_indices
+        if i < len(raw_frame)
+    )
+    return HeaderDetectionResult(
+        header_row_index=best_index,
+        confidence=confidence,
+        needs_confirmation=needs_confirmation,
+        candidate_rows=candidate_rows,
+        preview=preview,
+    )
+
+
+def _frame_signal_flags(raw_frame: pd.DataFrame, header_index: int) -> dict[str, Any]:
+    if raw_frame.empty:
+        return {
+            "data_row_count": 0,
+            "column_count": 0,
+            "has_numeric": False,
+            "has_date_like": False,
+            "has_unit_like": False,
+            "has_activity_like": False,
+            "prose_heavy": True,
+            "alias_hits": 0,
+        }
+    header = raw_frame.iloc[header_index]
+    body = raw_frame.iloc[header_index + 1 :]
+    headers = [_cell_text(v) for v in header.tolist()]
+    usable_cols = [h for h in headers if h]
+    data_row_count = 0
+    numeric_cells = 0
+    date_like = 0
+    unit_like = 0
+    activity_like = 0
+    long_text = 0
+    populated_cells = 0
+    for _, row in body.iterrows():
+        values = [_cell_text(v) for v in row.tolist()]
+        nonempty = [v for v in values if v]
+        if len(nonempty) < 2:
+            continue
+        data_row_count += 1
+        for value in nonempty:
+            populated_cells += 1
+            if _is_numeric_cell(value):
+                numeric_cells += 1
+            if _is_date_like_cell(value):
+                date_like += 1
+            lowered = value.lower()
+            if any(hint in lowered for hint in _UNIT_TEXT_HINTS) or value in {
+                "L",
+                "t",
+                "kg",
+                "kWh",
+                "MWh",
+                "m3",
+            }:
+                unit_like += 1
+            if any(hint in value for hint in _ACTIVITY_TEXT_HINTS) or any(
+                hint in lowered for hint in _ACTIVITY_TEXT_HINTS
+            ):
+                activity_like += 1
+            if len(value) > 48:
+                long_text += 1
+
+    alias_hits = 0
+    for header_text in usable_cols:
+        if is_reference_only_column(header_text):
+            continue
+        for field_name in COLUMN_ALIAS_RULES:
+            if _alias_match_confidence(header_text, field_name) != CONFIDENCE_LOW:
+                alias_hits += 1
+                break
+
+    prose_heavy = (
+        data_row_count <= 1
+        and long_text >= max(1, populated_cells // 2)
+        and numeric_cells == 0
+    ) or (
+        populated_cells > 0
+        and long_text >= max(2, populated_cells // 2)
+        and numeric_cells == 0
+        and data_row_count <= 3
+    )
+    return {
+        "data_row_count": data_row_count,
+        "column_count": len(usable_cols),
+        "has_numeric": numeric_cells > 0,
+        "has_date_like": date_like > 0
+        or any(
+            _alias_match_confidence(h, "year_month") != CONFIDENCE_LOW
+            or _alias_match_confidence(h, "activity_start_date") != CONFIDENCE_LOW
+            for h in usable_cols
+        ),
+        "has_unit_like": unit_like > 0
+        or any(
+            _alias_match_confidence(h, "unit") != CONFIDENCE_LOW
+            for h in usable_cols
+        ),
+        "has_activity_like": activity_like > 0
+        or any(
+            _alias_match_confidence(h, "activity_type") != CONFIDENCE_LOW
+            for h in usable_cols
+        ),
+        "prose_heavy": prose_heavy,
+        "alias_hits": alias_hits,
+        "numeric_cells": numeric_cells,
+        "long_text": long_text,
+    }
+
+
+def score_worksheet(raw_frame: pd.DataFrame, sheet_name: str) -> WorksheetScore:
+    """Score one worksheet using deterministic structural signals."""
+    header = detect_header_row(raw_frame)
+    signals = _frame_signal_flags(raw_frame, header.header_row_index)
+    score = 0.0
+    summary: list[str] = []
+
+    data_rows = int(signals["data_row_count"])
+    column_count = int(signals["column_count"])
+    score += min(data_rows, 40) * 2.0
+    if data_rows >= 3:
+        score += 12
+        summary.append("multiple_data_rows")
+    if column_count >= 3:
+        score += 10
+        summary.append("stable_columns")
+    if signals["has_numeric"]:
+        score += 18
+        summary.append("numeric")
+    if signals["has_date_like"]:
+        score += 14
+        summary.append("date_or_month")
+    if signals["has_activity_like"]:
+        score += 14
+        summary.append("activity_or_energy")
+    if signals["has_unit_like"]:
+        score += 12
+        summary.append("unit")
+    score += min(int(signals["alias_hits"]), 6) * 5
+    if int(signals["alias_hits"]) > 0:
+        summary.append("header_aliases")
+
+    if signals["prose_heavy"]:
+        score -= 45
+        summary.append("prose_heavy")
+    if data_rows < 2:
+        score -= 25
+        summary.append("few_rows")
+    if not signals["has_numeric"]:
+        score -= 18
+        summary.append("no_numeric")
+    joined_sample = " ".join(
+        _cell_text(v)
+        for v in raw_frame.head(min(8, len(raw_frame))).to_numpy().ravel().tolist()
+    )
+    if any(hint in joined_sample for hint in _PROSE_HINTS):
+        score -= 16
+        summary.append("instruction_like")
+
+    # Sheet name is only a weak supporting hint.
+    name_key = _normalize_header(sheet_name)
+    score += float(_WEAK_POSITIVE_SHEET_NAMES.get(name_key, 0))
+    score += float(_WEAK_NEGATIVE_SHEET_NAMES.get(name_key, 0))
+
+    return WorksheetScore(
+        sheet_name=sheet_name,
+        score=score,
+        data_row_count=data_rows,
+        column_count=column_count,
+        has_numeric=bool(signals["has_numeric"]),
+        has_date_like=bool(signals["has_date_like"]),
+        has_unit_like=bool(signals["has_unit_like"]),
+        has_activity_like=bool(signals["has_activity_like"]),
+        signal_summary=tuple(summary),
+    )
+
+
+def rank_xlsx_worksheets(data: bytes) -> list[WorksheetScore]:
+    """Rank every worksheet by structural fitness for activity intake."""
+    workbook = pd.read_excel(
+        BytesIO(data),
+        sheet_name=None,
+        header=None,
+        dtype=object,
+        engine="openpyxl",
+    )
+    ranked = [
+        score_worksheet(
+            frame if isinstance(frame, pd.DataFrame) else pd.DataFrame(),
+            name,
+        )
+        for name, frame in workbook.items()
+    ]
+    ranked.sort(key=lambda item: (-item.score, item.sheet_name))
+    return ranked
+
+
+def suggest_xlsx_worksheet(data: bytes) -> WorksheetScore | None:
+    """Return the top-ranked worksheet suggestion, if any."""
+    ranked = rank_xlsx_worksheets(data)
+    return ranked[0] if ranked else None
+
+
+def worksheet_detection_labels(score: WorksheetScore) -> list[str]:
+    """Beginner-facing detection bullets for a worksheet suggestion."""
+    labels: list[str] = [
+        f"{score.data_row_count} 筆資料",
+        f"{score.column_count} 個欄位",
+    ]
+    bits: list[str] = []
+    if score.has_numeric:
+        bits.append("數量")
+    if score.has_unit_like:
+        bits.append("單位")
+    if score.has_date_like:
+        bits.append("年月")
+    if score.has_activity_like:
+        bits.append("能源/活動")
+    if bits:
+        labels.append("包含" + "、".join(bits) + "欄位")
+    return labels
+
+
+def _unique_headers(values: list[Any]) -> list[str]:
+    headers: list[str] = []
+    seen: dict[str, int] = {}
+    for index, value in enumerate(values):
+        text = _cell_text(value) or f"column_{index + 1}"
+        count = seen.get(text, 0)
+        seen[text] = count + 1
+        headers.append(text if count == 0 else f"{text}_{count + 1}")
+    return headers
+
+
+def _frame_from_raw(
+    raw_frame: pd.DataFrame,
+    *,
+    header_row: int | None,
+) -> tuple[pd.DataFrame, int, bool]:
+    detection = detect_header_row(raw_frame)
+    selected = detection.header_row_index if header_row is None else int(header_row)
+    if selected < 0 or (len(raw_frame) and selected >= len(raw_frame)):
+        selected = 0
+    if raw_frame.empty:
+        return raw_frame.copy(), 0, True
+    headers = _unique_headers(list(raw_frame.iloc[selected].tolist()))
+    body = raw_frame.iloc[selected + 1 :].copy()
+    body.columns = headers
+    body = body.reset_index(drop=True)
+    # Drop fully empty rows.
+    if not body.empty:
+        mask = body.apply(
+            lambda row: any(_cell_text(v) for v in row.tolist()),
+            axis=1,
+        )
+        body = body.loc[mask].reset_index(drop=True)
+    needs = detection.needs_confirmation if header_row is None else False
+    return body, selected, needs
+
+
+def _read_csv_raw(data: bytes) -> pd.DataFrame:
+    try:
+        return pd.read_csv(
+            BytesIO(data),
+            header=None,
+            dtype=object,
+            encoding="utf-8-sig",
+        )
+    except UnicodeDecodeError:
+        try:
+            return pd.read_csv(
+                BytesIO(data),
+                header=None,
+                dtype=object,
+                encoding="utf-8",
+            )
+        except UnicodeDecodeError as exc:
+            raise IntakeError(
+                ISSUE_INVALID_ENCODING,
+                "CSV must be UTF-8 encoded.",
+            ) from exc
+
+
+def load_raw_tabular_frame(
+    *,
+    data: bytes,
+    file_extension: str,
+    sheet_name: str | None = None,
+) -> pd.DataFrame:
+    """Load CSV/XLSX bytes as a headerless frame for inspection."""
+    extension = file_extension.lower()
+    if not extension.startswith("."):
+        extension = f".{extension}"
+    if extension == ".csv":
+        return _read_csv_raw(data)
+    workbook = pd.read_excel(
+        BytesIO(data),
+        sheet_name=None,
+        header=None,
+        dtype=object,
+        engine="openpyxl",
+    )
+    names = list(workbook.keys())
+    if not names:
+        return pd.DataFrame()
+    selected = sheet_name if sheet_name in names else names[0]
+    frame = workbook[selected]
+    return frame if isinstance(frame, pd.DataFrame) else pd.DataFrame()
 
 
 def parse_uploaded_table(
@@ -389,6 +1201,7 @@ def parse_uploaded_table(
     file_name: str,
     data: bytes,
     sheet_name: str | None = None,
+    header_row: int | None = None,
 ) -> UploadedTable:
     """Parse CSV/XLSX bytes into an in-memory UploadedTable."""
     extension = validate_upload_bytes(file_name, data)
@@ -398,28 +1211,13 @@ def parse_uploaded_table(
     selected_sheet: str | None = None
 
     if extension == ".csv":
-        try:
-            frame = pd.read_csv(
-                BytesIO(data),
-                dtype=object,
-                encoding="utf-8-sig",
-            )
-        except UnicodeDecodeError:
-            try:
-                frame = pd.read_csv(
-                    BytesIO(data),
-                    dtype=object,
-                    encoding="utf-8",
-                )
-            except UnicodeDecodeError as exc:
-                raise IntakeError(
-                    ISSUE_INVALID_ENCODING,
-                    "CSV must be UTF-8 encoded.",
-                ) from exc
+        raw = _read_csv_raw(data)
+        frame, header_index, header_needs = _frame_from_raw(raw, header_row=header_row)
     else:
         workbook = pd.read_excel(
             BytesIO(data),
             sheet_name=None,
+            header=None,
             dtype=object,
             engine="openpyxl",
         )
@@ -429,8 +1227,24 @@ def parse_uploaded_table(
                 ISSUE_UNSUPPORTED_FILE_TYPE,
                 "Workbook contains no sheets.",
             )
-        selected_sheet = sheet_name if sheet_name in sheet_names else sheet_names[0]
-        frame = workbook[selected_sheet].copy()
+        if sheet_name in sheet_names:
+            selected_sheet = sheet_name
+        else:
+            ranked = [
+                score_worksheet(
+                    workbook[name]
+                    if isinstance(workbook[name], pd.DataFrame)
+                    else pd.DataFrame(),
+                    name,
+                )
+                for name in sheet_names
+            ]
+            ranked.sort(key=lambda item: (-item.score, item.sheet_name))
+            selected_sheet = ranked[0].sheet_name if ranked else sheet_names[0]
+        raw = workbook[selected_sheet]
+        if not isinstance(raw, pd.DataFrame):
+            raw = pd.DataFrame()
+        frame, header_index, header_needs = _frame_from_raw(raw, header_row=header_row)
 
     frame = frame.copy()
     frame.columns = [str(col) for col in frame.columns]
@@ -443,6 +1257,8 @@ def parse_uploaded_table(
         columns=tuple(str(col) for col in frame.columns),
         frame=frame,
         byte_length=len(data),
+        header_row_index=header_index,
+        header_needs_confirmation=header_needs,
     )
 
 
@@ -605,8 +1421,26 @@ def build_and_validate_intake(
                 ISSUE_MISSING_REQUIRED_MAPPING,
                 f"Missing required mapping for {field_name}.",
             )
+        if is_reference_only_column(column):
+            raise IntakeError(
+                ISSUE_MISSING_REQUIRED_MAPPING,
+                f"Column {column!r} is reference-only and cannot map to {field_name}.",
+            )
 
-    if mapping.use_file_dates:
+    if mapping.use_year_month:
+        if not mapping.year_month_column or mapping.year_month_column not in (
+            source_frame.columns
+        ):
+            raise IntakeError(
+                ISSUE_MISSING_REQUIRED_MAPPING,
+                "Missing required year-month column mapping.",
+            )
+        if not mapping.year_month_confirmed:
+            raise IntakeError(
+                ISSUE_YEAR_MONTH_NOT_CONFIRMED,
+                "Year-month transformation requires explicit user confirmation.",
+            )
+    elif mapping.use_file_dates:
         if (
             not mapping.start_date_column
             or mapping.start_date_column not in source_frame.columns
@@ -632,9 +1466,11 @@ def build_and_validate_intake(
             f"Source document failed schema validation: {exc}",
         ) from exc
 
+    # Excel-style row numbers: header_row_index is 0-based; data starts next.
+    data_row_base = uploaded.header_row_index + 2
+
     for offset, (_, row) in enumerate(source_frame.iterrows()):
-        # Header is row 1; first data row is 2.
-        source_row = offset + 2
+        source_row = offset + data_row_base
 
         raw_activity = row.get(mapping.activity_type_column)
         raw_value = row.get(mapping.activity_value_column)
@@ -708,7 +1544,15 @@ def build_and_validate_intake(
             continue
 
         try:
-            if mapping.use_file_dates:
+            if mapping.use_year_month:
+                start_date, end_date = parse_year_month_period(
+                    row.get(mapping.year_month_column)
+                )
+                start_dt = datetime(
+                    start_date.year, start_date.month, start_date.day
+                )
+                end_dt = datetime(end_date.year, end_date.month, end_date.day)
+            elif mapping.use_file_dates:
                 start_dt = _parse_date(
                     row.get(mapping.start_date_column),
                     field_name="activity_start_date",
@@ -740,13 +1584,27 @@ def build_and_validate_intake(
                     issue_code=ISSUE_INVALID_DATE,
                     issue_message=str(exc),
                     uploaded_value=(
-                        row.get(mapping.start_date_column)
-                        if mapping.use_file_dates
-                        else mapping.period_start
+                        row.get(mapping.year_month_column)
+                        if mapping.use_year_month
+                        else (
+                            row.get(mapping.start_date_column)
+                            if mapping.use_file_dates
+                            else mapping.period_start
+                        )
                     ),
                 )
             )
             continue
+
+        if mapping.site_column and mapping.site_column in source_frame.columns:
+            site_raw = row.get(mapping.site_column)
+            site_id = (
+                str(site_raw).strip()
+                if site_raw is not None and str(site_raw).strip()
+                else (metadata.site_id.strip() or "site_main")
+            )
+        else:
+            site_id = metadata.site_id.strip() or "site_main"
 
         record_type = record_type_for_activity(mapped_activity)
         ownership = _ownership_for_activity(mapped_activity)
@@ -757,6 +1615,8 @@ def build_and_validate_intake(
         if mapped_activity == "other" or record_type == "other":
             notes = "User-mapped activity classified as other."
 
+        # Intentionally ignore uploaded emission-factor / emission-result columns.
+        # Those remain source/reference only; calculation uses the controlled registry.
         activity_row = {
             "record_id": activity_record_id(uploaded.sha256, source_row),
             "source_document_id": source_doc["source_document_id"],
@@ -767,7 +1627,7 @@ def build_and_validate_intake(
             "record_type": record_type,
             "activity_start_date": start_dt,
             "activity_end_date": end_dt,
-            "site_id": metadata.site_id.strip() or "site_main",
+            "site_id": site_id,
             "production_process_id": pd.NA,
             "product_id": pd.NA,
             "activity_type": mapped_activity,

@@ -125,6 +125,7 @@ def test_example_and_demo_notice_exist() -> None:
     text = _all_text(at)
     assert "範例資料，不會自動匯入" in text
     assert "尚未取代示範分析結果" in text
+    assert "不需要先修改原本 Excel 欄位名稱" in text
     assert "activity_type" in text
     assert "activity_value" in text
     labels = [str(item.label) for item in at.download_button]

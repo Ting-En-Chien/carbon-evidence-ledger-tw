@@ -39,6 +39,11 @@ STATE_INTAKE_FILE_NAME = "uploaded_file_name"
 STATE_INTAKE_TABLE = "uploaded_table"
 STATE_INTAKE_BYTES = "uploaded_file_bytes"
 STATE_INTAKE_SHEET = "intake_selected_sheet"
+STATE_INTAKE_SHEET_CONFIRMED = "intake_sheet_confirmed"
+STATE_INTAKE_HEADER_ROW = "intake_header_row"
+STATE_INTAKE_HEADER_CONFIRMED = "intake_header_confirmed"
+STATE_INTAKE_YEAR_MONTH_CONFIRMED = "intake_year_month_confirmed"
+STATE_INTAKE_SHOW_MAPPING_EDITOR = "intake_show_mapping_editor"
 STATE_INTAKE_MAPPING = "intake_mapping"
 STATE_INTAKE_METADATA = "intake_metadata"
 STATE_INTAKE_RESULT = "validated_intake_result"
@@ -204,6 +209,11 @@ def clear_intake_state(session_state: Any) -> None:
         STATE_INTAKE_TABLE,
         STATE_INTAKE_BYTES,
         STATE_INTAKE_SHEET,
+        STATE_INTAKE_SHEET_CONFIRMED,
+        STATE_INTAKE_HEADER_ROW,
+        STATE_INTAKE_HEADER_CONFIRMED,
+        STATE_INTAKE_YEAR_MONTH_CONFIRMED,
+        STATE_INTAKE_SHOW_MAPPING_EDITOR,
         STATE_INTAKE_MAPPING,
         STATE_INTAKE_METADATA,
         STATE_INTAKE_RESULT,

@@ -11,6 +11,9 @@ import pytest
 
 from carbon_ledger import intake as intake_mod
 from carbon_ledger.intake import (
+    CONFIDENCE_HIGH,
+    CONFIDENCE_LOW,
+    CONFIDENCE_MEDIUM,
     MAX_UPLOAD_BYTES,
     ColumnMapping,
     IntakeError,
@@ -19,14 +22,21 @@ from carbon_ledger.intake import (
     build_and_validate_intake,
     compute_bytes_sha256,
     default_value_maps,
+    detect_header_row,
+    is_reference_only_column,
     list_xlsx_sheet_names,
     parse_uploaded_table,
+    parse_year_month_period,
+    rank_xlsx_worksheets,
+    reference_only_columns,
     sanitize_filename,
     source_document_id_from_hash,
     suggest_activity_type,
     suggest_column_mapping,
+    suggest_column_mapping_with_confidence,
     suggest_unit,
     validate_upload_bytes,
+    year_month_transform_preview,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -437,3 +447,281 @@ def test_intake_does_not_write_files_to_repository(tmp_path: Path) -> None:
     after = {path for path in REPO_ROOT.rglob("*") if path.is_file()}
     assert before == after
     assert blank_template_csv_bytes().startswith(b"activity_type,")
+
+
+def _real_world_workbook_bytes(*, data_sheet_name: str = "活動數據") -> bytes:
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    prose = workbook.active
+    prose.title = "說明"
+    prose["A1"] = "填寫說明"
+    prose["A2"] = "本表僅供說明，請閱讀公司碳盤查作業指引後再填寫。"
+    prose["A3"] = "注意：請勿修改排放係數計算方式說明文字。"
+
+    data = workbook.create_sheet(data_sheet_name)
+    data.append(
+        ["廠區", "年月", "能源別", "使用量", "單位", "排放係數", "排放量 (kgCO2e)"]
+    )
+    data.append(["台北總部", "2025-01", "外購電力", 120000, "kWh", 0.494, 59280])
+    data.append(["台北總部", "2025-02", "天然氣", 8000, "m3", 2.0, 16000])
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def _workbook_with_header_below_row1() -> bytes:
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Sheet2"
+    sheet.append(["公司能源使用月報"])
+    sheet.append(["本列是說明文字，不是欄位名稱"])
+    sheet.append(["廠區", "年月", "能源別", "使用量", "單位"])
+    sheet.append(["高雄廠", "2024-03", "柴油", 100, "L"])
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def test_worksheet_selection_does_not_depend_solely_on_sheet_name() -> None:
+    data = _real_world_workbook_bytes(data_sheet_name="abc123")
+    ranked = rank_xlsx_worksheets(data)
+    assert ranked[0].sheet_name == "abc123"
+    assert ranked[0].sheet_name != "說明"
+
+
+def test_prose_instruction_sheet_not_preferred_over_tabular_data() -> None:
+    data = _real_world_workbook_bytes(data_sheet_name="活動數據")
+    ranked = rank_xlsx_worksheets(data)
+    assert ranked[0].sheet_name == "活動數據"
+    prose = next(item for item in ranked if item.sheet_name == "說明")
+    assert ranked[0].score > prose.score
+
+
+def test_arbitrary_data_sheet_name_still_ranks_correctly() -> None:
+    data = _real_world_workbook_bytes(data_sheet_name="Sheet2")
+    ranked = rank_xlsx_worksheets(data)
+    assert ranked[0].sheet_name == "Sheet2"
+    table = parse_uploaded_table(file_name="company.xlsx", data=data)
+    assert table.sheet_name == "Sheet2"
+    assert "能源別" in table.columns
+
+
+def test_header_row_detected_below_row_1() -> None:
+    data = _workbook_with_header_below_row1()
+    raw = pd.read_excel(BytesIO(data), header=None, dtype=object, engine="openpyxl")
+    detection = detect_header_row(raw)
+    assert detection.header_row_index == 2
+    table = parse_uploaded_table(file_name="offset.xlsx", data=data, header_row=2)
+    assert list(table.columns)[:5] == ["廠區", "年月", "能源別", "使用量", "單位"]
+    assert table.frame.iloc[0]["能源別"] == "柴油"
+
+
+def test_energy_bie_suggests_activity_type() -> None:
+    detailed = suggest_column_mapping_with_confidence(
+        ["廠區", "年月", "能源別", "使用量", "單位"]
+    )
+    assert detailed["activity_type"].source_column == "能源別"
+    assert detailed["activity_type"].confidence == CONFIDENCE_HIGH
+    assert suggest_column_mapping(["能源別"])["activity_type"] == "能源別"
+
+
+def test_usage_amount_suggests_activity_value() -> None:
+    assert suggest_column_mapping(["使用量"])["activity_value"] == "使用量"
+    assert (
+        suggest_column_mapping_with_confidence(["使用量"])["activity_value"].confidence
+        == CONFIDENCE_HIGH
+    )
+
+
+def test_plant_area_suggests_site() -> None:
+    detailed = suggest_column_mapping_with_confidence(["廠區", "使用量"])
+    assert detailed["site_id"].source_column == "廠區"
+    assert detailed["site_id"].confidence == CONFIDENCE_HIGH
+
+
+def test_year_month_recognized_as_monthly_period() -> None:
+    detailed = suggest_column_mapping_with_confidence(
+        ["廠區", "年月", "能源別", "使用量", "單位"]
+    )
+    assert detailed["year_month"].source_column == "年月"
+    assert detailed["year_month"].confidence == CONFIDENCE_HIGH
+
+
+def test_year_month_2025_01_converts_after_confirmation() -> None:
+    preview = year_month_transform_preview("2025-01")
+    assert preview["activity_start_date"] == "2025-01-01"
+    assert preview["activity_end_date"] == "2025-01-31"
+    start, end = parse_year_month_period("2025/01")
+    assert start == date(2025, 1, 1)
+    assert end == date(2025, 1, 31)
+    start, end = parse_year_month_period("2025年1月")
+    assert start == date(2025, 1, 1)
+    assert end == date(2025, 1, 31)
+
+
+def test_february_leap_year_logic() -> None:
+    start, end = parse_year_month_period("2024-02")
+    assert start == date(2024, 2, 1)
+    assert end == date(2024, 2, 29)
+    start, end = parse_year_month_period("2025-02")
+    assert start == date(2025, 2, 1)
+    assert end == date(2025, 2, 28)
+
+
+def test_uploaded_emission_factor_not_used_as_registry() -> None:
+    columns = ["能源別", "使用量", "單位", "排放係數", "排放量 (kgCO2e)"]
+    assert is_reference_only_column("排放係數")
+    assert is_reference_only_column("排放量 (kgCO2e)")
+    assert set(reference_only_columns(columns)) >= {"排放係數", "排放量 (kgCO2e)"}
+    suggestions = suggest_column_mapping(columns)
+    assert suggestions["activity_value"] == "使用量"
+    assert suggestions["activity_value"] != "排放量 (kgCO2e)"
+    assert "排放係數" not in suggestions.values()
+
+
+def test_uploaded_emission_amount_not_treated_as_calculated_truth() -> None:
+    data = _real_world_workbook_bytes()
+    table = parse_uploaded_table(
+        file_name="company.xlsx",
+        data=data,
+        sheet_name="活動數據",
+    )
+    mapping = ColumnMapping(
+        activity_type_column="能源別",
+        activity_value_column="使用量",
+        unit_column="單位",
+        site_column="廠區",
+        use_file_dates=False,
+        use_year_month=True,
+        year_month_column="年月",
+        year_month_confirmed=True,
+        activity_type_value_map={
+            "外購電力": "grid_electricity",
+            "天然氣": "natural_gas",
+        },
+        unit_value_map={"kWh": "kWh", "m3": "m3"},
+    )
+    result = build_and_validate_intake(table, mapping, _metadata())
+    assert result.accepted_count == 2
+    first = result.accepted_activities.iloc[0]
+    assert float(first["activity_value"]) == 120000.0
+    assert float(first["activity_value"]) != 59280.0
+    assert "emission_factor" not in result.accepted_activities.columns
+    assert "co2e" not in result.accepted_activities.columns
+    assert first["activity_start_date"].date() == date(2025, 1, 1)
+    assert first["activity_end_date"].date() == date(2025, 1, 31)
+    assert first["site_id"] == "台北總部"
+
+
+def test_year_month_requires_confirmation() -> None:
+    data = _real_world_workbook_bytes()
+    table = parse_uploaded_table(
+        file_name="company.xlsx",
+        data=data,
+        sheet_name="活動數據",
+    )
+    mapping = ColumnMapping(
+        activity_type_column="能源別",
+        activity_value_column="使用量",
+        unit_column="單位",
+        use_year_month=True,
+        year_month_column="年月",
+        year_month_confirmed=False,
+        activity_type_value_map={"外購電力": "grid_electricity"},
+        unit_value_map={"kWh": "kWh"},
+    )
+    with pytest.raises(IntakeError) as exc:
+        build_and_validate_intake(table, mapping, _metadata())
+    assert exc.value.code == "YEAR_MONTH_NOT_CONFIRMED"
+
+
+def test_user_can_override_every_suggestion() -> None:
+    columns = ["能源別", "使用量", "單位", "備用類型", "備用數量"]
+    suggestions = suggest_column_mapping(columns)
+    assert suggestions["activity_type"] == "能源別"
+    overridden = ColumnMapping(
+        activity_type_column="備用類型",
+        activity_value_column="備用數量",
+        unit_column="單位",
+        use_file_dates=False,
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        activity_type_value_map={"外購電力": "grid_electricity"},
+        unit_value_map={"kWh": "kWh"},
+    )
+    frame = pd.DataFrame(
+        [
+            {
+                "能源別": "柴油",
+                "使用量": 1,
+                "單位": "kWh",
+                "備用類型": "外購電力",
+                "備用數量": 50,
+            }
+        ]
+    )
+    table = parse_uploaded_table(file_name="demo.csv", data=_valid_csv())
+    table = intake_mod.UploadedTable(
+        file_name=table.file_name,
+        file_extension=table.file_extension,
+        sha256=table.sha256,
+        sheet_name=None,
+        sheet_names=(),
+        columns=tuple(frame.columns),
+        frame=frame,
+        byte_length=table.byte_length,
+        header_row_index=0,
+    )
+    result = build_and_validate_intake(table, overridden, _metadata())
+    assert result.accepted_count == 1
+    assert result.accepted_activities.iloc[0]["activity_type"] == "grid_electricity"
+    assert float(result.accepted_activities.iloc[0]["activity_value"]) == 50.0
+
+
+def test_low_confidence_mappings_remain_unconfirmed() -> None:
+    detailed = suggest_column_mapping_with_confidence(["foo", "bar", "baz"])
+    assert detailed["activity_type"].confidence == CONFIDENCE_LOW
+    assert detailed["activity_type"].source_column == ""
+    assert suggest_column_mapping(["foo", "bar"])["activity_type"] == ""
+    # Medium-confidence labels still suggest but are not auto-finalized by intake.
+    medium = suggest_column_mapping_with_confidence(["項目", "數量", "單位"])
+    assert medium["activity_type"].confidence == CONFIDENCE_MEDIUM
+    assert medium["activity_type"].source_column == "項目"
+
+
+def test_existing_canonical_template_uploads_still_work() -> None:
+    table = parse_uploaded_table(file_name="demo.csv", data=_valid_csv())
+    result = build_and_validate_intake(table, _mapping_for(table), _metadata())
+    assert result.accepted_count == 3
+    assert result.rejected_count == 0
+    assert list(table.columns)[:5] == [
+        "activity_type",
+        "activity_value",
+        "unit",
+        "activity_start_date",
+        "activity_end_date",
+    ]
+
+
+def test_real_world_workbook_end_to_end_suggestions() -> None:
+    data = _real_world_workbook_bytes()
+    ranked = rank_xlsx_worksheets(data)
+    assert ranked[0].sheet_name == "活動數據"
+    table = parse_uploaded_table(
+        file_name="company.xlsx",
+        data=data,
+        sheet_name=ranked[0].sheet_name,
+    )
+    suggestions = suggest_column_mapping_with_confidence(list(table.columns))
+    assert suggestions["activity_type"].source_column == "能源別"
+    assert suggestions["activity_value"].source_column == "使用量"
+    assert suggestions["unit"].source_column == "單位"
+    assert suggestions["site_id"].source_column == "廠區"
+    assert suggestions["year_month"].source_column == "年月"
+    assert "排放係數" not in {
+        item.source_column for item in suggestions.values() if item.source_column
+    }
