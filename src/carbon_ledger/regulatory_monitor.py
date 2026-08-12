@@ -107,11 +107,14 @@ FORBIDDEN_STATE_PATH_FRAGMENTS = (
 
 CHANGE_TYPES = {
     "NO_CHANGE",
+    "BASELINE_CAPTURED",
     "COSMETIC_CHANGE",
     "METADATA_CHANGE",
     "POTENTIAL_REGULATORY_CHANGE",
     "CONFIRMED_REGULATORY_CHANGE",
     "SOURCE_UNAVAILABLE",
+    "MANUAL_ACCESS_REQUIRED",
+    "ALTERNATE_OFFICIAL_SIGNAL",
     "REGULATORY_CONFLICT",
 }
 
@@ -188,8 +191,8 @@ class MonitorConfig:
     backoff_seconds: float = 1.5
     rate_limit_seconds: float = 1.0
     user_agent: str = (
-        "CarbonEvidenceLedger-RegulatoryMonitor/3A.5 "
-        "(+https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
+        "Mozilla/5.0 (compatible; CarbonEvidenceLedger-RegulatoryMonitor/3A.6; "
+        "+https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
     )
     freshness_windows: dict[str, timedelta] = field(default_factory=dict)
     auto_activate_rules: bool = False
@@ -204,6 +207,13 @@ class MonitorConfig:
     required_authoritative_source_ids: list[str] = field(default_factory=list)
     critical_source_ids: list[str] = field(default_factory=list)
     important_source_ids: list[str] = field(default_factory=list)
+    primary_authoritative_source_ids: list[str] = field(default_factory=list)
+    alternate_official_monitoring_sources: dict[str, str] = field(
+        default_factory=dict
+    )
+    manual_access_http_statuses: list[int] = field(
+        default_factory=lambda: [401, 403, 407]
+    )
     tls_x509_strict_fallback_hosts: list[str] = field(default_factory=list)
     reviewable_change_types: frozenset[str] = REVIEWABLE_CHANGE_TYPES
     schedule_cron_utc: str = "17 16 * * *"
@@ -352,6 +362,25 @@ def load_monitor_config(path: Path) -> MonitorConfig:
         ),
         critical_source_ids=_as_str_list(data.get("critical_source_ids")),
         important_source_ids=_as_str_list(data.get("important_source_ids")),
+        primary_authoritative_source_ids=_as_str_list(
+            data.get("primary_authoritative_source_ids")
+        ),
+        alternate_official_monitoring_sources={
+            str(k): str(v)
+            for k, v in (
+                (data.get("alternate_official_monitoring_sources") or {})
+                if isinstance(
+                    data.get("alternate_official_monitoring_sources"), dict
+                )
+                else {}
+            ).items()
+            if str(k).strip() and str(v).strip()
+        },
+        manual_access_http_statuses=[
+            int(x)
+            for x in _as_str_list(data.get("manual_access_http_statuses"))
+            or ["401", "403", "407"]
+        ],
         tls_x509_strict_fallback_hosts=_as_str_list(
             data.get("tls_x509_strict_fallback_hosts")
         ),
@@ -463,9 +492,9 @@ def classify_change(
 ) -> str:
     if not fetch_ok:
         return "SOURCE_UNAVAILABLE"
-    # First successful baseline hash: establish state without review spam.
+    # First successful baseline: store hash without treating as a legal amendment.
     if not previous_hash:
-        return "NO_CHANGE"
+        return "BASELINE_CAPTURED"
     if previous_hash == new_hash:
         if previous_version != new_version and (previous_version or new_version):
             # Version/effective-date metadata shift is reviewable later.
@@ -487,7 +516,11 @@ def is_reviewable_change(change: dict[str, str] | str) -> bool:
         change_type = str(change.get("change_type", ""))
         previous_version = str(change.get("previous_version", ""))
         new_version = str(change.get("new_version", ""))
+    if change_type in {"BASELINE_CAPTURED", "NO_CHANGE", "COSMETIC_CHANGE"}:
+        return False
     if change_type in REVIEWABLE_CHANGE_TYPES:
+        return True
+    if change_type == "ALTERNATE_OFFICIAL_SIGNAL":
         return True
     # Metadata-only review only when version identifiers differ.
     if change_type == "METADATA_CHANGE" and previous_version != new_version:
@@ -559,8 +592,11 @@ def _fetch_once(
         url,
         headers={
             "User-Agent": user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/pdf,*/*;q=0.8",
-            "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.7",
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                "application/pdf,*/*;q=0.8"
+            ),
+            "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
         },
         method="GET",
     )
@@ -649,6 +685,9 @@ def fetch_with_retries(
             last = fetch_fn(url, config.timeout_seconds)
         if last.ok:
             return last
+        # Access-denied / auth challenges: do not retry aggressively.
+        if int(last.status_code or 0) in set(config.manual_access_http_statuses):
+            return last
         sleep_for = config.backoff_seconds * (2**attempt)
         time.sleep(min(sleep_for, 30.0))
     return last
@@ -695,27 +734,34 @@ def evaluate_freshness(
     window: timedelta,
     now: datetime | None = None,
     consecutive_failures: int = 0,
+    manual_access_required: bool = False,
 ) -> str:
-    """Freshness is based on last_successful_fetch_at, not merely workflow runs.
+    """Freshness status for the *latest check attempt*.
 
-    CURRENT requires a successful official fetch within the freshness window.
-    Failed fetches never invent CURRENT; they leave the prior success stamp
-    unchanged and escalate to CHECK_DUE / STALE / FETCH_FAILED as it ages.
+    CURRENT requires a successful official fetch on this check.
+    A failed latest check is never reported as CURRENT, even when a prior
+    successful fetch remains within the freshness window (that prior stamp is
+    preserved separately in last_successful_fetch_at).
     """
+    if manual_access_required:
+        return "MANUAL_ACCESS_REQUIRED"
     stamp = _parse_iso(last_successful_fetch_at)
     current = now or _utc_now()
-    if stamp is None:
-        if fetch_failed or consecutive_failures > 0:
+    if fetch_failed or consecutive_failures > 0:
+        # Latest attempt failed — never present as CURRENT.
+        if stamp is None:
             return "FETCH_FAILED"
+        age = current - stamp
+        if age <= window * 2:
+            return "FETCH_FAILED"
+        return "FETCH_FAILED"
+    if stamp is None:
         return "CHECK_DUE"
     age = current - stamp
     if age <= window:
-        # Still current from last success, even if today's attempt failed.
         return "CURRENT"
     if age <= window * 2:
-        return "UPDATE_REQUIRED" if fetch_failed else "CHECK_DUE"
-    if fetch_failed or consecutive_failures > 0:
-        return "FETCH_FAILED"
+        return "CHECK_DUE"
     return "STALE"
 
 
@@ -724,6 +770,8 @@ def fail_safe_state_for_freshness(freshness_status: str) -> str | None:
         return "REGULATORY_DATA_STALE"
     if freshness_status in {"CHECK_DUE", "UPDATE_REQUIRED"}:
         return "UPDATE_REQUIRED"
+    if freshness_status in {"MANUAL_ACCESS_REQUIRED", "MANUAL_VERIFICATION_REQUIRED"}:
+        return "MANUAL_VERIFICATION_REQUIRED"
     if freshness_status in {
         "FETCH_FAILED",
         "SOURCE_CHECK_FAILED",
@@ -775,6 +823,7 @@ def assert_sources_fresh_for_analysis(
     stale: list[str] = []
     failed: list[str] = []
     due: list[str] = []
+    manual: list[str] = []
     for source_id in required_source_ids:
         row = by_id.get(source_id)
         if row is None:
@@ -790,12 +839,16 @@ def assert_sources_fresh_for_analysis(
             "STATE_PERSISTENCE_FAILED",
         }:
             failed.append(source_id)
+        elif status in {"MANUAL_ACCESS_REQUIRED", "MANUAL_VERIFICATION_REQUIRED"}:
+            manual.append(source_id)
         elif status in {"CHECK_DUE", "UPDATE_REQUIRED"}:
             due.append(source_id)
     if failed:
         state = "SOURCE_CHECK_FAILED"
     elif stale:
         state = "REGULATORY_DATA_STALE"
+    elif manual:
+        state = "MANUAL_VERIFICATION_REQUIRED"
     elif due:
         state = "UPDATE_REQUIRED"
     elif persistence_failed:
@@ -807,7 +860,7 @@ def assert_sources_fresh_for_analysis(
         "state": state,
         "stale_sources": stale,
         "failed_sources": failed,
-        "due_sources": due,
+        "due_sources": due + manual,
         "message": (
             "Official regulatory sources are current."
             if state == "CURRENT"
@@ -856,12 +909,18 @@ def build_monitoring_summary(
         for status in statuses
         if status in {"FETCH_FAILED", "SOURCE_CHECK_FAILED"}
     )
+    sources_manual_access = sum(
+        1
+        for status in statuses
+        if status in {"MANUAL_ACCESS_REQUIRED", "MANUAL_VERIFICATION_REQUIRED"}
+    )
     critical_sources_failed = 0
     for row in freshness_rows:
         sid = row.get("source_id", "")
         criticality = row.get("monitor_criticality") or (
             CRITICALITY_CRITICAL if sid in critical_ids else ""
         )
+        # MANUAL_ACCESS_REQUIRED is a managed limitation, not a hard fetch crash.
         failed = row.get("fetch_status") == "FETCH_FAILED" or row.get(
             "freshness_status"
         ) in {"FETCH_FAILED", "SOURCE_CHECK_FAILED"}
@@ -901,6 +960,8 @@ def build_monitoring_summary(
         overall = "SOURCE_CHECK_FAILED"
     elif sources_stale:
         overall = "STALE"
+    elif sources_manual_access:
+        overall = "MANUAL_VERIFICATION_REQUIRED"
     elif any(status in {"CHECK_DUE", "UPDATE_REQUIRED"} for status in statuses):
         overall = "UPDATE_REQUIRED"
     elif consecutive_persistence_failures >= 3:
@@ -921,6 +982,7 @@ def build_monitoring_summary(
         "sources_current": sources_current,
         "sources_stale": sources_stale,
         "sources_failed": sources_failed,
+        "sources_manual_access": sources_manual_access,
         "sources_total": len(freshness_rows),
         "critical_sources_failed": critical_sources_failed,
         "changes_pending_review": len(pending_changes),
@@ -939,24 +1001,31 @@ def build_monitoring_summary(
 
 
 def evaluate_monitoring_health(summary: dict[str, Any]) -> str:
-    """Workflow health independent of Python process crash status."""
+    """Workflow health independent of Python process crash status.
+
+    Precedence:
+    1. STATE_PERSISTENCE_FAILED
+    2. STATE_PERSISTENCE_MISMATCH
+    3. CRITICAL_SOURCE_FAILURE
+    4. PARTIAL (incl. manual verification / supplementary issues)
+    5. CURRENT
+    """
     persistence = str(summary.get("persistence_status") or "")
-    if persistence == "STATE_PERSISTENCE_MISMATCH":
-        return HEALTH_STATE_PERSISTENCE_MISMATCH
-    if persistence == "STATE_PERSISTENCE_FAILED":
+    overall = str(summary.get("overall_regulatory_freshness") or "")
+    if (
+        persistence == "STATE_PERSISTENCE_FAILED"
+        or overall == "STATE_PERSISTENCE_FAILED"
+    ):
         return HEALTH_STATE_PERSISTENCE_FAILED
+    if (
+        persistence == "STATE_PERSISTENCE_MISMATCH"
+        or overall == "STATE_PERSISTENCE_MISMATCH"
+    ):
+        return HEALTH_STATE_PERSISTENCE_MISMATCH
     if int(summary.get("critical_sources_failed") or 0) > 0:
         return HEALTH_CRITICAL_SOURCE_FAILURE
-    overall = str(summary.get("overall_regulatory_freshness") or "")
-    if overall in {
-        "STATE_PERSISTENCE_FAILED",
-        "STATE_PERSISTENCE_MISMATCH",
-        "FRESHNESS_STATE_UNAVAILABLE",
-    }:
-        if "MISMATCH" in overall:
-            return HEALTH_STATE_PERSISTENCE_MISMATCH
-        if "PERSISTENCE" in overall:
-            return HEALTH_STATE_PERSISTENCE_FAILED
+    if overall in {"FRESHNESS_STATE_UNAVAILABLE"}:
+        return HEALTH_STATE_PERSISTENCE_FAILED
     if overall == "CURRENT":
         return HEALTH_MONITORING_CURRENT
     return HEALTH_MONITORING_PARTIAL
@@ -1408,6 +1477,18 @@ def record_conflict(
     return conflict
 
 
+def is_manual_access_block(
+    *,
+    source_id: str,
+    status_code: int,
+    config: MonitorConfig,
+) -> bool:
+    """True when a primary authoritative source is blocked (e.g. HTTP 403)."""
+    if source_id not in set(config.primary_authoritative_source_ids):
+        return False
+    return int(status_code or 0) in set(config.manual_access_http_statuses)
+
+
 def check_source(
     source_row: dict[str, str],
     *,
@@ -1415,31 +1496,119 @@ def check_source(
     config: MonitorConfig,
     fetch_fn: FetchFn | None = None,
     now: datetime | None = None,
-) -> tuple[dict[str, str], dict[str, str] | None]:
-    """Check one source; return updated freshness row and optional change event."""
+    alternate_source_row: dict[str, str] | None = None,
+    alternate_prior: dict[str, str] | None = None,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """Check one source; return updated freshness row and zero+ change events."""
     current = now or _utc_now()
     checked_at = _iso(current)
     url = str(source_row.get("official_url", "")).strip()
     fetch = fetch_with_retries(url, config, fetch_fn=fetch_fn)
     window = freshness_window_for(source_row, config)
     next_check = _iso(current + window)
+    source_id = str(source_row["source_id"])
 
     updated = dict(prior)
-    updated["source_id"] = source_row["source_id"]
-    updated["monitor_criticality"] = source_criticality(
-        source_row["source_id"], config
-    )
+    updated["source_id"] = source_id
+    updated["monitor_criticality"] = source_criticality(source_id, config)
     updated["last_checked_at"] = checked_at
     updated["next_check_at"] = next_check
 
     if not fetch.ok:
-        # Preserve last_successful_fetch_at; only update failure metadata.
         prior_success = prior.get("last_successful_fetch_at", "")
         failures = int(updated.get("consecutive_failures") or "0") + 1
         updated["consecutive_failures"] = str(failures)
+        updated["last_successful_fetch_at"] = prior_success
+        change_stamp = checked_at.replace(":", "").replace("-", "")
+        changes: list[dict[str, str]] = []
+
+        if is_manual_access_block(
+            source_id=source_id,
+            status_code=fetch.status_code,
+            config=config,
+        ):
+            updated["fetch_status"] = "MANUAL_ACCESS_REQUIRED"
+            updated["fetch_error"] = fetch.error or f"HTTP {fetch.status_code}"
+            updated["freshness_status"] = evaluate_freshness(
+                last_successful_fetch_at=prior_success,
+                fetch_failed=True,
+                window=window,
+                now=current,
+                consecutive_failures=failures,
+                manual_access_required=True,
+            )
+            alt_id = config.alternate_official_monitoring_sources.get(source_id, "")
+            notes = (
+                "PRIMARY_AUTHORITATIVE_SOURCE returned HTTP "
+                f"{fetch.status_code}; fetch_status=MANUAL_ACCESS_REQUIRED "
+                "(not endless SOURCE_UNAVAILABLE). "
+                "Do not treat as CURRENT. Taiwan-recognised IFRS conclusions "
+                "require manual confirmation against the authoritative SFB source."
+            )
+            if alt_id:
+                notes += (
+                    f" ALTERNATE_OFFICIAL_MONITORING_SOURCE={alt_id} may provide "
+                    "early-warning only; never auto-activates recognition."
+                )
+            changes.append(
+                {
+                    "change_id": f"chg_{source_id}_{change_stamp}",
+                    "source_id": source_id,
+                    "detected_at": checked_at,
+                    "previous_hash": prior.get("content_hash", ""),
+                    "new_hash": "",
+                    "change_type": "MANUAL_ACCESS_REQUIRED",
+                    "previous_version": prior.get("current_source_version", ""),
+                    "new_version": prior.get("current_source_version", ""),
+                    "affected_rule_ids": "",
+                    "review_status": "INFO",
+                    "reviewed_by": "",
+                    "reviewed_at": "",
+                    "activation_status": "NOT_ACTIVATED",
+                    "notes": notes,
+                }
+            )
+            # Early-warning probe of alternate official source (no TLS weakening).
+            if alternate_source_row is not None:
+                alt_url = str(alternate_source_row.get("official_url", "")).strip()
+                alt_sid = str(alternate_source_row.get("source_id", alt_id))
+                if alt_url:
+                    alt_fetch = fetch_with_retries(alt_url, config, fetch_fn=fetch_fn)
+                    if alt_fetch.ok:
+                        alt_hash = content_hash(alt_fetch.body)
+                        alt_prior_hash = (alternate_prior or {}).get("content_hash", "")
+                        if alt_prior_hash and alt_prior_hash != alt_hash:
+                            changes.append(
+                                {
+                                    "change_id": (
+                                        f"chg_{source_id}_alt_{change_stamp}"
+                                    ),
+                                    "source_id": source_id,
+                                    "detected_at": checked_at,
+                                    "previous_hash": alt_prior_hash,
+                                    "new_hash": alt_hash,
+                                    "change_type": "ALTERNATE_OFFICIAL_SIGNAL",
+                                    "previous_version": "",
+                                    "new_version": "",
+                                    "affected_rule_ids": "",
+                                    "review_status": "PENDING_REVIEW",
+                                    "reviewed_by": "",
+                                    "reviewed_at": "",
+                                    "activation_status": "NOT_ACTIVATED",
+                                    "notes": (
+                                        "ALTERNATE_OFFICIAL_SIGNAL from "
+                                        f"{alt_sid}. PENDING_REVIEW only — does "
+                                        "NOT auto-activate Taiwan-recognised IFRS "
+                                        "version. Confirm against primary "
+                                        "authoritative SFB source "
+                                        f"({source_id})."
+                                    ),
+                                }
+                            )
+            return updated, changes
+
         updated["fetch_status"] = "FETCH_FAILED"
         updated["fetch_error"] = fetch.error or f"HTTP {fetch.status_code}"
-        updated["last_successful_fetch_at"] = prior_success
         updated["freshness_status"] = evaluate_freshness(
             last_successful_fetch_at=prior_success,
             fetch_failed=True,
@@ -1447,27 +1616,28 @@ def check_source(
             now=current,
             consecutive_failures=failures,
         )
-        change_stamp = checked_at.replace(":", "").replace("-", "")
-        change = {
-            "change_id": f"chg_{source_row['source_id']}_{change_stamp}",
-            "source_id": source_row["source_id"],
-            "detected_at": checked_at,
-            "previous_hash": prior.get("content_hash", ""),
-            "new_hash": "",
-            "change_type": "SOURCE_UNAVAILABLE",
-            "previous_version": prior.get("current_source_version", ""),
-            "new_version": prior.get("current_source_version", ""),
-            "affected_rule_ids": "",
-            "review_status": "INFO",
-            "reviewed_by": "",
-            "reviewed_at": "",
-            "activation_status": "NOT_ACTIVATED",
-            "notes": (
-                "Fetch failed; last_successful_fetch_at unchanged. "
-                f"Error: {updated['fetch_error']}"
-            ),
-        }
-        return updated, change
+        changes.append(
+            {
+                "change_id": f"chg_{source_id}_{change_stamp}",
+                "source_id": source_id,
+                "detected_at": checked_at,
+                "previous_hash": prior.get("content_hash", ""),
+                "new_hash": "",
+                "change_type": "SOURCE_UNAVAILABLE",
+                "previous_version": prior.get("current_source_version", ""),
+                "new_version": prior.get("current_source_version", ""),
+                "affected_rule_ids": "",
+                "review_status": "INFO",
+                "reviewed_by": "",
+                "reviewed_at": "",
+                "activation_status": "NOT_ACTIVATED",
+                "notes": (
+                    "Fetch failed; last_successful_fetch_at unchanged. "
+                    f"Error: {updated['fetch_error']}"
+                ),
+            }
+        )
+        return updated, changes
 
     new_hash = content_hash(fetch.body)
     new_version = str(
@@ -1499,55 +1669,55 @@ def check_source(
         source_row.get("current_source_version") or source_row.get("version") or ""
     )
 
-    change_event = None
+    changes = []
     if change_type != "NO_CHANGE":
         if change_type in {
             "POTENTIAL_REGULATORY_CHANGE",
             "CONFIRMED_REGULATORY_CHANGE",
             "METADATA_CHANGE",
             "COSMETIC_CHANGE",
+            "BASELINE_CAPTURED",
         }:
-            updated["last_changed_at"] = checked_at
+            if change_type != "BASELINE_CAPTURED":
+                updated["last_changed_at"] = checked_at
             updated["content_hash"] = new_hash
         else:
             updated["content_hash"] = new_hash
         change_stamp = checked_at.replace(":", "").replace("-", "")
-        change_event = {
-            "change_id": f"chg_{source_row['source_id']}_{change_stamp}",
-            "source_id": source_row["source_id"],
-            "detected_at": checked_at,
-            "previous_hash": prior.get("content_hash", ""),
-            "new_hash": new_hash,
-            "change_type": change_type,
-            "previous_version": prior.get("current_source_version", ""),
-            "new_version": updated["current_source_version"],
-            "affected_rule_ids": "",
-            "review_status": (
-                "PENDING_REVIEW"
-                if is_reviewable_change(
-                    {
-                        "change_type": change_type,
-                        "previous_version": prior.get("current_source_version", ""),
-                        "new_version": updated["current_source_version"],
-                    }
-                )
-                else "INFO"
-            ),
-            "reviewed_by": "",
-            "reviewed_at": "",
-            "activation_status": "NOT_ACTIVATED",
-            "notes": (
-                "Detected change recorded; legal rules are NOT auto-activated."
-                if is_reviewable_change(
-                    {
-                        "change_type": change_type,
-                        "previous_version": prior.get("current_source_version", ""),
-                        "new_version": updated["current_source_version"],
-                    }
-                )
-                else "Non-reviewable / non-activating change event."
-            ),
-        }
+        reviewable = is_reviewable_change(
+            {
+                "change_type": change_type,
+                "previous_version": prior.get("current_source_version", ""),
+                "new_version": updated["current_source_version"],
+            }
+        )
+        changes.append(
+            {
+                "change_id": f"chg_{source_id}_{change_stamp}",
+                "source_id": source_id,
+                "detected_at": checked_at,
+                "previous_hash": prior.get("content_hash", ""),
+                "new_hash": new_hash,
+                "change_type": change_type,
+                "previous_version": prior.get("current_source_version", ""),
+                "new_version": updated["current_source_version"],
+                "affected_rule_ids": "",
+                "review_status": "PENDING_REVIEW" if reviewable else "INFO",
+                "reviewed_by": "",
+                "reviewed_at": "",
+                "activation_status": "NOT_ACTIVATED",
+                "notes": (
+                    "Detected change recorded; legal rules are NOT auto-activated."
+                    if reviewable
+                    else (
+                        "BASELINE_CAPTURED: first successful hash stored; "
+                        "not a legal amendment."
+                        if change_type == "BASELINE_CAPTURED"
+                        else "Non-reviewable / non-activating change event."
+                    )
+                ),
+            }
+        )
     else:
         # Preserve prior hash on no-change; seed hash if first successful check.
         if not updated.get("content_hash"):
@@ -1555,7 +1725,7 @@ def check_source(
         else:
             updated["content_hash"] = prior.get("content_hash", new_hash)
 
-    return updated, change_event
+    return updated, changes
 
 
 def run_monitor(
@@ -1668,15 +1838,29 @@ def run_monitor(
             source_dict["source_id"],
             {col: "" for col in FRESHNESS_COLUMNS},
         )
-        updated, change = check_source(
+        alt_id = config.alternate_official_monitoring_sources.get(
+            str(source_dict["source_id"]), ""
+        )
+        alternate_source_row = None
+        alternate_prior = None
+        if alt_id:
+            alt_matches = sources[sources["source_id"] == alt_id]
+            if not alt_matches.empty:
+                alternate_source_row = alt_matches.iloc[0].to_dict()
+                alternate_prior = prior_rows.get(
+                    alt_id, {col: "" for col in FRESHNESS_COLUMNS}
+                )
+        updated, changes = check_source(
             source_dict,
             prior=prior,
             config=config,
             fetch_fn=fetch_fn,
             now=now,
+            alternate_source_row=alternate_source_row,
+            alternate_prior=alternate_prior,
         )
         prior_rows[source_dict["source_id"]] = updated
-        if change is not None:
+        for change in changes:
             affected = rules.loc[
                 rules["source_id"] == source_dict["source_id"], "rule_id"
             ].tolist()

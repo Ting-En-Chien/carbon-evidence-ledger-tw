@@ -2,14 +2,15 @@
 # Frequencies are centralised here — do not hard-code in application logic.
 # Parsed by carbon_ledger.regulatory_monitor (minimal YAML subset loader).
 
-version: "3A.5"
+version: "3A.6"
 
 defaults:
   timeout_seconds: 30
   max_retries: 3
   backoff_seconds: 1.5
   rate_limit_seconds: 1.0
-  user_agent: "CarbonEvidenceLedger-RegulatoryMonitor/3A.5 (+https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
+  # Transparent monitoring client identity (not an anti-bot bypass).
+  user_agent: "Mozilla/5.0 (compatible; CarbonEvidenceLedger-RegulatoryMonitor/3A.6; +https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
 
 freshness_windows:
   high_change_source: 1d
@@ -77,6 +78,22 @@ required_authoritative_source_ids:
   - src_tw_annual_report_rules_fl007032
   - src_tw_fsc_law_portal
 
+# PRIMARY_AUTHORITATIVE_SOURCE remains the legal recognition locus.
+# If automated access is blocked (e.g. HTTP 403), use an alternate official
+# early-warning source. Alternate hits never auto-activate Taiwan recognition.
+primary_authoritative_source_ids:
+  - src_tw_sfb_ifrs_download_area
+
+alternate_official_monitoring_sources:
+  src_tw_sfb_ifrs_download_area: src_tw_order_11403856094_recognised
+
+# HTTP statuses that may escalate primary sources to MANUAL_ACCESS_REQUIRED
+# (after limited retries), not endless SOURCE_UNAVAILABLE.
+manual_access_http_statuses:
+  - 401
+  - 403
+  - 407
+
 # Official Taiwan domains allowed for VERIFY_X509_STRICT compatibility retry ONLY.
 # Still requires CA trust + hostname verification. Never includes arbitrary internet.
 # IFRS Foundation (www.ifrs.org) stays on full strict TLS — not listed here.
@@ -111,6 +128,7 @@ fail_safe_states:
   - STATE_PERSISTENCE_FAILED
   - STATE_PERSISTENCE_MISMATCH
   - CRITICAL_SOURCE_FAILURE
+  - MANUAL_VERIFICATION_REQUIRED
 
 # Reviewable change types that may open a PR/Issue (never NO_CHANGE/COSMETIC).
 reviewable_change_types:

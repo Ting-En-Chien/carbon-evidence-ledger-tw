@@ -294,8 +294,9 @@ def test_classify_change_helpers() -> None:
             new_version="",
             fetch_ok=True,
         )
-        == "NO_CHANGE"
+        == "BASELINE_CAPTURED"
     )
+    assert is_reviewable_change("BASELINE_CAPTURED") is False
     assert (
         classify_change(
             previous_hash="",
@@ -424,6 +425,16 @@ def test_scheduled_workflow_exists_and_is_enabled() -> None:
     assert "pull-requests: write" in text
     assert "issues: write" in text
     assert "DEFAULT branch" in text or "default branch" in text
+    # Persist evidence before final gate / unit tests; monitor uses continue-on-error.
+    assert "continue-on-error: true" in text
+    assert "ERROR: CRITICAL_SOURCE_FAILURE" in text
+    assert "ERROR: STATE_PERSISTENCE_FAILED" in text
+    monitor_idx = text.index("Run live official-source monitor")
+    persist_idx = text.index("Persist monitoring STATE to regulatory-monitor-state")
+    verify_idx = text.index("Verify persisted state matches runtime")
+    gate_idx = text.index("Final monitoring health gate")
+    tests_idx = text.index("Run regulatory unit tests (mocked network only)")
+    assert monitor_idx < persist_idx < verify_idx < gate_idx < tests_idx
     # Schedule must not remain commented out.
     for line in text.splitlines():
         stripped = line.strip()
@@ -466,6 +477,8 @@ def test_no_change_run_updates_durable_freshness_state(tmp_path: Path) -> None:
     )
     assert first["monitoring_complete"] is True
     assert first["review_required"] is False
+    assert first["changes"][0]["change_type"] == "BASELINE_CAPTURED"
+    assert first["changes"][0]["review_status"] == "INFO"
     durable = root / "data/regulatory/durable_state/source_freshness_state.csv"
     assert durable.is_file()
     success_1 = pd.read_csv(durable, dtype=str).fillna("")
@@ -952,3 +965,251 @@ def test_config_loads_critical_sources_and_tls_allowlist() -> None:
     from carbon_ledger.regulatory_monitor import source_criticality
 
     assert source_criticality("src_tw_fsc_law_portal", cfg) == "CRITICAL"
+    assert "src_tw_sfb_ifrs_download_area" in cfg.primary_authoritative_source_ids
+    assert (
+        cfg.alternate_official_monitoring_sources["src_tw_sfb_ifrs_download_area"]
+        == "src_tw_order_11403856094_recognised"
+    )
+
+
+def test_baseline_captured_does_not_trigger_review(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=b"<html>baseline-only</html>")
+
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=datetime(2026, 8, 12, 13, 0, tzinfo=timezone.utc),
+        write_pending_review=True,
+    )
+    assert result["changes"][0]["change_type"] == "BASELINE_CAPTURED"
+    assert result["review_required"] is False
+    assert result["pending_review_rules_marked"] == 0
+    assert should_open_review_activity(result["changes"]) is False
+
+
+def test_failed_latest_fetch_never_reports_current_even_with_prior_success(
+    tmp_path: Path,
+) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    now = datetime(2026, 8, 12, 14, 0, tzinfo=timezone.utc)
+
+    def ok_fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=b"<html>prior-ok</html>")
+
+    def bad_fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=False, status_code=503, error="down")
+
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=ok_fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=bad_fetch,
+        now=now + timedelta(minutes=30),
+        write_pending_review=False,
+    )
+    freshness = pd.read_csv(
+        root / "data/regulatory/durable_state/source_freshness_state.csv", dtype=str
+    ).fillna("")
+    row = freshness.loc[
+        freshness["source_id"] == "src_tw_order_11403851756"
+    ].iloc[0]
+    assert row["freshness_status"] == "FETCH_FAILED"
+    assert row["fetch_status"] == "FETCH_FAILED"
+    assert row["last_successful_fetch_at"].startswith("2026-08-12T14:00:00")
+    assert row["freshness_status"] != "CURRENT"
+    assert result["summary"]["overall_regulatory_freshness"] != "CURRENT"
+
+
+def test_sfb_403_uses_manual_access_not_insecure_bypass(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    calls: list[str] = []
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        calls.append(url)
+        if "ifrs.sfb.gov.tw" in url:
+            return FetchResult(ok=False, status_code=403, error="HTTP 403")
+        return FetchResult(
+            ok=True,
+            status_code=200,
+            body=b"<html>alternate official order text</html>",
+        )
+
+    result = run_monitor(
+        root,
+        source_id="src_tw_sfb_ifrs_download_area",
+        fetch_fn=fetch,
+        now=datetime(2026, 8, 12, 15, 0, tzinfo=timezone.utc),
+        write_pending_review=False,
+    )
+    freshness = pd.read_csv(
+        root / "data/regulatory/durable_state/source_freshness_state.csv", dtype=str
+    ).fillna("")
+    row = freshness.loc[
+        freshness["source_id"] == "src_tw_sfb_ifrs_download_area"
+    ].iloc[0]
+    assert row["fetch_status"] == "MANUAL_ACCESS_REQUIRED"
+    assert row["freshness_status"] == "MANUAL_ACCESS_REQUIRED"
+    assert row["freshness_status"] != "CURRENT"
+    assert any(c["change_type"] == "MANUAL_ACCESS_REQUIRED" for c in result["changes"])
+    assert result["summary"]["critical_sources_failed"] == 0
+    assert result["summary"]["overall_regulatory_freshness"] == (
+        "MANUAL_VERIFICATION_REQUIRED"
+    )
+    source = (
+        REPO_ROOT / "src/carbon_ledger/regulatory_monitor.py"
+    ).read_text(encoding="utf-8")
+    assert "verify=False" not in source
+    assert "CERT_NONE" not in source
+    assert "webdriver" not in source.lower()
+    assert "selenium" not in source.lower()
+    assert len(calls) >= 1
+
+
+def test_alternate_official_signal_cannot_auto_activate_taiwan_ifrs(
+    tmp_path: Path,
+) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    durable = root / "data/regulatory/durable_state"
+    durable.mkdir(parents=True, exist_ok=True)
+    shutil.copy(
+        root / "data/regulatory/source_freshness_state.csv",
+        durable / "source_freshness_state.csv",
+    )
+    df = pd.read_csv(durable / "source_freshness_state.csv", dtype=str).fillna("")
+    alt_id = "src_tw_order_11403856094_recognised"
+    prior_hash = content_hash(b"<html>old alternate</html>")
+    if alt_id not in set(df["source_id"]):
+        df = pd.concat(
+            [
+                df,
+                pd.DataFrame(
+                    [
+                        {
+                            "source_id": alt_id,
+                            "content_hash": prior_hash,
+                            "consecutive_failures": "0",
+                            "freshness_status": "CURRENT",
+                        }
+                    ]
+                ),
+            ],
+            ignore_index=True,
+        )
+    else:
+        df.loc[df["source_id"] == alt_id, "content_hash"] = prior_hash
+    df.to_csv(durable / "source_freshness_state.csv", index=False)
+    shutil.copy(
+        durable / "source_freshness_state.csv",
+        root / "data/regulatory/source_freshness_state.csv",
+    )
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        if "ifrs.sfb.gov.tw" in url:
+            return FetchResult(ok=False, status_code=403, error="HTTP 403")
+        return FetchResult(
+            ok=True,
+            status_code=200,
+            body=b"<html>new alternate official text</html>",
+        )
+
+    before = load_regulatory_rules(root / "config/regulatory_rules.csv")
+    active_before = set(before.loc[before["rule_status"] == "ACTIVE", "rule_id"])
+    result = run_monitor(
+        root,
+        source_id="src_tw_sfb_ifrs_download_area",
+        fetch_fn=fetch,
+        now=datetime(2026, 8, 12, 15, 30, tzinfo=timezone.utc),
+        write_pending_review=True,
+    )
+    signals = [
+        c for c in result["changes"] if c["change_type"] == "ALTERNATE_OFFICIAL_SIGNAL"
+    ]
+    assert signals
+    assert all(s["review_status"] == "PENDING_REVIEW" for s in signals)
+    assert all(s["activation_status"] == "NOT_ACTIVATED" for s in signals)
+    assert result["auto_activate_rules"] is False
+    after = load_regulatory_rules(root / "config/regulatory_rules.csv")
+    active_after = set(after.loc[after["rule_status"] == "ACTIVE", "rule_id"])
+    assert active_after <= active_before
+
+
+def test_manual_access_required_blocks_unconditional_applicability() -> None:
+    gate = assert_sources_fresh_for_analysis(
+        [
+            {
+                "source_id": "src_tw_sfb_ifrs_download_area",
+                "freshness_status": "MANUAL_ACCESS_REQUIRED",
+            }
+        ],
+        ["src_tw_sfb_ifrs_download_area"],
+    )
+    assert gate["analysis_allowed"] is False
+    assert gate["state"] == "MANUAL_VERIFICATION_REQUIRED"
+    assert fail_safe_state_for_freshness("MANUAL_ACCESS_REQUIRED") == (
+        "MANUAL_VERIFICATION_REQUIRED"
+    )
+
+
+def test_invalid_moenv_root_url_is_no_longer_monitored() -> None:
+    sources = load_regulatory_sources(
+        REPO_ROOT / "data/reference/regulatory_sources.csv"
+    )
+    row = sources.loc[sources["source_id"] == "src_tw_moenv_oaout"].iloc[0]
+    assert row["official_url"] != "https://oaout.moenv.gov.tw/"
+    assert "LawContent.aspx" in row["official_url"]
+    assert "oaout.moenv.gov.tw/law/" in row["official_url"]
+    assert str(row["monitor_enabled"]).lower() == "true"
+
+
+def test_health_gate_precedence_persistence_over_critical() -> None:
+    from carbon_ledger.regulatory_monitor import evaluate_monitoring_health
+
+    summary = {
+        "persistence_status": "STATE_PERSISTENCE_FAILED",
+        "critical_sources_failed": 2,
+        "overall_regulatory_freshness": "SOURCE_CHECK_FAILED",
+    }
+    assert evaluate_monitoring_health(summary) == "STATE_PERSISTENCE_FAILED"
+    summary2 = {
+        "persistence_status": "OK",
+        "critical_sources_failed": 1,
+        "overall_regulatory_freshness": "SOURCE_CHECK_FAILED",
+    }
+    assert evaluate_monitoring_health(summary2) == "CRITICAL_SOURCE_FAILURE"
+    summary3 = {
+        "persistence_status": "OK",
+        "critical_sources_failed": 0,
+        "overall_regulatory_freshness": "MANUAL_VERIFICATION_REQUIRED",
+    }
+    assert evaluate_monitoring_health(summary3) == "MONITORING_PARTIAL"
+
+
+def test_critical_failure_still_persists_runtime_state(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=False, status_code=500, error="server error")
+
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=datetime(2026, 8, 12, 16, 0, tzinfo=timezone.utc),
+        write_pending_review=False,
+    )
+    assert result["monitoring_complete"] is True
+    assert (root / "data/regulatory/durable_state/monitoring_summary.json").is_file()
+    assert (root / "data/regulatory/durable_state/source_freshness_state.csv").is_file()
+    assert result["summary"]["critical_sources_failed"] >= 1
+    assert result["monitoring_health"] == "CRITICAL_SOURCE_FAILURE"
+    assert result["persistence"]["ok"] is True

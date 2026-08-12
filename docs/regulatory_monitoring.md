@@ -1,4 +1,4 @@
-# Regulatory monitoring (Stage 3A.5)
+# Regulatory monitoring (Stage 3A.6)
 
 Official regulatory research is a **continuous process**. The monitor runs on a schedule, persists durable monitoring STATE, and never auto-activates legal rules.
 
@@ -19,6 +19,8 @@ runtime monitor
 
 Do **not** persist a stale bundled `data/regulatory/` template. After push, the workflow verifies persisted summary == runtime summary (`STATE_PERSISTENCE_MISMATCH` on diff).
 
+Workflow order: live monitor (continue-on-error) → persist STATE → verify → artifacts → final health gate → unit tests. Persistence must not be skipped when a critical source fails.
+
 ## TLS compatibility (Python 3.13)
 
 1. Attempt normal strict `ssl.create_default_context()`
@@ -29,10 +31,35 @@ Do **not** persist a stale bundled `data/regulatory/` template. After push, the 
 Never use `verify=False`, unverified contexts, or `curl -k`.  
 `www.ifrs.org` remains on full strict TLS.
 
+## Primary authoritative vs alternate monitoring (SFB IFRS)
+
+- `PRIMARY_AUTHORITATIVE_SOURCE` (e.g. `src_tw_sfb_ifrs_download_area`) remains the legal recognition locus.
+- HTTP 401/403/407 on a primary source → `MANUAL_ACCESS_REQUIRED` (not endless `SOURCE_UNAVAILABLE`, not `CURRENT`).
+- Optional `ALTERNATE_OFFICIAL_MONITORING_SOURCE` may emit `ALTERNATE_OFFICIAL_SIGNAL` / `PENDING_REVIEW` early-warning only.
+- Alternate signals **never** auto-activate Taiwan-recognised IFRS versions.
+- Applicability gates treat `MANUAL_ACCESS_REQUIRED` as `MANUAL_VERIFICATION_REQUIRED` (no unconditional conclusions).
+
+## Baseline vs amendment
+
+First successful fetch with no prior content hash → `BASELINE_CAPTURED` (`review_required=false`). Subsequent meaningful hash diffs → potential `PENDING_REVIEW`.
+
+## Failed latest check
+
+A failed latest fetch never reports `freshness_status=CURRENT`. Preserve `last_successful_fetch_at` from the prior success.
+
 ## Critical sources
 
 `critical_source_ids` in `config/regulatory_monitoring.yaml` are Taiwan applicability / recognition sources.  
-If `critical_sources_failed > 0`, overall freshness cannot be `CURRENT` and workflow health is `CRITICAL_SOURCE_FAILURE` (non-zero exit).
+Hard `FETCH_FAILED` on CRITICAL sources → `critical_sources_failed > 0` → health `CRITICAL_SOURCE_FAILURE`.  
+Managed `MANUAL_ACCESS_REQUIRED` does **not** increment `critical_sources_failed`.
+
+## Health precedence
+
+1. `STATE_PERSISTENCE_FAILED`
+2. `STATE_PERSISTENCE_MISMATCH`
+3. `CRITICAL_SOURCE_FAILURE`
+4. `MONITORING_PARTIAL` (incl. manual verification / supplementary)
+5. `MONITORING_CURRENT`
 
 ## Automatic schedule
 
