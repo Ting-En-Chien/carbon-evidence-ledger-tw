@@ -1,15 +1,15 @@
-# Stage 3A.3 continuous official regulatory-source monitoring policy.
+# Stage 3A.5 continuous official regulatory-source monitoring policy.
 # Frequencies are centralised here — do not hard-code in application logic.
 # Parsed by carbon_ledger.regulatory_monitor (minimal YAML subset loader).
 
-version: "3A.4"
+version: "3A.5"
 
 defaults:
   timeout_seconds: 30
   max_retries: 3
   backoff_seconds: 1.5
   rate_limit_seconds: 1.0
-  user_agent: "CarbonEvidenceLedger-RegulatoryMonitor/3A.4 (+https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
+  user_agent: "CarbonEvidenceLedger-RegulatoryMonitor/3A.5 (+https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
 
 freshness_windows:
   high_change_source: 1d
@@ -28,12 +28,33 @@ schedule:
   cron_utc: "17 16 * * *"
 
 # Durable monitoring STATE (not legal CONTENT).
+# Runtime writes go to durable_dir; regulatory-monitor-state copies FROM durable_dir.
 monitoring_state:
   branch: regulatory-monitor-state
   durable_dir: data/regulatory/durable_state
   bundled_dir: data/regulatory
   # Env override for production readers:
   # CARBON_LEDGER_REGULATORY_STATE_DIR=/path/to/latest/state
+
+# CRITICAL Taiwan applicability / recognition sources (must fetch OK for green health).
+critical_source_ids:
+  - src_tw_fsc_law_portal
+  - src_tw_annual_report_rules_fl007032
+  - src_tw_order_11403851756
+  - src_tw_order_11403851755
+  - src_tw_sfb_ifrs_download_area
+  - src_tw_order_11403856094_recognised
+  - src_tw_securities_fin_report_fl007040
+  - src_tw_order_11403856095_securities
+  - src_tw_order_11402739247_fi
+
+# IMPORTANT but non-blocking for MONITORING_CURRENT health gate when CRITICAL are OK.
+important_source_ids:
+  - src_tw_fcm_fin_report_fl021990
+  - src_tw_order_11403856096_fcm
+  - src_tw_sfb_press_20251028
+  - src_issb_ifrs_s1_2023
+  - src_issb_ifrs_s2_2023
 
 # High-priority sources checked on the daily schedule with a 1d freshness window.
 high_priority_source_ids:
@@ -56,6 +77,22 @@ required_authoritative_source_ids:
   - src_tw_annual_report_rules_fl007032
   - src_tw_fsc_law_portal
 
+# Official Taiwan domains allowed for VERIFY_X509_STRICT compatibility retry ONLY.
+# Still requires CA trust + hostname verification. Never includes arbitrary internet.
+# IFRS Foundation (www.ifrs.org) stays on full strict TLS — not listed here.
+tls_x509_strict_fallback_hosts:
+  - law.fsc.gov.tw
+  - www.fsc.gov.tw
+  - www.sfb.gov.tw
+  - ifrs.sfb.gov.tw
+  - www.banking.gov.tw
+  - www.twse.com.tw
+  - twse-regulation.twse.com.tw
+  - www.tpex.org.tw
+  - isds.tpex.org.tw
+  - ghgregistry.moenv.gov.tw
+  - oaout.moenv.gov.tw
+
 # Only authoritative/official sources may affect regulatory status.
 allowed_auto_status_authority_levels:
   - AUTHORITATIVE
@@ -72,6 +109,8 @@ fail_safe_states:
   - SOURCE_CHECK_FAILED
   - FRESHNESS_STATE_UNAVAILABLE
   - STATE_PERSISTENCE_FAILED
+  - STATE_PERSISTENCE_MISMATCH
+  - CRITICAL_SOURCE_FAILURE
 
 # Reviewable change types that may open a PR/Issue (never NO_CHANGE/COSMETIC).
 reviewable_change_types:
@@ -83,6 +122,7 @@ reviewable_change_types:
 auto_activate_rules: false
 mark_affected_rules_pending_review: true
 
+# Bundled fallback paths (mirrored FROM durable runtime state).
 change_log_path: data/regulatory/regulatory_change_log.csv
 freshness_state_path: data/regulatory/source_freshness_state.csv
 conflict_log_path: data/regulatory/regulatory_conflict_log.csv

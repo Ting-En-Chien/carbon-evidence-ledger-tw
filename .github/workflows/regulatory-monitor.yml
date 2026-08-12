@@ -1,4 +1,4 @@
-# Stage 3A.4 — continuous official regulatory monitoring + durable freshness state.
+# Stage 3A.5 — continuous official regulatory monitoring + durable freshness state.
 # Detected changes are reviewable artifacts; they never auto-activate legal rules.
 # Untrusted website content is stored as data only and never executed.
 #
@@ -8,6 +8,10 @@
 #
 # GitHub scheduled execution is periodic and may be delayed; the cron minute
 # is not a legal clock guarantee.
+#
+# Runtime STATE source of truth:
+#   data/regulatory/durable_state/  →  branch regulatory-monitor-state
+# Never persist a stale bundled template from data/regulatory/ alone.
 
 name: Regulatory Monitor
 
@@ -51,6 +55,9 @@ jobs:
 
       - name: Run live official-source monitor
         id: monitor
+        # Exit codes: 0 OK/partial non-critical, 3 persistence, 4 CRITICAL failure.
+        # continue-on-error so persistence/integrity still run; final health gate fails.
+        continue-on-error: true
         run: python -m carbon_ledger.regulatory_monitor --check-all
 
       - name: Run regulatory unit tests (mocked network only)
@@ -62,18 +69,26 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          summary_path = Path("data/regulatory/monitoring_summary.json")
+          summary_path = Path("data/regulatory/durable_state/monitoring_summary.json")
           review_required = False
           persistence_ok = False
+          critical_failed = 0
+          health = "UNKNOWN"
           if summary_path.is_file():
               summary = json.loads(summary_path.read_text(encoding="utf-8"))
               review_required = bool(summary.get("review_required"))
               persistence_ok = summary.get("persistence_status") == "OK"
+              critical_failed = int(summary.get("critical_sources_failed") or 0)
+              health = str(summary.get("monitoring_health") or "")
           print(f"review_required={str(review_required).lower()}")
           print(f"persistence_ok={str(persistence_ok).lower()}")
+          print(f"critical_failed={critical_failed}")
+          print(f"health={health}")
           with open("review_required.env", "w", encoding="utf-8") as handle:
               handle.write(f"REVIEW_REQUIRED={str(review_required).lower()}\n")
               handle.write(f"PERSISTENCE_OK={str(persistence_ok).lower()}\n")
+              handle.write(f"CRITICAL_FAILED={critical_failed}\n")
+              handle.write(f"HEALTH={health}\n")
           PY
           cat review_required.env >> "$GITHUB_OUTPUT"
           cat review_required.env
@@ -87,9 +102,21 @@ jobs:
           STATE_BRANCH="regulatory-monitor-state"
           WORKTREE="${RUNNER_TEMP}/regulatory-monitor-state"
           RUN_ID="${GITHUB_RUN_ID}"
+          RUNTIME_DIR="data/regulatory/durable_state"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Runtime SoT must exist before branch persistence.
+          if [ ! -f "${RUNTIME_DIR}/source_freshness_state.csv" ] || \
+             [ ! -f "${RUNTIME_DIR}/monitoring_summary.json" ]; then
+            echo "ERROR: STATE_PERSISTENCE_FAILED — runtime durable state missing"
+            exit 1
+          fi
+
+          # Snapshot runtime summary for integrity verification after push.
+          cp "${RUNTIME_DIR}/monitoring_summary.json" \
+             "${RUNNER_TEMP}/runtime_monitoring_summary.json"
 
           git fetch origin "$STATE_BRANCH" 2>/dev/null || true
           rm -rf "$WORKTREE"
@@ -97,13 +124,12 @@ jobs:
             git worktree add --force "$WORKTREE" "origin/${STATE_BRANCH}"
           else
             git worktree add --force -b "$STATE_BRANCH" "$WORKTREE" HEAD
-            # Keep only operational monitoring state in this branch tree.
             rm -rf "$WORKTREE"/*
             mkdir -p "$WORKTREE/data/regulatory"
           fi
 
           mkdir -p "$WORKTREE/data/regulatory"
-          # Copy ONLY monitoring STATE (never legal CONTENT / calculation code).
+          # Copy ONLY from runtime durable_state (never stale bundled templates).
           for name in \
             source_freshness_state.csv \
             monitoring_summary.json \
@@ -112,36 +138,14 @@ jobs:
             persistence_status.json \
             regulatory_change_report.md
           do
-            if [ -f "data/regulatory/${name}" ]; then
-              cp "data/regulatory/${name}" "$WORKTREE/data/regulatory/${name}"
+            if [ -f "${RUNTIME_DIR}/${name}" ]; then
+              cp "${RUNTIME_DIR}/${name}" "$WORKTREE/data/regulatory/${name}"
             fi
           done
 
-          # Hard-fail if freshness / summary missing — artifacts alone are insufficient.
           if [ ! -f "$WORKTREE/data/regulatory/source_freshness_state.csv" ] || \
              [ ! -f "$WORKTREE/data/regulatory/monitoring_summary.json" ]; then
             echo "ERROR: STATE_PERSISTENCE_FAILED — required freshness files missing"
-            python - <<'PY'
-          import json
-          from pathlib import Path
-          from datetime import datetime, timezone
-          path = Path("data/regulatory/persistence_status.json")
-          prior = {}
-          if path.is_file():
-              prior = json.loads(path.read_text(encoding="utf-8"))
-          failures = int(prior.get("consecutive_persistence_failures") or 0) + 1
-          status = {
-              "status": "STATE_PERSISTENCE_FAILED",
-              "persisted_at": "",
-              "destination": "regulatory-monitor-state",
-              "files": [],
-              "consecutive_persistence_failures": failures,
-              "monitoring_state_branch": "regulatory-monitor-state",
-              "error": "required freshness files missing before state-branch push",
-              "failed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-          }
-          path.write_text(json.dumps(status, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-          PY
             exit 1
           fi
 
@@ -160,7 +164,6 @@ jobs:
                   2>/dev/null || true
 
           if git diff --cached --quiet; then
-            # Force a persistence proof even when file bytes are identical.
             date -u +"persisted_via_workflow_at=%Y-%m-%dT%H:%M:%SZ" \
               > data/regulatory/last_state_branch_push.txt
             git add data/regulatory/last_state_branch_push.txt
@@ -171,8 +174,20 @@ jobs:
             echo "ERROR: STATE_PERSISTENCE_FAILED — could not push ${STATE_BRANCH}"
             exit 1
           fi
-          echo "Persisted monitoring STATE to origin/${STATE_BRANCH}"
-          echo "Artifacts remain supplementary evidence only."
+          echo "Persisted monitoring STATE to origin/${STATE_BRANCH} from ${RUNTIME_DIR}"
+
+      - name: Verify persisted state matches runtime
+        id: verify_persist
+        run: |
+          set -euo pipefail
+          STATE_BRANCH="regulatory-monitor-state"
+          VERIFY_DIR="${RUNNER_TEMP}/verify-regulatory-monitor-state"
+          rm -rf "$VERIFY_DIR"
+          git fetch origin "$STATE_BRANCH"
+          git worktree add --force "$VERIFY_DIR" "origin/${STATE_BRANCH}"
+          python -m carbon_ledger.regulatory_monitor \
+            --verify-persisted-summary \
+            "${VERIFY_DIR}/data/regulatory/monitoring_summary.json"
 
       - name: Upload regulatory monitoring artifacts (supplementary)
         if: always()
@@ -180,13 +195,13 @@ jobs:
         with:
           name: regulatory-monitor-artifacts
           path: |
+            data/regulatory/durable_state/
             data/regulatory/regulatory_change_log.csv
             data/regulatory/source_freshness_state.csv
             data/regulatory/regulatory_conflict_log.csv
             data/regulatory/monitoring_summary.json
             data/regulatory/persistence_status.json
             data/regulatory/regulatory_change_report.md
-            data/regulatory/durable_state/
           if-no-files-found: warn
 
       - name: Create review PR for meaningful changes
@@ -201,9 +216,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
 
-          # Review branch may include monitoring state + PENDING_REVIEW markers.
-          # It must NOT auto-activate legal rules or auto-merge.
+          # Review branch may include PENDING_REVIEW markers + durable runtime mirror.
           git add \
+            data/regulatory/durable_state \
             data/regulatory/regulatory_change_log.csv \
             data/regulatory/source_freshness_state.csv \
             data/regulatory/regulatory_conflict_log.csv \
@@ -227,12 +242,12 @@ jobs:
           BODY="$(cat <<EOF
           ## Regulatory monitoring review
 
-          Automated Stage 3A.4 monitor detected one or more **reviewable** official-source changes.
+          Automated Stage 3A.5 monitor detected one or more **reviewable** official-source changes.
 
           ### Important
           - This PR must **NOT** be auto-merged or auto-approved.
           - Detected webpage/source diffs do **NOT** automatically become ACTIVE legal rules.
-          - Freshness / monitoring STATE is persisted separately on \`regulatory-monitor-state\`.
+          - Freshness / monitoring STATE is persisted separately on \`regulatory-monitor-state\` from \`data/regulatory/durable_state/\`.
           - Reviewers must verify authoritative text before updating rule versions.
 
           ### Reviewer checklist
@@ -261,9 +276,32 @@ jobs:
           "
           fi
 
-      - name: No-change completion note
-        if: steps.review.outputs.REVIEW_REQUIRED != 'true'
+      - name: Final monitoring health gate
+        if: always()
         run: |
-          echo "No reviewable regulatory changes detected (NO_CHANGE / COSMETIC / non-review metadata)."
-          echo "Durable freshness STATE was still persisted to regulatory-monitor-state."
+          set -euo pipefail
+          echo "Monitor step conclusion: ${{ steps.monitor.outcome }}"
+          echo "Persist step conclusion: ${{ steps.persist_state.outcome }}"
+          echo "Verify step conclusion: ${{ steps.verify_persist.outcome }}"
+          if [ "${{ steps.persist_state.outcome }}" != "success" ]; then
+            echo "ERROR: STATE_PERSISTENCE_FAILED"
+            exit 3
+          fi
+          if [ "${{ steps.verify_persist.outcome }}" != "success" ]; then
+            echo "ERROR: STATE_PERSISTENCE_MISMATCH"
+            exit 5
+          fi
+          python -m carbon_ledger.regulatory_monitor --health-gate
+          # Also fail if the live monitor itself reported CRITICAL failure.
+          if [ "${{ steps.monitor.outcome }}" != "success" ]; then
+            echo "ERROR: monitor step did not succeed (critical failure or crash)."
+            exit 4
+          fi
+          echo "Monitoring health gate passed."
+
+      - name: No-change completion note
+        if: steps.review.outputs.REVIEW_REQUIRED != 'true' && success()
+        run: |
+          echo "No reviewable regulatory changes detected (successful retrieval + NO_CHANGE)."
+          echo "Durable freshness STATE was persisted from data/regulatory/durable_state/."
           echo "GitHub Actions artifacts remain supplementary only."
