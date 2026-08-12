@@ -82,15 +82,6 @@ GLOSSARY_ENTRIES: tuple[tuple[str, str, str, str], ...] = (
         ),
     ),
     (
-        "CBAM",
-        "CBAM",
-        "歐盟碳邊境調整機制。本產品目前用它判斷出口產品資料用途與資料缺口。",
-        (
-            "EU Carbon Border Adjustment Mechanism. This product uses it to "
-            "map export-product data roles and gaps."
-        ),
-    ),
-    (
         "IFRS S2",
         "IFRS S2",
         "氣候相關財務資訊揭露標準。本產品目前只判斷碳資料準備度，不做合規判定。",

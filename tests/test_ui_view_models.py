@@ -231,10 +231,10 @@ def test_glossary_core_terms() -> None:
         "Scope 1",
         "Scope 2",
         "Scope 3",
-        "CBAM",
         "IFRS S2",
     ):
         assert glossary_contains(term)
+    assert not glossary_contains("CBAM")
 
 
 def test_tutorial_has_four_beginner_steps() -> None:

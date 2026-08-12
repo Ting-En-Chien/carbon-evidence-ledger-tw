@@ -35,6 +35,7 @@ result = get_current_result(st.session_state)
 
 render_page_header(t("aud.title", lang), t("aud.subtitle", lang))
 render_page_help(t("aud.help", lang))
+st.caption(t("aud.workpaper_note", lang))
 
 if result is None:
     st.error(t("error.analysis_failed", lang))
@@ -93,10 +94,9 @@ info_cols = st.columns(5)
 adapters = []
 if summary["include_ghg"]:
     adapters.append("GHG")
-if summary["include_cbam"]:
-    adapters.append("CBAM")
 if summary["include_ifrs_s2"]:
     adapters.append("IFRS S2")
+# V1: CBAM is not advertised even if present in an older result object.
 with info_cols[0]:
     render_kpi_card(summary["run_id"], t("aud.run_id", lang))
 with info_cols[1]:

@@ -200,7 +200,9 @@ def test_result_page_kpi_content_visible_without_motion_init() -> None:
         assert label in text
     assert "排放趨勢" in text
     assert "排放來源" in text
-    assert "資料完整度" in text
+    # Completeness metrics remain; section title may be "missing data" framing.
+    assert "缺少的資料" in text or "資料完整度" in text
+    assert 'data-cel-key="completeness-metrics"' in text
     # Final numeric payloads remain in DOM attributes / text.
     assert "data-cel-final=" in text
     assert "tCO₂e" in text or "tCO2e" in text

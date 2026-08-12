@@ -144,7 +144,7 @@ def test_dashboard_still_starts_and_demo_result_unchanged() -> None:
     at = _switch(at, "app_pages/data_intake.py")
     at = _switch(at, "app_pages/dashboard.py")
     assert at.session_state[STATE_RESULT] is before
-    assert "分析結果" in _all_text(at)
+    assert "合規總覽" in _all_text(at)
 
 
 def test_language_switch_preserves_demo_pipeline_result() -> None:

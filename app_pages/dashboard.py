@@ -1,4 +1,4 @@
-"""Analysis results — Phase 11B polish + Phase 11C viewport scroll reveal."""
+"""Compliance Overview — Stage 2 IA shell over Phase 11 result components."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from carbon_ledger.ui.components import (
     inject_design_system,
     render_completeness_stats,
     render_empty_state,
-    render_framework_notice,
     render_issue_card,
     render_page_header,
     render_result_meta_strip,
@@ -76,6 +75,7 @@ render_page_header(
     t("dash.page_title", lang),
     t("dash.page_subtitle", lang),
 )
+st.caption(t("dash.no_fake_score_note", lang))
 
 period_start = source.get("period_start")
 period_end = source.get("period_end")
@@ -106,7 +106,6 @@ st.markdown("</div>", unsafe_allow_html=True)
 summary = beginner_result_summary(result, lang)
 emissions = calculated_emissions_summary(result, lang)
 value = emissions["calculated_tco2e"]
-total = max(1, int(summary["activities"]))
 done = int(summary["calculated"])
 partial_label = (
     t("common.partial_result", lang)
@@ -126,103 +125,10 @@ if animate:
         reveal=True,
     )
 
-render_hero_result_kpis(
-    emissions_value=value,
-    emissions_label=t("dash.kpi.emissions", lang),
-    emissions_subtitle=partial_label,
-    done=done,
-    total=int(summary["activities"]),
-    completion_label=t("dash.kpi.completion", lang),
-    completion_subtitle=t(
-        "dash.emissions_ratio",
-        lang,
-        done=done,
-        total=summary["activities"],
-    ),
-    unresolved=int(summary["needs_work"]),
-    unresolved_label=t("dash.kpi.unresolved", lang),
-    unresolved_subtitle=t("dash.kpi.unresolved_hint", lang),
-    sources=int(summary["source_documents"]),
-    sources_label=t("dash.kpi.source", lang),
-    sources_subtitle=t("dash.kpi.source_hint", lang),
-    animate=animate,
-    animation_token=analysis_token,
-    play_hero_count=play_hero_count,
-)
-
-st.caption(t("dash.emissions_notice", lang))
-
-cta_cols = st.columns([1, 1, 2])
-with cta_cols[0]:
-    if st.button(
-        t("dash.cta.view_issues", lang),
-        key="dash_view_issues",
-        type="secondary",
-        use_container_width=True,
-    ):
-        st.switch_page("app_pages/issues_actions.py")
-with cta_cols[1]:
-    if st.button(
-        t("dash.cta.update_data", lang),
-        key="dash_update_data",
-        type="tertiary",
-        use_container_width=True,
-    ):
-        st.switch_page("app_pages/data_intake.py")
-
-# Primary analytics — viewport-gated (below-fold must wait for scroll)
-left, right = st.columns(2, gap="large")
-with left:
-    render_viz_panel_start(
-        t("dash.section_trend", lang),
-        t("dash.section_trend_help", lang),
-        scroll_key="trend-panel",
-        chart_kind="area",
-    )
-    mark_chart_reveal("trend", chart="area")
-    render_monthly_emissions_trend(result, lang)
-    render_viz_panel_end()
-with right:
-    render_viz_panel_start(
-        t("dash.section_sources", lang),
-        t("dash.section_sources_help", lang),
-        scroll_key="sources-panel",
-        chart_kind="bars",
-    )
-    mark_chart_reveal("sources", chart="bars")
-    render_emissions_source_bars(result, lang)
-    render_viz_panel_end()
-
-# Data completeness (supporting)
+# Level 1 — what requires attention
 render_section_header(
-    t("dash.section_completeness", lang),
-    t("dash.section_completeness_help", lang),
-    scroll_key="completeness",
-)
-comp_left, comp_right = st.columns([1.1, 1], gap="large")
-with comp_left:
-    render_viz_panel_start(
-        t("chart.calc_status.title", lang),
-        scroll_key="completeness-donut",
-        chart_kind="donut",
-    )
-    mark_chart_reveal("completeness-donut", chart="donut")
-    render_calculation_status_donut(result, lang)
-    render_viz_panel_end()
-with comp_right:
-    render_completeness_stats(
-        note=t("dash.completeness_note", lang),
-        calculated_label=t("dash.calculated_kpi", lang),
-        calculated_value=int(done),
-        needs_work_label=t("dash.needs_work_kpi", lang),
-        needs_work_value=int(summary["needs_work"]),
-        scroll_key="completeness-metrics",
-    )
-
-# Priority actions
-render_section_header(
-    t("dash.section_priority", lang),
-    t("dash.section_priority_help", lang),
+    t("dash.section_attention", lang),
+    t("dash.section_attention_help", lang),
     scroll_key="priority",
 )
 priority = priority_action_cards(result, lang, limit=4)
@@ -252,7 +158,119 @@ else:
                 set_focus_record(st.session_state, card["record_id"])
                 st.switch_page("app_pages/activity_explorer.py")
 
-# Calculation table
+# Level 2/3 — missing / review
+render_section_header(
+    t("dash.section_missing", lang),
+    t("dash.section_completeness_help", lang),
+    scroll_key="completeness",
+)
+comp_left, comp_right = st.columns([1.1, 1], gap="large")
+with comp_left:
+    render_viz_panel_start(
+        t("chart.calc_status.title", lang),
+        scroll_key="completeness-donut",
+        chart_kind="donut",
+    )
+    mark_chart_reveal("completeness-donut", chart="donut")
+    render_calculation_status_donut(result, lang)
+    render_viz_panel_end()
+with comp_right:
+    render_completeness_stats(
+        note=t("dash.completeness_note", lang),
+        calculated_label=t("dash.calculated_kpi", lang),
+        calculated_value=int(done),
+        needs_work_label=t("dash.needs_work_kpi", lang),
+        needs_work_value=int(summary["needs_work"]),
+        scroll_key="completeness-metrics",
+    )
+
+cta_cols = st.columns([1, 1, 1, 1])
+with cta_cols[0]:
+    if st.button(
+        t("dash.cta.view_issues", lang),
+        key="dash_view_issues",
+        type="secondary",
+        use_container_width=True,
+    ):
+        st.switch_page("app_pages/issues_actions.py")
+with cta_cols[1]:
+    if st.button(
+        t("dash.cta.view_evidence", lang),
+        key="dash_view_evidence",
+        type="secondary",
+        use_container_width=True,
+    ):
+        st.switch_page("app_pages/data_intake.py")
+with cta_cols[2]:
+    if st.button(
+        t("dash.cta.view_ifrs", lang),
+        key="dash_open_ifrs",
+        type="tertiary",
+        use_container_width=True,
+    ):
+        st.switch_page("app_pages/frameworks.py")
+with cta_cols[3]:
+    if st.button(
+        t("dash.cta.view_taiwan", lang),
+        key="dash_open_taiwan",
+        type="tertiary",
+        use_container_width=True,
+    ):
+        st.switch_page("app_pages/taiwan_ghg.py")
+
+# Level 4 secondary — emissions evidence summary (preserve hero count-up)
+render_section_header(
+    t("dash.section_emissions_summary", lang),
+    t("dash.section_emissions_summary_help", lang),
+    scroll_key="emissions-summary",
+)
+render_hero_result_kpis(
+    emissions_value=value,
+    emissions_label=t("dash.kpi.emissions", lang),
+    emissions_subtitle=partial_label,
+    done=done,
+    total=int(summary["activities"]),
+    completion_label=t("dash.kpi.completion", lang),
+    completion_subtitle=t(
+        "dash.emissions_ratio",
+        lang,
+        done=done,
+        total=summary["activities"],
+    ),
+    unresolved=int(summary["needs_work"]),
+    unresolved_label=t("dash.kpi.unresolved", lang),
+    unresolved_subtitle=t("dash.kpi.unresolved_hint", lang),
+    sources=int(summary["source_documents"]),
+    sources_label=t("dash.kpi.source", lang),
+    sources_subtitle=t("dash.kpi.source_hint", lang),
+    animate=animate,
+    animation_token=analysis_token,
+    play_hero_count=play_hero_count,
+)
+st.caption(t("dash.emissions_notice", lang))
+
+left, right = st.columns(2, gap="large")
+with left:
+    render_viz_panel_start(
+        t("dash.section_trend", lang),
+        t("dash.section_trend_help", lang),
+        scroll_key="trend-panel",
+        chart_kind="area",
+    )
+    mark_chart_reveal("trend", chart="area")
+    render_monthly_emissions_trend(result, lang)
+    render_viz_panel_end()
+with right:
+    render_viz_panel_start(
+        t("dash.section_sources", lang),
+        t("dash.section_sources_help", lang),
+        scroll_key="sources-panel",
+        chart_kind="bars",
+    )
+    mark_chart_reveal("sources", chart="bars")
+    render_emissions_source_bars(result, lang)
+    render_viz_panel_end()
+
 render_section_header(
     t("dash.section_calc_table", lang),
     t("dash.section_calc_table_help", lang),
@@ -275,7 +293,6 @@ else:
     if event is not None and getattr(event, "selection", None) is not None:
         selected_rows = list(event.selection.rows)
 
-# Calculation trace card
 render_section_header(t("dash.section_trace", lang), scroll_key="trace-header")
 trace_id = None
 if selected_rows and not table.empty:
@@ -354,47 +371,21 @@ if trace_id:
 else:
     st.info(t("dash.emissions_notice", lang))
 
-# Framework analysis — compact progressive disclosure
-render_section_header(
-    t("dash.section_frameworks", lang),
-    scroll_key="frameworks",
-)
-module_count = sum(
-    [
-        1 if result.include_ghg else 0,
-        1 if result.include_cbam else 0,
-        1 if result.include_ifrs_s2 else 0,
-    ]
-)
-render_framework_notice(
-    t("dash.frameworks_card", lang, count=module_count or 3)
-)
-if st.button(
-    t("dash.cta.view_frameworks", lang),
-    key="dash_open_frameworks",
-    type="secondary",
-):
-    st.switch_page("app_pages/frameworks.py")
-
-# Advanced technical
 with st.expander(t("dash.section_advanced", lang), expanded=False):
     overview = build_activity_overview(result, lang)
-    tech = overview[
-        [
-            "record_id",
-            "activity_name",
-            "calculation_label",
-            "ghg_label",
-            "cbam_label",
-            "ifrs_s2_label",
-            "qa_label",
-        ]
-    ].rename(
+    tech_cols = [
+        "record_id",
+        "activity_name",
+        "calculation_label",
+        "ghg_label",
+        "ifrs_s2_label",
+        "qa_label",
+    ]
+    tech = overview[tech_cols].rename(
         columns={
             "activity_name": t("dash.col.activity", lang),
             "calculation_label": t("dash.col.calc", lang),
             "ghg_label": t("dash.col.ghg", lang),
-            "cbam_label": t("dash.col.cbam", lang),
             "ifrs_s2_label": t("dash.col.ifrs", lang),
             "qa_label": t("dash.col.qa", lang),
         }

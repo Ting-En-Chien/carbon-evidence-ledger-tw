@@ -39,6 +39,10 @@ from carbon_ledger.ui.components import (
     render_section_header,
     render_upload_journey,
 )
+from carbon_ledger.ui.evidence_workspace import (
+    TAB_INTAKE,
+    render_evidence_workspace_nav,
+)
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.motion import execute_analysis_with_progress
 from carbon_ledger.ui.state import (
@@ -63,6 +67,11 @@ from carbon_ledger.ui.state import (
 
 inject_design_system()
 lang = get_language(st.session_state)
+
+# Evidence & Data workspace: Data Upload is the default landing view.
+render_page_header(t("ev.title", lang), t("ev.subtitle", lang))
+render_evidence_workspace_nav(lang, TAB_INTAKE)
+st.caption(t("ev.tab.intake_help", lang))
 
 QUALITY_OPTIONS = [
     ("unknown", t("intake.quality.unknown", lang)),
@@ -295,7 +304,7 @@ def _default_metadata(table: Any) -> IntakeMetadata:
     )
 
 
-render_page_header(t("intake.title", lang), t("intake.subtitle", lang))
+render_section_header(t("intake.title", lang), t("intake.subtitle", lang))
 st.markdown(t("intake.intro", lang).replace("\n", "  \n"))
 render_upload_journey(
     [
@@ -968,7 +977,6 @@ if accepted is not None and not accepted.empty:
                     "process_use",
                     "ownership_control",
                     "organizational_boundary_status",
-                    "cbam_process_boundary_status",
                 ]
             ],
             hide_index=True,

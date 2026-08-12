@@ -1,0 +1,269 @@
+# Stage 3A.4 — continuous official regulatory monitoring + durable freshness state.
+# Detected changes are reviewable artifacts; they never auto-activate legal rules.
+# Untrusted website content is stored as data only and never executed.
+#
+# REQUIREMENT: This workflow file must exist on the repository DEFAULT branch
+# for GitHub scheduled runs to execute. workflow_dispatch also depends on it
+# being present on the default branch for the Actions UI entry.
+#
+# GitHub scheduled execution is periodic and may be delayed; the cron minute
+# is not a legal clock guarantee.
+
+name: Regulatory Monitor
+
+on:
+  schedule:
+    # Daily ~16:17 UTC (non-zero minute reduces Actions schedule congestion).
+    # Not a legal deadline; exact execution time is not guaranteed by GitHub.
+    - cron: "17 16 * * *"
+  workflow_dispatch:
+
+# Least privilege for this workflow:
+# - contents:write  — push monitoring-state branch + review branch (not auto-merge)
+# - pull-requests:write — open regulatory review PRs only
+# - issues:write — fallback review Issues if PR creation fails
+# No packages/statuses/id-token. No automatic PR approval or merging.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: regulatory-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package with development dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run live official-source monitor
+        id: monitor
+        run: python -m carbon_ledger.regulatory_monitor --check-all
+
+      - name: Run regulatory unit tests (mocked network only)
+        run: pytest tests/test_regulatory_registry_stage3a.py tests/test_regulatory_monitor.py
+
+      - name: Detect reviewable regulatory changes
+        id: review
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          summary_path = Path("data/regulatory/monitoring_summary.json")
+          review_required = False
+          persistence_ok = False
+          if summary_path.is_file():
+              summary = json.loads(summary_path.read_text(encoding="utf-8"))
+              review_required = bool(summary.get("review_required"))
+              persistence_ok = summary.get("persistence_status") == "OK"
+          print(f"review_required={str(review_required).lower()}")
+          print(f"persistence_ok={str(persistence_ok).lower()}")
+          with open("review_required.env", "w", encoding="utf-8") as handle:
+              handle.write(f"REVIEW_REQUIRED={str(review_required).lower()}\n")
+              handle.write(f"PERSISTENCE_OK={str(persistence_ok).lower()}\n")
+          PY
+          cat review_required.env >> "$GITHUB_OUTPUT"
+          cat review_required.env
+
+      - name: Persist monitoring STATE to regulatory-monitor-state branch
+        id: persist_state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          STATE_BRANCH="regulatory-monitor-state"
+          WORKTREE="${RUNNER_TEMP}/regulatory-monitor-state"
+          RUN_ID="${GITHUB_RUN_ID}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "$STATE_BRANCH" 2>/dev/null || true
+          rm -rf "$WORKTREE"
+          if git rev-parse --verify "origin/${STATE_BRANCH}" >/dev/null 2>&1; then
+            git worktree add --force "$WORKTREE" "origin/${STATE_BRANCH}"
+          else
+            git worktree add --force -b "$STATE_BRANCH" "$WORKTREE" HEAD
+            # Keep only operational monitoring state in this branch tree.
+            rm -rf "$WORKTREE"/*
+            mkdir -p "$WORKTREE/data/regulatory"
+          fi
+
+          mkdir -p "$WORKTREE/data/regulatory"
+          # Copy ONLY monitoring STATE (never legal CONTENT / calculation code).
+          for name in \
+            source_freshness_state.csv \
+            monitoring_summary.json \
+            regulatory_change_log.csv \
+            regulatory_conflict_log.csv \
+            persistence_status.json \
+            regulatory_change_report.md
+          do
+            if [ -f "data/regulatory/${name}" ]; then
+              cp "data/regulatory/${name}" "$WORKTREE/data/regulatory/${name}"
+            fi
+          done
+
+          # Hard-fail if freshness / summary missing — artifacts alone are insufficient.
+          if [ ! -f "$WORKTREE/data/regulatory/source_freshness_state.csv" ] || \
+             [ ! -f "$WORKTREE/data/regulatory/monitoring_summary.json" ]; then
+            echo "ERROR: STATE_PERSISTENCE_FAILED — required freshness files missing"
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          from datetime import datetime, timezone
+          path = Path("data/regulatory/persistence_status.json")
+          prior = {}
+          if path.is_file():
+              prior = json.loads(path.read_text(encoding="utf-8"))
+          failures = int(prior.get("consecutive_persistence_failures") or 0) + 1
+          status = {
+              "status": "STATE_PERSISTENCE_FAILED",
+              "persisted_at": "",
+              "destination": "regulatory-monitor-state",
+              "files": [],
+              "consecutive_persistence_failures": failures,
+              "monitoring_state_branch": "regulatory-monitor-state",
+              "error": "required freshness files missing before state-branch push",
+              "failed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+          }
+          path.write_text(json.dumps(status, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+            exit 1
+          fi
+
+          # Ensure CONTENT / calculation paths are never committed on the state branch.
+          rm -f "$WORKTREE/config/regulatory_rules.csv" \
+                "$WORKTREE/data/reference/regulatory_sources.csv" 2>/dev/null || true
+          rm -rf "$WORKTREE/src" 2>/dev/null || true
+
+          cd "$WORKTREE"
+          git add data/regulatory/source_freshness_state.csv \
+                  data/regulatory/monitoring_summary.json \
+                  data/regulatory/regulatory_change_log.csv \
+                  data/regulatory/regulatory_conflict_log.csv \
+                  data/regulatory/persistence_status.json \
+                  data/regulatory/regulatory_change_report.md \
+                  2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            # Force a persistence proof even when file bytes are identical.
+            date -u +"persisted_via_workflow_at=%Y-%m-%dT%H:%M:%SZ" \
+              > data/regulatory/last_state_branch_push.txt
+            git add data/regulatory/last_state_branch_push.txt
+          fi
+
+          git commit -m "chore(regulatory-state): durable freshness after monitor run ${RUN_ID}"
+          if ! git push origin "HEAD:${STATE_BRANCH}"; then
+            echo "ERROR: STATE_PERSISTENCE_FAILED — could not push ${STATE_BRANCH}"
+            exit 1
+          fi
+          echo "Persisted monitoring STATE to origin/${STATE_BRANCH}"
+          echo "Artifacts remain supplementary evidence only."
+
+      - name: Upload regulatory monitoring artifacts (supplementary)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regulatory-monitor-artifacts
+          path: |
+            data/regulatory/regulatory_change_log.csv
+            data/regulatory/source_freshness_state.csv
+            data/regulatory/regulatory_conflict_log.csv
+            data/regulatory/monitoring_summary.json
+            data/regulatory/persistence_status.json
+            data/regulatory/regulatory_change_report.md
+            data/regulatory/durable_state/
+          if-no-files-found: warn
+
+      - name: Create review PR for meaningful changes
+        if: steps.review.outputs.REVIEW_REQUIRED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID="${GITHUB_RUN_ID}"
+          BRANCH="regulatory-update/${RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+
+          # Review branch may include monitoring state + PENDING_REVIEW markers.
+          # It must NOT auto-activate legal rules or auto-merge.
+          git add \
+            data/regulatory/regulatory_change_log.csv \
+            data/regulatory/source_freshness_state.csv \
+            data/regulatory/regulatory_conflict_log.csv \
+            data/regulatory/monitoring_summary.json \
+            data/regulatory/persistence_status.json \
+            data/regulatory/regulatory_change_report.md \
+            || true
+
+          if ! git diff --quiet -- config/regulatory_rules.csv; then
+            git add config/regulatory_rules.csv || true
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No staged monitoring files to commit for review PR."
+            exit 0
+          fi
+
+          git commit -m "chore(regulatory): reviewable official-source changes (${RUN_ID})"
+          git push -u origin "$BRANCH"
+
+          BODY="$(cat <<EOF
+          ## Regulatory monitoring review
+
+          Automated Stage 3A.4 monitor detected one or more **reviewable** official-source changes.
+
+          ### Important
+          - This PR must **NOT** be auto-merged or auto-approved.
+          - Detected webpage/source diffs do **NOT** automatically become ACTIVE legal rules.
+          - Freshness / monitoring STATE is persisted separately on \`regulatory-monitor-state\`.
+          - Reviewers must verify authoritative text before updating rule versions.
+
+          ### Reviewer checklist
+          1. Open \`data/regulatory/regulatory_change_report.md\`
+          2. Verify each official source manually
+          3. Confirm whether thresholds / effective dates / assurance / recognised IFRS versions changed
+          4. If confirmed: add a new rule version (\`ACTIVE\`/\`FUTURE\`) and mark the previous rule \`SUPERSEDED\`
+          5. If Taiwan recognition of an international IFRS amendment is involved: update Taiwan-recognised version only from SFB/FSC sources — never from ifrs.org alone
+
+          Artifacts are supplementary evidence only; application freshness must use durable monitoring state.
+          EOF
+          )"
+
+          if ! gh pr create \
+            --title "Regulatory update review ${RUN_ID}" \
+            --body "$BODY" \
+            --base "${{ github.ref_name }}" \
+            --head "$BRANCH"; then
+            echo "PR creation failed; opening a review Issue with artifact pointer."
+            gh issue create \
+              --title "Regulatory update review required (${RUN_ID})" \
+              --body "$BODY
+
+          Branch (if pushed): \`$BRANCH\`
+          Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          "
+          fi
+
+      - name: No-change completion note
+        if: steps.review.outputs.REVIEW_REQUIRED != 'true'
+        run: |
+          echo "No reviewable regulatory changes detected (NO_CHANGE / COSMETIC / non-review metadata)."
+          echo "Durable freshness STATE was still persisted to regulatory-monitor-state."
+          echo "GitHub Actions artifacts remain supplementary only."

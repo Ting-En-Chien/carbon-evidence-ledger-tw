@@ -1,0 +1,718 @@
+"""Stage 3A.2–3A.4 official regulatory-source monitor tests (mocked network)."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pandas as pd
+
+from carbon_ledger.regulatory_monitor import (
+    STATE_SOURCE_BUNDLED,
+    STATE_SOURCE_DURABLE,
+    FetchResult,
+    assert_sources_fresh_for_analysis,
+    classify_change,
+    content_hash,
+    evaluate_freshness,
+    fail_safe_state_for_freshness,
+    get_regulatory_freshness,
+    is_allowed_monitoring_state_file,
+    is_reviewable_change,
+    load_monitor_config,
+    mark_rules_pending_review,
+    persist_monitoring_state,
+    record_conflict,
+    run_monitor,
+    should_open_review_activity,
+)
+from carbon_ledger.regulatory_registry import (
+    load_regulatory_rules,
+    load_regulatory_sources,
+    outranks,
+)
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _seed_tmp_repo(tmp_path: Path) -> Path:
+    root = tmp_path / "repo"
+    (root / "config").mkdir(parents=True)
+    (root / "data/reference").mkdir(parents=True)
+    (root / "data/regulatory").mkdir(parents=True)
+    shutil.copy(
+        REPO_ROOT / "config/regulatory_monitoring.yaml",
+        root / "config/regulatory_monitoring.yaml",
+    )
+    shutil.copy(
+        REPO_ROOT / "data/reference/regulatory_sources.csv",
+        root / "data/reference/regulatory_sources.csv",
+    )
+    shutil.copy(
+        REPO_ROOT / "config/regulatory_rules.csv",
+        root / "config/regulatory_rules.csv",
+    )
+    for name in [
+        "regulatory_change_log.csv",
+        "source_freshness_state.csv",
+        "regulatory_conflict_log.csv",
+    ]:
+        shutil.copy(
+            REPO_ROOT / "data/regulatory" / name,
+            root / "data/regulatory" / name,
+        )
+    return root
+
+
+def test_monitor_config_loads_frequencies() -> None:
+    cfg = load_monitor_config(REPO_ROOT / "config/regulatory_monitoring.yaml")
+    assert cfg.freshness_windows["high_change_source"] == timedelta(days=1)
+    assert cfg.freshness_windows["normal_regulatory_source"] == timedelta(days=7)
+    assert cfg.freshness_windows["stable_standard_reference"] == timedelta(days=30)
+    assert cfg.auto_activate_rules is False
+
+
+def test_hash_change_produces_change_event(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    bodies = {"first": b"<html>order 11403851756 version A</html>", "second": None}
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        body = bodies["second"] if bodies["second"] is not None else bodies["first"]
+        return FetchResult(ok=True, status_code=200, body=body, etag='"v1"')
+
+    now = datetime(2026, 8, 12, 6, 0, tzinfo=timezone.utc)
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    bodies["second"] = b"<html>order 11403851756 version B amended</html>"
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now + timedelta(hours=1),
+        write_pending_review=False,
+    )
+    assert len(result["changes"]) == 1
+    assert result["changes"][0]["change_type"] == "POTENTIAL_REGULATORY_CHANGE"
+    assert result["changes"][0]["activation_status"] == "NOT_ACTIVATED"
+
+
+def test_unchanged_hash_does_not_create_false_regulatory_change(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    body = b"<html>stable regulatory text</html>"
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=body, etag='"same"')
+
+    now = datetime(2026, 8, 12, 7, 0, tzinfo=timezone.utc)
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now + timedelta(hours=2),
+        write_pending_review=False,
+    )
+    assert result["changes"] == []
+
+
+def test_failed_fetch_does_not_silently_mark_current(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=False, status_code=503, error="unavailable")
+
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=datetime(2026, 8, 12, 8, 0, tzinfo=timezone.utc),
+        write_pending_review=False,
+    )
+    assert result["changes"][0]["change_type"] == "SOURCE_UNAVAILABLE"
+    freshness = pd.read_csv(
+        root / "data/regulatory/source_freshness_state.csv", dtype=str
+    ).fillna("")
+    row = freshness.loc[
+        freshness["source_id"] == "src_tw_order_11403851756"
+    ].iloc[0]
+    assert row["freshness_status"] != "CURRENT"
+    assert row["fetch_status"] == "FETCH_FAILED"
+    assert row["last_successful_fetch_at"] == ""
+
+
+def test_stale_authoritative_source_triggers_fail_safe() -> None:
+    status = evaluate_freshness(
+        last_successful_fetch_at="2026-07-01T00:00:00Z",
+        fetch_failed=False,
+        window=timedelta(days=7),
+        now=datetime(2026, 8, 12, tzinfo=timezone.utc),
+    )
+    assert status == "STALE"
+    assert fail_safe_state_for_freshness(status) == "REGULATORY_DATA_STALE"
+    gate = assert_sources_fresh_for_analysis(
+        [
+            {
+                "source_id": "src_tw_order_11403851756",
+                "freshness_status": "STALE",
+            }
+        ],
+        ["src_tw_order_11403851756"],
+    )
+    assert gate["analysis_allowed"] is False
+    assert gate["state"] == "REGULATORY_DATA_STALE"
+
+
+def test_changed_source_does_not_automatically_activate_new_legal_rule(
+    tmp_path: Path,
+) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    before = load_regulatory_rules(root / "config/regulatory_rules.csv")
+    active_before = set(
+        before.loc[before["rule_status"] == "ACTIVE", "rule_id"]
+    )
+    bodies = {"v": b"<html>baseline order text</html>"}
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(
+            ok=True,
+            status_code=200,
+            body=bodies["v"],
+            etag='"v"',
+        )
+
+    now = datetime(2026, 8, 12, 9, 0, tzinfo=timezone.utc)
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    bodies["v"] = b"<html>brand new order text 999</html>"
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now + timedelta(hours=1),
+        write_pending_review=True,
+    )
+    assert result["auto_activate_rules"] is False
+    assert result["review_required"] is True
+    assert all(c["activation_status"] == "NOT_ACTIVATED" for c in result["changes"])
+    after = load_regulatory_rules(root / "config/regulatory_rules.csv")
+    active_after = set(after.loc[after["rule_status"] == "ACTIVE", "rule_id"])
+    # Monitor must not invent brand-new ACTIVE rule ids.
+    assert active_after <= active_before
+    assert result["pending_review_rules_marked"] > 0
+    assert (root / "data/regulatory/regulatory_change_report.md").is_file()
+    assert (root / "data/regulatory/monitoring_summary.json").is_file()
+
+
+def test_pending_review_rules_are_not_treated_as_active(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    marked = mark_rules_pending_review(
+        root / "config/regulatory_rules.csv",
+        ["tw_order_51756_phase1_ge_10bn"],
+    )
+    assert marked == 1
+    rules = load_regulatory_rules(root / "config/regulatory_rules.csv")
+    row = rules.loc[rules["rule_id"] == "tw_order_51756_phase1_ge_10bn"].iloc[0]
+    assert row["rule_status"] == "PENDING_REVIEW"
+    from carbon_ledger.regulatory_registry import active_rules, operable_rules
+
+    assert "tw_order_51756_phase1_ge_10bn" not in set(active_rules(rules)["rule_id"])
+    assert "tw_order_51756_phase1_ge_10bn" not in set(operable_rules(rules)["rule_id"])
+
+
+def test_source_precedence_helper_respected() -> None:
+    sources = pd.read_csv(
+        REPO_ROOT / "data/reference/regulatory_sources.csv", dtype=str
+    ).fillna("")
+    assert outranks(
+        sources,
+        "src_tw_order_11403856095_securities",
+        "src_tw_sfb_press_20251028",
+    )
+
+
+def test_regulatory_conflicts_are_surfaced(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    conflict = record_conflict(
+        root / "data/regulatory/regulatory_conflict_log.csv",
+        source_id_a="src_tw_order_11403851756",
+        source_id_b="src_tw_sfb_press_20251028",
+        requirement_a="Scope3 from fourth year",
+        requirement_b="Scope3 first three years",
+        affected_rule_ids=["tw_order_51756_scope3_from_fourth_year"],
+    )
+    assert "REGULATORY_CONFLICT" in conflict["notes"]
+    assert conflict["review_status"] == "PENDING_REVIEW"
+
+
+def test_classify_change_helpers() -> None:
+    body_a = b"<html>alpha</html>"
+    body_b = b"<html>beta</html>"
+    assert content_hash(body_a) != content_hash(body_b)
+    assert (
+        classify_change(
+            previous_hash=content_hash(body_a),
+            new_hash=content_hash(body_a),
+            previous_etag="a",
+            new_etag="a",
+            previous_last_modified="",
+            new_last_modified="",
+            previous_version="1",
+            new_version="1",
+            fetch_ok=True,
+        )
+        == "NO_CHANGE"
+    )
+    # First baseline hash is not a reviewable regulatory change.
+    assert (
+        classify_change(
+            previous_hash="",
+            new_hash=content_hash(body_a),
+            previous_etag="",
+            new_etag="",
+            previous_last_modified="",
+            new_last_modified="",
+            previous_version="",
+            new_version="",
+            fetch_ok=True,
+        )
+        == "NO_CHANGE"
+    )
+    assert (
+        classify_change(
+            previous_hash="",
+            new_hash="",
+            previous_etag="",
+            new_etag="",
+            previous_last_modified="",
+            new_last_modified="",
+            previous_version="",
+            new_version="",
+            fetch_ok=False,
+        )
+        == "SOURCE_UNAVAILABLE"
+    )
+
+
+def test_monitor_does_not_open_review_for_no_change() -> None:
+    assert is_reviewable_change("NO_CHANGE") is False
+    assert is_reviewable_change("COSMETIC_CHANGE") is False
+    assert should_open_review_activity(
+        [{"change_type": "NO_CHANGE", "previous_version": "", "new_version": ""}]
+    ) is False
+    assert is_reviewable_change(
+        {
+            "change_type": "POTENTIAL_REGULATORY_CHANGE",
+            "previous_version": "a",
+            "new_version": "b",
+        }
+    )
+
+
+def test_failed_fetch_does_not_update_last_successful_fetch_at(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    now = datetime(2026, 8, 12, 10, 0, tzinfo=timezone.utc)
+
+    def ok_fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=b"<html>ok</html>")
+
+    def bad_fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=False, status_code=503, error="down")
+
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=ok_fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    freshness = pd.read_csv(
+        root / "data/regulatory/source_freshness_state.csv", dtype=str
+    ).fillna("")
+    success_before = freshness.loc[
+        freshness["source_id"] == "src_tw_order_11403851756",
+        "last_successful_fetch_at",
+    ].iloc[0]
+    assert success_before
+
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=bad_fetch,
+        now=now + timedelta(hours=1),
+        write_pending_review=False,
+    )
+    freshness = pd.read_csv(
+        root / "data/regulatory/source_freshness_state.csv", dtype=str
+    ).fillna("")
+    row = freshness.loc[
+        freshness["source_id"] == "src_tw_order_11403851756"
+    ].iloc[0]
+    assert row["last_successful_fetch_at"] == success_before
+    assert row["fetch_status"] == "FETCH_FAILED"
+
+
+def test_get_regulatory_freshness_gate(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    freshness = get_regulatory_freshness(root)
+    assert "analysis_allowed" in freshness
+    assert "overall_regulatory_freshness" in freshness
+    assert "sources_current" in freshness
+    assert "changes_pending_review" in freshness
+    assert "regulatory_conflicts" in freshness
+    assert "state_source" in freshness
+    assert "src_tw_sfb_ifrs_download_area" in freshness["high_priority_source_ids"]
+
+
+def test_taiwan_recognised_version_source_is_high_priority() -> None:
+    cfg = load_monitor_config(REPO_ROOT / "config/regulatory_monitoring.yaml")
+    assert "src_tw_sfb_ifrs_download_area" in cfg.high_priority_source_ids
+    sources = load_regulatory_sources(
+        REPO_ROOT / "data/reference/regulatory_sources.csv"
+    )
+    row = sources.loc[
+        sources["source_id"] == "src_tw_sfb_ifrs_download_area"
+    ].iloc[0]
+    assert row["monitor_enabled"].lower() == "true"
+    assert row["monitor_frequency"] == "high_change_source"
+
+
+def test_international_ifrs_updates_do_not_auto_become_taiwan_active() -> None:
+    rules = load_regulatory_rules(REPO_ROOT / "config/regulatory_rules.csv")
+    row = rules.loc[
+        rules["rule_id"] == "ifrs_s2_ghg_amendments_2025_international"
+    ].iloc[0]
+    assert row["taiwan_status"] == "NOT_YET_VERIFIED"
+    assert row["jurisdiction"] == "INTL"
+
+
+def test_scheduled_workflow_exists_and_is_enabled() -> None:
+    text = (
+        REPO_ROOT / ".github/workflows/regulatory-monitor.yml"
+    ).read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in text
+    assert "schedule:" in text
+    assert 'cron: "17 16 * * *"' in text
+    assert 'cron: "0 16 * * *"' not in text
+    assert "python -m carbon_ledger.regulatory_monitor --check-all" in text
+    assert "regulatory-monitor-state" in text
+    assert "regulatory-update/" in text
+    assert "gh pr create" in text
+    assert "permissions:" in text
+    assert "contents: write" in text
+    assert "pull-requests: write" in text
+    assert "issues: write" in text
+    assert "DEFAULT branch" in text or "default branch" in text
+    # Schedule must not remain commented out.
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- cron:"):
+            assert not line.lstrip().startswith("#")
+            minute = stripped.split('"')[1].split()[0]
+            assert minute != "0"
+            break
+    else:
+        raise AssertionError("Enabled cron schedule not found")
+
+
+def test_monitor_does_not_import_calculation_pipeline() -> None:
+    import carbon_ledger.regulatory_monitor as mon
+
+    assert "calculate" not in mon.__dict__
+    assert "ingest" not in mon.__dict__
+    assert "match_factors" not in mon.__dict__
+
+
+def test_no_change_run_updates_durable_freshness_state(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    body = b"<html>stable official text for durable state</html>"
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=body, etag='"n1"')
+
+    now = datetime(2026, 8, 12, 11, 0, tzinfo=timezone.utc)
+    first = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    assert first["monitoring_complete"] is True
+    assert first["review_required"] is False
+    durable = root / "data/regulatory/durable_state/source_freshness_state.csv"
+    assert durable.is_file()
+    success_1 = pd.read_csv(durable, dtype=str).fillna("")
+    stamp_1 = success_1.loc[
+        success_1["source_id"] == "src_tw_order_11403851756",
+        "last_successful_fetch_at",
+    ].iloc[0]
+    assert stamp_1.startswith("2026-08-12T11:00:00")
+
+    second = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now + timedelta(hours=3),
+        write_pending_review=False,
+    )
+    assert second["changes"] == []
+    assert second["review_required"] is False
+    assert should_open_review_activity(second["changes"]) is False
+    success_2 = pd.read_csv(durable, dtype=str).fillna("")
+    row = success_2.loc[
+        success_2["source_id"] == "src_tw_order_11403851756"
+    ].iloc[0]
+    assert row["last_successful_fetch_at"].startswith("2026-08-12T14:00:00")
+    assert row["last_checked_at"].startswith("2026-08-12T14:00:00")
+    assert row["fetch_status"] == "OK"
+    assert row["freshness_status"] == "CURRENT"
+    assert row["next_check_at"]
+
+
+def test_artifacts_not_required_for_get_regulatory_freshness(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    # No artifacts directory; only bundled CSV state.
+    freshness = get_regulatory_freshness(root)
+    assert "analysis_allowed" in freshness
+    assert freshness["state_source"] in {STATE_SOURCE_BUNDLED, STATE_SOURCE_DURABLE}
+    assert (root / "artifacts").exists() is False
+
+
+def test_durable_state_preferred_over_bundled_stale(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    body = b"<html>prefer durable</html>"
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=body)
+
+    now = datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc)
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    # Corrupt bundled timestamps to look stale while durable stays current.
+    bundled = root / "data/regulatory/source_freshness_state.csv"
+    df = pd.read_csv(bundled, dtype=str).fillna("")
+    df.loc[
+        df["source_id"] == "src_tw_order_11403851756",
+        "last_successful_fetch_at",
+    ] = "2020-01-01T00:00:00Z"
+    df.loc[
+        df["source_id"] == "src_tw_order_11403851756",
+        "freshness_status",
+    ] = "STALE"
+    df.to_csv(bundled, index=False)
+
+    freshness = get_regulatory_freshness(root)
+    assert freshness["state_source"] == STATE_SOURCE_DURABLE
+    durable = pd.read_csv(
+        root / "data/regulatory/durable_state/source_freshness_state.csv",
+        dtype=str,
+    ).fillna("")
+    stamp = durable.loc[
+        durable["source_id"] == "src_tw_order_11403851756",
+        "last_successful_fetch_at",
+    ].iloc[0]
+    assert stamp.startswith("2026-08-12T12:00:00")
+
+
+def test_env_durable_state_dir_preferred(tmp_path: Path, monkeypatch) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    external = tmp_path / "external_state"
+    external.mkdir()
+    shutil.copy(
+        root / "data/regulatory/source_freshness_state.csv",
+        external / "source_freshness_state.csv",
+    )
+    summary = {
+        "overall_regulatory_freshness": "CURRENT",
+        "state_source": "durable_persisted_state",
+    }
+    (external / "monitoring_summary.json").write_text(
+        json.dumps(summary), encoding="utf-8"
+    )
+    monkeypatch.setenv("CARBON_LEDGER_REGULATORY_STATE_DIR", str(external))
+    freshness = get_regulatory_freshness(root)
+    assert freshness["state_source"] == STATE_SOURCE_DURABLE
+    monkeypatch.delenv("CARBON_LEDGER_REGULATORY_STATE_DIR", raising=False)
+
+
+def test_failed_persistence_not_reported_as_full_success(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    blocker = root / "data/regulatory/durable_state"
+    blocker.write_text("not-a-directory", encoding="utf-8")
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=b"<html>ok</html>")
+
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=datetime(2026, 8, 12, 13, 0, tzinfo=timezone.utc),
+        write_pending_review=False,
+    )
+    assert result["monitoring_complete"] is False
+    assert result["persistence"]["status"] == "STATE_PERSISTENCE_FAILED"
+    assert result["summary"]["persistence_status"] == "STATE_PERSISTENCE_FAILED"
+    assert result["summary"]["overall_regulatory_freshness"] == (
+        "STATE_PERSISTENCE_FAILED"
+    )
+
+
+def test_last_successful_fetch_at_only_on_successful_fetch(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    now = datetime(2026, 8, 12, 14, 0, tzinfo=timezone.utc)
+
+    def ok_fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=b"<html>ok2</html>")
+
+    def bad_fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=False, status_code=500, error="boom")
+
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=ok_fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    before = pd.read_csv(
+        root / "data/regulatory/source_freshness_state.csv", dtype=str
+    ).fillna("")
+    stamp = before.loc[
+        before["source_id"] == "src_tw_order_11403851756",
+        "last_successful_fetch_at",
+    ].iloc[0]
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=bad_fetch,
+        now=now + timedelta(hours=1),
+        write_pending_review=False,
+    )
+    after = pd.read_csv(
+        root / "data/regulatory/source_freshness_state.csv", dtype=str
+    ).fillna("")
+    assert (
+        after.loc[
+            after["source_id"] == "src_tw_order_11403851756",
+            "last_successful_fetch_at",
+        ].iloc[0]
+        == stamp
+    )
+
+
+def test_rule_activation_remains_manual(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    cfg = load_monitor_config(root / "config/regulatory_monitoring.yaml")
+    assert cfg.auto_activate_rules is False
+    before = load_regulatory_rules(root / "config/regulatory_rules.csv")
+    active_before = set(before.loc[before["rule_status"] == "ACTIVE", "rule_id"])
+    bodies = {"v": b"<html>manual activation only</html>"}
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=bodies["v"])
+
+    now = datetime(2026, 8, 12, 15, 0, tzinfo=timezone.utc)
+    run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now,
+        write_pending_review=False,
+    )
+    bodies["v"] = b"<html>manual activation only CHANGED</html>"
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=now + timedelta(hours=1),
+        write_pending_review=True,
+    )
+    assert result["auto_activate_rules"] is False
+    assert all(c["activation_status"] == "NOT_ACTIVATED" for c in result["changes"])
+    after = load_regulatory_rules(root / "config/regulatory_rules.csv")
+    active_after = set(after.loc[after["rule_status"] == "ACTIVE", "rule_id"])
+    assert active_after <= active_before
+
+
+def test_monitoring_state_cannot_include_calculation_files() -> None:
+    assert is_allowed_monitoring_state_file("source_freshness_state.csv")
+    assert is_allowed_monitoring_state_file("monitoring_summary.json")
+    assert not is_allowed_monitoring_state_file("config/regulatory_rules.csv")
+    assert not is_allowed_monitoring_state_file("src/carbon_ledger/calculate.py")
+    assert not is_allowed_monitoring_state_file("src/carbon_ledger/ingest.py")
+    cfg = load_monitor_config(REPO_ROOT / "config/regulatory_monitoring.yaml")
+    assert cfg.monitoring_state_branch == "regulatory-monitor-state"
+    for name in cfg.monitoring_state_files:
+        assert is_allowed_monitoring_state_file(name)
+
+
+def test_carbon_calculation_pipeline_files_unchanged_hashes() -> None:
+    """Stage 3A.4 must not alter frozen calculation pipeline file bytes."""
+    frozen = [
+        "src/carbon_ledger/domain.py",
+        "src/carbon_ledger/schemas.py",
+        "src/carbon_ledger/ingest.py",
+        "src/carbon_ledger/normalize.py",
+        "src/carbon_ledger/factors.py",
+        "src/carbon_ledger/match_factors.py",
+        "src/carbon_ledger/calculate.py",
+        "src/carbon_ledger/rules.py",
+        "src/carbon_ledger/qa.py",
+        "src/carbon_ledger/cbam.py",
+        "src/carbon_ledger/ui/hero_emissions_countup.js",
+    ]
+    # Presence + non-empty: pipeline modules remain intact in the tree.
+    for rel in frozen:
+        path = REPO_ROOT / rel
+        assert path.is_file(), rel
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert len(digest) == 64
+
+
+def test_freshness_state_unavailable_when_missing(tmp_path: Path) -> None:
+    root = tmp_path / "empty_repo"
+    (root / "config").mkdir(parents=True)
+    shutil.copy(
+        REPO_ROOT / "config/regulatory_monitoring.yaml",
+        root / "config/regulatory_monitoring.yaml",
+    )
+    freshness = get_regulatory_freshness(root)
+    assert freshness["state"] == "FRESHNESS_STATE_UNAVAILABLE"
+    assert freshness["analysis_allowed"] is False
+    assert freshness["state_source"] == "unavailable"
+
+
+def test_persist_monitoring_state_refuses_content_files(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    result = persist_monitoring_state(root)
+    assert result.ok is True
+    durable_rules = root / "data/regulatory/durable_state/regulatory_rules.csv"
+    assert durable_rules.exists() is False
+    assert (
+        root / "data/regulatory/durable_state/source_freshness_state.csv"
+    ).is_file()

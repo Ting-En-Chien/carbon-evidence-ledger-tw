@@ -1,0 +1,15 @@
+{
+  "overall_regulatory_freshness": "CHECK_DUE",
+  "last_global_check_at": "",
+  "last_successful_check_at": "",
+  "sources_current": 0,
+  "sources_stale": 0,
+  "sources_failed": 0,
+  "sources_total": 0,
+  "changes_pending_review": 0,
+  "regulatory_conflicts": 0,
+  "review_required": false,
+  "reviewable_new_changes": 0,
+  "generated_at": "",
+  "fail_safe_state": "UPDATE_REQUIRED"
+}

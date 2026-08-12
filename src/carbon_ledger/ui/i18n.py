@@ -18,13 +18,21 @@ LANG_CODE_TO_OPTION = {LANG_ZH: "繁中", LANG_EN: "EN"}
 STATE_LANGUAGE = "ui_language"
 
 MESSAGES: dict[str, dict[str, str]] = {
-    # Navigation
-    "nav.dashboard": {"zh-TW": "分析結果", "en": "Analysis results"},
+    # Navigation — six V1 primary destinations
+    "nav.dashboard": {"zh-TW": "合規總覽", "en": "Compliance Overview"},
+    "nav.applicability": {"zh-TW": "適用性判定", "en": "Applicability"},
+    "nav.ifrs": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
+    "nav.taiwan": {
+        "zh-TW": "台灣溫室氣體與碳費",
+        "en": "Taiwan GHG / Carbon Fee",
+    },
+    "nav.evidence": {"zh-TW": "證據與資料", "en": "Evidence & Data"},
+    "nav.audit": {"zh-TW": "報表與匯出", "en": "Reporting & Export"},
+    # Hidden Evidence deep-link page titles (not primary sidebar items)
     "nav.intake": {"zh-TW": "資料匯入", "en": "Data Intake"},
     "nav.activity": {"zh-TW": "活動資料", "en": "Activity Data"},
     "nav.issues": {"zh-TW": "待處理問題", "en": "Issues & Actions"},
-    "nav.frameworks": {"zh-TW": "準則分析", "en": "Framework analysis"},
-    "nav.audit": {"zh-TW": "稽核與匯出", "en": "Audit & Export"},
+    "nav.frameworks": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
     # Brand / header
     "brand.name": {
         "zh-TW": "Carbon Evidence Ledger",
@@ -273,13 +281,59 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "產品數量證據",
         "en": "Product quantity evidence",
     },
-    # Dashboard / analysis results
-    "dash.page_title": {"zh-TW": "分析結果", "en": "Analysis results"},
+    # Compliance Overview (formerly analysis results)
+    "dash.page_title": {"zh-TW": "合規總覽", "en": "Compliance Overview"},
     "dash.page_subtitle": {
-        "zh-TW": "先看這批資料算出了什麼、還缺什麼，再查看細節。",
+        "zh-TW": "先看目前需要注意什麼、缺少什麼資料，再查看排放與證據細節。",
         "en": (
-            "See what this dataset can calculate, what is still missing, "
-            "then explore details."
+            "See what needs attention, what information is missing, "
+            "and then review emissions and evidence details."
+        ),
+    },
+    "dash.section_attention": {
+        "zh-TW": "目前需要注意",
+        "en": "What requires attention",
+    },
+    "dash.section_attention_help": {
+        "zh-TW": "優先處理會阻擋計算或揭露準備的資料缺口。",
+        "en": "Prioritize gaps that block calculation or disclosure prep.",
+    },
+    "dash.section_missing": {
+        "zh-TW": "缺少的資料",
+        "en": "Missing information",
+    },
+    "dash.section_review": {
+        "zh-TW": "需要複核",
+        "en": "Needs review",
+    },
+    "dash.section_emissions_summary": {
+        "zh-TW": "排放資料摘要",
+        "en": "Emissions summary",
+    },
+    "dash.section_emissions_summary_help": {
+        "zh-TW": "既有計算結果摘要，僅供佐證參考，不是合規分數。",
+        "en": (
+            "Summary of existing calculation results for evidence review — "
+            "not a compliance score."
+        ),
+    },
+    "dash.cta.view_ifrs": {
+        "zh-TW": "查看 IFRS S1/S2",
+        "en": "View IFRS S1/S2",
+    },
+    "dash.cta.view_taiwan": {
+        "zh-TW": "查看台灣法規要求",
+        "en": "View Taiwan requirements",
+    },
+    "dash.cta.view_evidence": {
+        "zh-TW": "查看證據與資料",
+        "en": "View evidence & data",
+    },
+    "dash.no_fake_score_note": {
+        "zh-TW": "本頁不會顯示虛構的合規百分比，只整理目前可確認與仍缺的資料狀態。",
+        "en": (
+            "This page does not invent compliance percentages; "
+            "it only summarizes confirmed and missing information."
         ),
     },
     "dash.complete_title": {"zh-TW": "分析完成 ✓", "en": "Analysis complete ✓"},
@@ -313,8 +367,11 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "dash.section_completeness": {"zh-TW": "資料完整度", "en": "Data completeness"},
     "dash.section_completeness_help": {
-        "zh-TW": "目前計算狀態分布（支援圖表，不是主要結果）。",
-        "en": "Supporting status distribution — not the primary result chart.",
+        "zh-TW": "依活動檢視目前已能計算與仍缺資料的分布（輔助圖表）。",
+        "en": (
+            "Supporting chart of which activities can be calculated "
+            "and which still lack data."
+        ),
     },
     "dash.completeness_note": {
         "zh-TW": "完整度用於提醒下一步，不代表公司總排放。",
@@ -345,7 +402,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     "dash.col.factor": {"zh-TW": "係數", "en": "Factor"},
     "dash.col.factor_year": {"zh-TW": "係數年度", "en": "Factor year"},
     "dash.col.emissions": {"zh-TW": "排放量", "en": "Emissions"},
-    "dash.cta.view_issues": {"zh-TW": "查看問題", "en": "View issues"},
+    "dash.cta.view_issues": {
+        "zh-TW": "查看待處理問題",
+        "en": "View open issues",
+    },
     "dash.cta.how_to_fix": {"zh-TW": "查看如何處理", "en": "See how to fix"},
     "dash.cta.view_frameworks": {"zh-TW": "查看準則分析", "en": "Open frameworks"},
     "dash.cta.update_data": {"zh-TW": "更新資料", "en": "Update data"},
@@ -407,11 +467,11 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "dash.hero_support": {
         "zh-TW": (
-            "從原始活動資料到 Scope 1 / 2 / 3、CBAM 與 IFRS S2，"
+            "從原始活動資料到 Scope 1 / 2 / 3 與 IFRS S1/S2 準備，"
             "清楚知道目前能算什麼、缺什麼，以及下一步該做什麼。"
         ),
         "en": (
-            "From source activity data to Scope 1 / 2 / 3, CBAM, and IFRS S2 — "
+            "From source activity data to Scope 1 / 2 / 3 and IFRS S1/S2 prep — "
             "see what can be calculated, what is missing, and what to do next."
         ),
     },
@@ -623,17 +683,54 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "No open core data-quality issues.",
     },
     # Frameworks
-    "fw.title": {"zh-TW": "準則分析", "en": "Frameworks"},
+    "fw.title": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
     "fw.subtitle": {
-        "zh-TW": "同一筆碳資料，可以回答三種不同的問題。",
-        "en": "One evidence ledger, three different questions.",
+        "zh-TW": "依官方核心結構整理：治理、策略、風險管理、指標與目標。",
+        "en": (
+            "Organized by the official pillars: Governance, Strategy, "
+            "Risk Management, Metrics & Targets."
+        ),
     },
     "fw.help": {
-        "zh-TW": "這三個準則在回答不同問題，不要把它們當成同一套計算。",
-        "en": (
-            "These frameworks answer different questions — do not merge "
-            "them into one calculation."
+        "zh-TW": (
+            "IFRS S1 提供一般揭露架構；IFRS S2 提供氣候相關要求。"
+            "本頁不做合規判定。"
         ),
+        "en": (
+            "IFRS S1 provides the general disclosure architecture; "
+            "IFRS S2 adds climate requirements. "
+            "This page does not determine compliance."
+        ),
+    },
+    "fw.pillar.governance": {"zh-TW": "治理", "en": "Governance"},
+    "fw.pillar.strategy": {"zh-TW": "策略", "en": "Strategy"},
+    "fw.pillar.risk": {"zh-TW": "風險管理", "en": "Risk Management"},
+    "fw.pillar.metrics": {"zh-TW": "指標與目標", "en": "Metrics & Targets"},
+    "fw.pillar.shell_status": {
+        "zh-TW": "規則集尚未實作",
+        "en": "Rule set not yet implemented",
+    },
+    "fw.pillar.shell_help": {
+        "zh-TW": (
+            "此區塊將於後續階段接上風險／機會紀錄與規則登錄。"
+            "目前不臆測適用或合規結論。"
+        ),
+        "en": (
+            "This pillar will connect to risk/opportunity records and the "
+            "rule registry in a later stage. No applicability or compliance "
+            "conclusions are invented here."
+        ),
+    },
+    "fw.metrics_help": {
+        "zh-TW": "目前已實作的 IFRS S2 氣候指標就緒度檢視（資料準備，非合規分數）。",
+        "en": (
+            "Currently implemented IFRS S2 climate-metrics readiness view "
+            "(data prep, not a compliance score)."
+        ),
+    },
+    "fw.needs_information": {
+        "zh-TW": "需要更多資訊",
+        "en": "Needs information",
     },
     "fw.ghg_card_title": {"zh-TW": "公司碳盤查", "en": "Corporate GHG inventory"},
     "fw.ghg_question": {
@@ -707,33 +804,49 @@ MESSAGES: dict[str, dict[str, str]] = {
     "fw.col.evidence_role": {"zh-TW": "資料角色", "en": "Evidence role"},
     "fw.col.readiness": {"zh-TW": "準備狀態", "en": "Readiness"},
     # Audit
-    "aud.title": {"zh-TW": "稽核與匯出", "en": "Audit & Export"},
+    "aud.title": {"zh-TW": "報表與匯出", "en": "Reporting & Export"},
+    "aud.subtitle": {
+        "zh-TW": "下載工作底稿、證據清冊與資料品質例外清單（非官方申報檔）。",
+        "en": (
+            "Download workpapers, evidence registers, and data-quality "
+            "exception lists (not official filings)."
+        ),
+    },
+    "aud.help": {
+        "zh-TW": "輸出為佐證包／就緒度工作底稿。系統不宣稱產出完整正式申報。",
+        "en": (
+            "Outputs are supporting packages / readiness workpapers. "
+            "The system does not claim to produce a complete official filing."
+        ),
+    },
+    "aud.workpaper_note": {
+        "zh-TW": "請以工作底稿／佐證包理解下載內容，而非正式法規申報檔。",
+        "en": (
+            "Treat downloads as workpapers / supporting packages, "
+            "not official regulatory filings."
+        ),
+    },
     "aud.hero": {
         "zh-TW": "下載你的分析成果",
         "en": "Download your analysis results",
     },
-    "aud.subtitle": {
-        "zh-TW": "取得完整分析資料，或只下載需要補充的問題清單。",
-        "en": "Download the full analysis bundle, or only the open-issue list.",
+    "aud.zip_title": {
+        "zh-TW": "工作底稿／佐證包",
+        "en": "Workpaper / supporting package",
     },
-    "aud.help": {
-        "zh-TW": "一般使用者只需要下載成果。進階技術資訊主要提供稽核與工程追蹤。",
-        "en": (
-            "Most users only need the downloads. Advanced details are for "
-            "audit and engineering traceability."
-        ),
-    },
-    "aud.zip_title": {"zh-TW": "完整分析資料", "en": "Full analysis bundle"},
     "aud.zip_desc": {
-        "zh-TW": "包含活動資料、排放計算、待處理問題、準則分析與證據追蹤資訊。",
+        "zh-TW": (
+            "包含活動資料、排放計算、待處理問題、IFRS 就緒度與證據追蹤"
+            "（工作底稿用途）。"
+        ),
         "en": (
-            "Includes activities, calculations, open issues, framework "
-            "outputs, and evidence trail files."
+            "Includes activities, calculations, open issues, IFRS readiness, "
+            "and evidence trail files (workpaper use)."
         ),
     },
     "aud.zip_button": {
-        "zh-TW": "下載完整分析資料 (.zip)",
-        "en": "Download full analysis (.zip)",
+        "zh-TW": "下載佐證包 (.zip)",
+        "en": "Download supporting package (.zip)",
     },
     "aud.csv_title": {"zh-TW": "待處理問題", "en": "Open issues"},
     "aud.csv_desc": {
@@ -802,15 +915,17 @@ MESSAGES: dict[str, dict[str, str]] = {
     "tut.step1_title": {"zh-TW": "選擇分析內容", "en": "Choose what to analyze"},
     "tut.step1_body": {
         "zh-TW": (
-            "公司碳盤查 / GHG Protocol：查看活動屬於 Scope 1、Scope 2 或 Scope 3。\n"
-            "歐盟出口 / EU CBAM：查看出口歐盟產品需要哪些碳資料，以及目前還缺什麼。\n"
-            "氣候揭露 / IFRS S2：查看目前碳資料是否足以支援氣候揭露準備。"
+            "公司碳盤查 / GHG Protocol：整理活動排放計算與 Scope。\n"
+            "氣候揭露 / IFRS S1/S2：查看治理、策略、風險與指標目標的資料準備狀態。\n"
+            "台灣溫室氣體與碳費：分開檢視盤查、查驗與碳費義務"
+            "（不足資料時顯示「需要更多資訊」）。"
         ),
         "en": (
-            "Corporate GHG / GHG Protocol: see Scope 1, 2, or 3.\n"
-            "EU export / EU CBAM: see required product data and gaps.\n"
-            "Climate disclosure / IFRS S2: see whether evidence supports "
-            "disclosure prep."
+            "Corporate GHG / GHG Protocol: organize activity emissions and Scope.\n"
+            "Climate disclosure / IFRS S1/S2: review readiness across governance, "
+            "strategy, risk, and metrics & targets.\n"
+            "Taiwan GHG / Carbon Fee: separate inventory, verification, and fee "
+            "obligations (show Needs information when data is incomplete)."
         ),
     },
     "tut.step2_title": {
@@ -849,13 +964,13 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "tut.step4_body": {
         "zh-TW": (
-            "你可以查看：每筆活動、排放計算、來源證據、Scope 1 / 2 / 3、"
-            "CBAM 用途、IFRS S2 資料準備度。最後下載完整結果。"
+            "你可以查看：合規總覽、適用性、IFRS S1/S2 四個核心區塊、"
+            "台灣義務分軌、證據與資料缺口，最後下載工作底稿／佐證包。"
         ),
         "en": (
-            "Review each activity, calculations, evidence, "
-            "Scope 1 / 2 / 3, CBAM roles, and IFRS S2 readiness — "
-            "then download the full bundle."
+            "Review the compliance overview, applicability, IFRS S1/S2 pillars, "
+            "Taiwan obligation tracks, evidence gaps — then download workpapers "
+            "and supporting packages."
         ),
     },
     "tut.footer": {
@@ -1477,6 +1592,161 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "只評估氣候指標相關證據的技術準備度。",
         "en": "Assesses technical climate-metrics evidence readiness only.",
     },
+    # Stage 2 IA shells
+    "app.needs_information": {
+        "zh-TW": "需要更多資訊",
+        "en": "Needs information",
+    },
+    "app.rule_not_implemented": {
+        "zh-TW": "規則集尚未實作",
+        "en": "Rule set not yet implemented",
+    },
+    "app.coming_next_stage": {
+        "zh-TW": "將於下一實作階段補齊",
+        "en": "Coming in the next implementation stage",
+    },
+    "app.applicable": {"zh-TW": "適用", "en": "Applicable"},
+    "app.not_applicable": {"zh-TW": "不適用", "en": "Not applicable"},
+    "app.future_requirement": {
+        "zh-TW": "未來要求",
+        "en": "Future requirement",
+    },
+    "apl.title": {"zh-TW": "適用性判定", "en": "Applicability"},
+    "apl.subtitle": {
+        "zh-TW": "說明為何某項義務可能適用，以及目前是否還缺公司檔資訊。",
+        "en": (
+            "Explain why an obligation may apply, and what company-profile "
+            "information is still missing."
+        ),
+    },
+    "apl.help": {
+        "zh-TW": "公司檔資訊不足時會顯示「需要更多資訊」，不會臆測適用結論。",
+        "en": (
+            "When company-profile data is incomplete, the status is Needs "
+            "information — never guessed."
+        ),
+    },
+    "apl.company_profile": {
+        "zh-TW": "公司檔（後續階段）",
+        "en": "Company profile (later stage)",
+    },
+    "apl.company_profile_help": {
+        "zh-TW": "未來可輸入上市／興櫃／非公開、實收資本、產業、廠址與台灣法規狀態等。",
+        "en": (
+            "Future inputs may include listing status, paid-in capital, "
+            "industry, facilities, and Taiwan regulatory status."
+        ),
+    },
+    "apl.obligation_ifrs": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
+    "apl.obligation_inventory": {
+        "zh-TW": "台灣溫室氣體盤查",
+        "en": "Taiwan GHG inventory",
+    },
+    "apl.obligation_verification": {
+        "zh-TW": "查驗／確信",
+        "en": "Verification / assurance",
+    },
+    "apl.obligation_carbon_fee": {"zh-TW": "碳費", "en": "Carbon fee"},
+    "tw.title": {
+        "zh-TW": "台灣溫室氣體與碳費",
+        "en": "Taiwan GHG / Carbon Fee",
+    },
+    "tw.subtitle": {
+        "zh-TW": "盤查、查驗與碳費是分開的義務，不互相自動推論。",
+        "en": (
+            "Inventory, verification, and carbon fee are separate "
+            "obligations — never inferred from each other."
+        ),
+    },
+    "tw.help": {
+        "zh-TW": (
+            "Stage 2 僅建立分軌結構。適用性引擎尚未接上時一律標示為"
+            "需要更多資訊／規則尚未實作。"
+        ),
+        "en": (
+            "Stage 2 only establishes separate tracks. Until the "
+            "applicability engine exists, statuses remain Needs information "
+            "/ Rule set not yet implemented."
+        ),
+    },
+    "tw.inventory": {"zh-TW": "溫室氣體盤查", "en": "GHG Inventory"},
+    "tw.verification": {
+        "zh-TW": "查驗／確信",
+        "en": "Verification / Assurance",
+    },
+    "tw.carbon_fee": {"zh-TW": "碳費", "en": "Carbon Fee"},
+    "tw.section_help": {
+        "zh-TW": "各自有獨立的適用性、期間、截止日、資料與證據要求（後續階段）。",
+        "en": (
+            "Each track will have its own applicability, period, deadline, "
+            "data, and evidence requirements (later stage)."
+        ),
+    },
+    "ev.title": {"zh-TW": "證據與資料", "en": "Evidence & Data"},
+    "ev.subtitle": {
+        "zh-TW": "上傳 → 活動計算 → 待處理問題 → 證據追溯。",
+        "en": "Upload → activity calculations → open issues → evidence trail.",
+    },
+    "ev.help": {
+        "zh-TW": "同一來源文件可支援多項義務；此頁整理入口，不重寫計算管線。",
+        "en": (
+            "One source document can support multiple obligations. This page "
+            "organizes entry points without rewriting the calculation pipeline."
+        ),
+    },
+    "ev.workspace_nav": {
+        "zh-TW": "證據與資料功能",
+        "en": "Evidence & Data functions",
+    },
+    "ev.flow_title": {
+        "zh-TW": "資料與證據工作流程",
+        "en": "Data and evidence workflow",
+    },
+    "ev.flow_help": {
+        "zh-TW": "請從上方分頁進入既有功能；這些不是獨立的主選單項目。",
+        "en": (
+            "Use the tabs above to open existing tools; "
+            "they are not separate primary navigation items."
+        ),
+    },
+    "ev.tab.overview": {"zh-TW": "流程總覽", "en": "Overview"},
+    "ev.tab.intake": {"zh-TW": "資料匯入", "en": "Data Upload"},
+    "ev.tab.intake_help": {
+        "zh-TW": "預設畫面：上傳 Excel／CSV，完成對應後即可分析。",
+        "en": "Default view: upload Excel/CSV, map columns, then analyze.",
+    },
+    "ev.tab.activity": {"zh-TW": "活動資料", "en": "Activity Data"},
+    "ev.tab.issues": {"zh-TW": "待處理問題", "en": "Issues & Review"},
+    "ev.tab.records": {"zh-TW": "證據紀錄", "en": "Evidence Records"},
+    "ev.tab.records_help": {
+        "zh-TW": "目前分析已接受的來源文件與證據雜湊。",
+        "en": "Accepted source documents and evidence hashes for this analysis.",
+    },
+    "ev.records_help": {
+        "zh-TW": "此處列出佐證文件清單，不會改寫計算結果。",
+        "en": "Lists supporting documents; it does not change calculation results.",
+    },
+    "ev.step_upload": {"zh-TW": "1. 資料匯入", "en": "1. Data Upload"},
+    "ev.step_upload_help": {
+        "zh-TW": "上傳並檢查活動資料格式。",
+        "en": "Upload and validate activity data format.",
+    },
+    "ev.step_activity": {
+        "zh-TW": "2. 活動與計算",
+        "en": "2. Activities & calculations",
+    },
+    "ev.step_activity_help": {
+        "zh-TW": "查看每筆活動的計算狀態與證據連結。",
+        "en": "Inspect calculation status and evidence links per activity.",
+    },
+    "ev.step_issues": {"zh-TW": "3. 待處理問題", "en": "3. Issues & Review"},
+    "ev.step_issues_help": {
+        "zh-TW": "處理資料品質與缺口複核事項。",
+        "en": "Resolve data-quality and gap-review items.",
+    },
+    "ev.open_intake": {"zh-TW": "開啟資料匯入", "en": "Open data upload"},
+    "ev.open_activity": {"zh-TW": "開啟活動資料", "en": "Open activity data"},
+    "ev.open_issues": {"zh-TW": "開啟待處理問題", "en": "Open issues"},
 }
 
 

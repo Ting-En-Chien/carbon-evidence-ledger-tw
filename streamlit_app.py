@@ -1,7 +1,8 @@
 """Carbon Evidence Ledger — bilingual professional Streamlit application.
 
-Phase 11B adds staged analysis progress, result reveal motion, and premium
-visual hierarchy on top of the Phase 11A SaaS shell.
+Stage 2 V1 navigation: Compliance Overview → Reporting & Export.
+CBAM remains available in the backend but is hidden from the V1 UI.
+Retains Phase 11 analysis progress / result-reveal motion from main.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ from carbon_ledger.ui.components import (
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.motion import execute_analysis_with_progress
 from carbon_ledger.ui.state import (
-    STATE_INCLUDE_CBAM,
     STATE_INCLUDE_GHG,
     STATE_INCLUDE_IFRS,
     STATE_NAVIGATE_TO_RESULTS,
@@ -49,58 +49,80 @@ if "ui_checkbox_ghg" not in st.session_state:
     st.session_state["ui_checkbox_ghg"] = bool(
         st.session_state.get(STATE_INCLUDE_GHG, True)
     )
-if "ui_checkbox_cbam" not in st.session_state:
-    st.session_state["ui_checkbox_cbam"] = bool(
-        st.session_state.get(STATE_INCLUDE_CBAM, True)
-    )
 if "ui_checkbox_ifrs" not in st.session_state:
     st.session_state["ui_checkbox_ifrs"] = bool(
         st.session_state.get(STATE_INCLUDE_IFRS, True)
     )
+# V1: CBAM not exposed; keep key false for any legacy session state.
+st.session_state["ui_checkbox_cbam"] = False
 
 render_global_header(lang)
 maybe_show_tutorial(st.session_state, lang)
 
-dashboard_page = st.Page(
+overview_page = st.Page(
     "app_pages/dashboard.py",
     title=t("nav.dashboard", lang),
     icon=":material/dashboard:",
     default=True,
 )
-intake_page = st.Page(
-    "app_pages/data_intake.py",
-    title=t("nav.intake", lang),
-    icon=":material/upload_file:",
+applicability_page = st.Page(
+    "app_pages/applicability.py",
+    title=t("nav.applicability", lang),
+    icon=":material/rule:",
 )
+ifrs_page = st.Page(
+    "app_pages/frameworks.py",
+    title=t("nav.ifrs", lang),
+    icon=":material/account_tree:",
+)
+taiwan_page = st.Page(
+    "app_pages/taiwan_ghg.py",
+    title=t("nav.taiwan", lang),
+    icon=":material/public:",
+)
+# Evidence & Data lands on Data Upload (intake) so Excel/CSV is immediately visible.
+evidence_page = st.Page(
+    "app_pages/data_intake.py",
+    title=t("nav.evidence", lang),
+    icon=":material/folder_open:",
+)
+reporting_page = st.Page(
+    "app_pages/audit_export.py",
+    title=t("nav.audit", lang),
+    icon=":material/fact_check:",
+)
+# Sibling Evidence workspace pages: reachable via in-page tabs / switch_page only.
 activity_page = st.Page(
     "app_pages/activity_explorer.py",
     title=t("nav.activity", lang),
     icon=":material/table_view:",
+    visibility="hidden",
 )
 issues_page = st.Page(
     "app_pages/issues_actions.py",
     title=t("nav.issues", lang),
     icon=":material/error_outline:",
+    visibility="hidden",
 )
-frameworks_page = st.Page(
-    "app_pages/frameworks.py",
-    title=t("nav.frameworks", lang),
-    icon=":material/account_tree:",
-)
-audit_page = st.Page(
-    "app_pages/audit_export.py",
-    title=t("nav.audit", lang),
-    icon=":material/fact_check:",
+evidence_records_page = st.Page(
+    "app_pages/evidence_data.py",
+    title=t("ev.tab.records", lang),
+    icon=":material/folder_open:",
+    visibility="hidden",
 )
 
+# Flat list: exactly six visible primary destinations (no section headers).
 navigation = st.navigation(
     [
-        dashboard_page,
-        intake_page,
+        overview_page,
+        applicability_page,
+        ifrs_page,
+        taiwan_page,
+        evidence_page,
+        reporting_page,
         activity_page,
         issues_page,
-        frameworks_page,
-        audit_page,
+        evidence_records_page,
     ],
     position="sidebar",
 )
@@ -148,8 +170,9 @@ with st.sidebar:
     )
     flags = render_analysis_settings(lang)
     include_ghg = flags["include_ghg"]
-    include_cbam = flags["include_cbam"]
     include_ifrs = flags["include_ifrs"]
+    # V1 product experience: CBAM UI hidden; backend still accepts the flag.
+    include_cbam = False
 
     # Avoid ambiguous "start analysis" after a completed uploaded run.
     show_start_uploaded = prefer_uploaded and not uploaded_completed
