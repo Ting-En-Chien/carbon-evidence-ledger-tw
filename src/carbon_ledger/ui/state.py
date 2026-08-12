@@ -86,7 +86,8 @@ def _ss_get(session_state: Any, key: str, default: Any = None) -> Any:
 def _default_adapter_flags() -> dict[str, bool]:
     return {
         STATE_INCLUDE_GHG: True,
-        STATE_INCLUDE_CBAM: True,
+        # V1 product hides CBAM; backend capability remains for future V2.
+        STATE_INCLUDE_CBAM: False,
         STATE_INCLUDE_IFRS: True,
     }
 
@@ -396,7 +397,7 @@ def get_adapter_flags(session_state: Any) -> dict[str, bool]:
     """Return the currently selected analysis-module flags."""
     return {
         "include_ghg": bool(_ss_get(session_state, STATE_INCLUDE_GHG, True)),
-        "include_cbam": bool(_ss_get(session_state, STATE_INCLUDE_CBAM, True)),
+        "include_cbam": bool(_ss_get(session_state, STATE_INCLUDE_CBAM, False)),
         "include_ifrs_s2": bool(_ss_get(session_state, STATE_INCLUDE_IFRS, True)),
     }
 

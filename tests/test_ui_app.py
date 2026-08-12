@@ -97,7 +97,8 @@ def test_traditional_chinese_is_default_language() -> None:
 def test_dashboard_is_default_page() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "分析結果" in text
+    assert "合規總覽" in text
+    assert "已計算排放量" in text
 
 
 def test_page_title_contains_carbon_evidence_ledger() -> None:
@@ -145,27 +146,27 @@ def test_all_three_adapter_controls_exist() -> None:
     joined = "\n".join(labels)
     text = _all_text(at)
     assert "公司碳盤查" in joined or "Corporate GHG" in joined or "GHG" in text
-    assert "歐盟出口" in joined or "EU export" in joined or "EU CBAM" in text
-    assert "氣候揭露" in joined or "Climate disclosure" in joined or "IFRS S2" in text
-    # Framework toggles live under analysis settings progressive disclosure.
+    assert "氣候揭露" in joined or "Climate disclosure" in joined or "IFRS" in text
+    # V1: CBAM is not exposed in sidebar settings.
+    assert "歐盟出口" not in joined
+    assert "EU CBAM" not in joined
     expander_labels = [
         str(getattr(item, "label", "") or "")
         for item in getattr(at, "expander", [])
     ]
     assert any("分析設定" in label for label in expander_labels) or "分析設定" in text
     assert "GHG Protocol" in text
-    assert "EU CBAM" in text
-    assert "IFRS S2" in text
+    assert "IFRS" in text
 
 
 def test_default_state_enables_all_three_adapters() -> None:
     at = _run_app()
     assert at.session_state["include_ghg"] is True
-    assert at.session_state["include_cbam"] is True
+    assert at.session_state["include_cbam"] is False
     assert at.session_state["include_ifrs_s2"] is True
     result = at.session_state["pipeline_result"]
     assert result.include_ghg is True
-    assert result.include_cbam is True
+    assert result.include_cbam is False
     assert result.include_ifrs_s2 is True
 
 
@@ -257,11 +258,11 @@ def test_dashboard_shows_activity_overview() -> None:
 def test_dashboard_page_header_and_status_hierarchy() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "分析結果" in text
+    assert "合規總覽" in text
     assert "已計算排放量" in text
     assert "排放趨勢" in text
     assert "排放來源" in text
-    assert "優先處理" in text
+    assert "目前需要注意" in text or "優先處理" in text
     assert "計算明細" in text
 
 
@@ -346,16 +347,17 @@ def test_issues_actions_page_loads() -> None:
 def test_frameworks_page_loads() -> None:
     at = _switch(_run_app(), "app_pages/frameworks.py")
     text = _all_text(at)
-    assert "準則分析" in text
-    assert "公司碳盤查" in text
-    assert "歐盟出口產品碳資料" in text
-    assert "氣候資訊揭露準備" in text
+    assert "IFRS S1/S2" in text or "IFRS" in text
+    assert "治理" in text
+    assert "策略" in text
+    assert "風險管理" in text
+    assert "指標與目標" in text
 
 
 def test_audit_export_page_loads() -> None:
     at = _switch(_run_app(), "app_pages/audit_export.py")
     text = _all_text(at)
-    assert "稽核與匯出" in text
+    assert "報表與匯出" in text or "工作底稿" in text
     assert "官方參考資料" in text
     assert "電力排放係數" in text
     labels = [str(button.label) for button in at.download_button]
@@ -366,16 +368,19 @@ def test_audit_export_page_loads() -> None:
 def test_frameworks_page_contains_separate_framework_views() -> None:
     at = _switch(_run_app(), "app_pages/frameworks.py")
     labels = [str(tab.label) for tab in at.tabs]
-    assert "GHG Protocol" in labels
-    assert "EU CBAM" in labels
-    assert "IFRS S2" in labels
+    assert "治理" in labels
+    assert "策略" in labels
+    assert "風險管理" in labels
+    assert "指標與目標" in labels
+    assert "EU CBAM" not in labels
 
 
 def test_cbam_page_content_contains_demo_assumption_warning() -> None:
+    # V1: CBAM UI removed; backend warning text must not appear as a V1 module.
     at = _switch(_run_app(), "app_pages/frameworks.py")
     text = _all_text(at)
-    assert "CN 7318" in text
-    assert "示範假設" in text
+    assert "EU CBAM" not in text
+    assert "CN 7318" not in text
 
 
 def test_ifrs_s2_content_contains_readiness_only_warning() -> None:
@@ -394,8 +399,14 @@ def test_audit_page_contains_audit_bundle_download_control() -> None:
 def test_audit_raw_manifest_is_advanced_only() -> None:
     at = _switch(_run_app(), "app_pages/audit_export.py")
     text = _all_text(at)
-    assert "進階技術資訊" in text
-    assert "下載完整分析資料" in text
+    expander_labels = [
+        str(getattr(item, "label", "") or "")
+        for item in getattr(at, "expander", [])
+    ]
+    assert "進階技術資訊" in text or any(
+        "進階技術資訊" in label for label in expander_labels
+    )
+    assert "下載" in text and (".zip" in text.lower() or "佐證包" in text)
 
 
 def test_application_does_not_display_raw_blocked_missing_conversion() -> None:
@@ -414,11 +425,14 @@ def test_no_page_produces_uncaught_streamlit_exception() -> None:
     at = _run_app()
     pages = [
         "app_pages/dashboard.py",
+        "app_pages/applicability.py",
+        "app_pages/frameworks.py",
+        "app_pages/taiwan_ghg.py",
+        "app_pages/evidence_data.py",
+        "app_pages/audit_export.py",
         "app_pages/data_intake.py",
         "app_pages/activity_explorer.py",
         "app_pages/issues_actions.py",
-        "app_pages/frameworks.py",
-        "app_pages/audit_export.py",
     ]
     for page in pages:
         at = _switch(at, page)
@@ -428,10 +442,12 @@ def test_no_page_produces_uncaught_streamlit_exception() -> None:
 def test_english_navigation_copy() -> None:
     at = _switch_language(_run_app(), "EN")
     text = _all_text(at)
-    assert "Analysis results" in text
+    assert "Compliance Overview" in text
     assert (
         "Re-run analysis" in text
         or "Run demo analysis" in text
         or "Start analysis" in text
     )
     assert "Emissions trend" in text or "Calculation status" in text
+    assert "EU CBAM" not in text
+    assert "EU export" not in text

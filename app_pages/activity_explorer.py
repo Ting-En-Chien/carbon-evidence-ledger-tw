@@ -13,6 +13,10 @@ from carbon_ledger.ui.components import (
     render_section_header,
     render_status_badge,
 )
+from carbon_ledger.ui.evidence_workspace import (
+    TAB_ACTIVITY,
+    render_evidence_workspace_nav,
+)
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.state import (
     get_current_result,
@@ -31,7 +35,9 @@ inject_design_system()
 lang = get_language(st.session_state)
 result = get_current_result(st.session_state)
 
-render_page_header(t("act.title", lang), t("act.subtitle", lang))
+render_page_header(t("ev.title", lang), t("ev.subtitle", lang))
+render_evidence_workspace_nav(lang, TAB_ACTIVITY)
+render_section_header(t("act.title", lang), t("act.subtitle", lang))
 render_page_help(t("act.help", lang))
 
 if result is None:
@@ -96,7 +102,6 @@ table = filtered[
         "activity_unit",
         "calculation_label",
         "ghg_label",
-        "cbam_label",
         "ifrs_s2_label",
         "attention_required",
         "record_id",
@@ -108,7 +113,6 @@ table = filtered[
         "activity_unit": "Unit",
         "calculation_label": t("dash.col.calc", lang),
         "ghg_label": t("dash.col.ghg", lang),
-        "cbam_label": t("dash.col.cbam", lang),
         "ifrs_s2_label": t("dash.col.ifrs", lang),
         "attention_required": t("act.filter_attention", lang),
         "record_id": "record_id",
@@ -148,7 +152,7 @@ calc_status = str(overview_row.get("calculation_status", ""))
 
 st.write("")
 render_section_header(t("act.status_strip", lang))
-strip = st.columns(5)
+strip = st.columns(4)
 with strip[0]:
     st.caption(t("dash.col.calc", lang))
     render_status_badge(
@@ -159,12 +163,9 @@ with strip[1]:
     st.caption("GHG")
     render_status_badge(str(overview_row.get("ghg_label", "—")), kind="info")
 with strip[2]:
-    st.caption("CBAM")
-    render_status_badge(str(overview_row.get("cbam_label", "—")), kind="muted")
-with strip[3]:
     st.caption("IFRS S2")
     render_status_badge(str(overview_row.get("ifrs_s2_label", "—")), kind="muted")
-with strip[4]:
+with strip[3]:
     st.caption(t("dash.col.qa", lang))
     qa_label = str(overview_row.get("qa_label", "—"))
     qa_kind = (
@@ -225,7 +226,6 @@ with tab_summary:
     st.write(
         f"{name} · {overview_row.get('calculation_label', '—')} · "
         f"GHG: {overview_row.get('ghg_label', '—')} · "
-        f"CBAM: {overview_row.get('cbam_label', '—')} · "
         f"IFRS S2: {overview_row.get('ifrs_s2_label', '—')}"
     )
 
@@ -301,8 +301,6 @@ with tab_evidence:
 with tab_frameworks:
     st.markdown("#### GHG Protocol")
     st.write(overview_row.get("ghg_label", t("common.not_run", lang)))
-    st.markdown("#### EU CBAM")
-    st.write(overview_row.get("cbam_label", t("common.not_run", lang)))
     st.markdown("#### IFRS S2")
     st.write(overview_row.get("ifrs_s2_label", t("common.not_run", lang)))
 
@@ -320,8 +318,6 @@ with tab_tech:
                 "evaluation_id_ghg": detail["ghg"].get("evaluation_id"),
                 "rule_id_ghg": detail["ghg"].get("rule_id"),
                 "reference_id_ghg": detail["ghg"].get("reference_id"),
-                "evaluation_id_cbam": detail["cbam"].get("evaluation_id"),
-                "rule_id_cbam": detail["cbam"].get("rule_id"),
                 "evaluation_id_ifrs": detail["ifrs_s2"].get("evaluation_id"),
                 "rule_id_ifrs": detail["ifrs_s2"].get("rule_id"),
             }

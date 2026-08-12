@@ -1,0 +1,100 @@
+# Stage 3A.3 continuous official regulatory-source monitoring policy.
+# Frequencies are centralised here — do not hard-code in application logic.
+# Parsed by carbon_ledger.regulatory_monitor (minimal YAML subset loader).
+
+version: "3A.4"
+
+defaults:
+  timeout_seconds: 30
+  max_retries: 3
+  backoff_seconds: 1.5
+  rate_limit_seconds: 1.0
+  user_agent: "CarbonEvidenceLedger-RegulatoryMonitor/3A.4 (+https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
+
+freshness_windows:
+  high_change_source: 1d
+  normal_regulatory_source: 7d
+  stable_standard_reference: 30d
+
+frequency_profiles:
+  high_change_source: daily
+  normal_regulatory_source: weekly
+  stable_standard_reference: monthly
+
+# Scheduled GitHub Actions cadence (documentation + tests).
+# Non-zero minute reduces Actions schedule congestion; not a legal clock time.
+schedule:
+  cadence: daily
+  cron_utc: "17 16 * * *"
+
+# Durable monitoring STATE (not legal CONTENT).
+monitoring_state:
+  branch: regulatory-monitor-state
+  durable_dir: data/regulatory/durable_state
+  bundled_dir: data/regulatory
+  # Env override for production readers:
+  # CARBON_LEDGER_REGULATORY_STATE_DIR=/path/to/latest/state
+
+# High-priority sources checked on the daily schedule with a 1d freshness window.
+high_priority_source_ids:
+  - src_tw_sfb_ifrs_download_area
+  - src_tw_order_11403851755
+  - src_tw_order_11403856094_recognised
+  - src_tw_fsc_law_portal
+  - src_tw_annual_report_rules_fl007032
+  - src_tw_order_11403851756
+  - src_tw_securities_fin_report_fl007040
+  - src_tw_order_11403856095_securities
+  - src_tw_fcm_fin_report_fl021990
+  - src_tw_order_11403856096_fcm
+
+# Required authoritative sources for future Stage 3B freshness gates.
+required_authoritative_source_ids:
+  - src_tw_sfb_ifrs_download_area
+  - src_tw_order_11403851755
+  - src_tw_order_11403851756
+  - src_tw_annual_report_rules_fl007032
+  - src_tw_fsc_law_portal
+
+# Only authoritative/official sources may affect regulatory status.
+allowed_auto_status_authority_levels:
+  - AUTHORITATIVE
+  - OFFICIAL_GUIDANCE
+
+# Secondary / explanatory sources may be monitored but never override rules.
+never_auto_override_authority_levels:
+  - EXPLANATORY
+  - OFFICIAL_EXAMPLE
+
+fail_safe_states:
+  - REGULATORY_DATA_STALE
+  - UPDATE_REQUIRED
+  - SOURCE_CHECK_FAILED
+  - FRESHNESS_STATE_UNAVAILABLE
+  - STATE_PERSISTENCE_FAILED
+
+# Reviewable change types that may open a PR/Issue (never NO_CHANGE/COSMETIC).
+reviewable_change_types:
+  - POTENTIAL_REGULATORY_CHANGE
+  - CONFIRMED_REGULATORY_CHANGE
+  - REGULATORY_CONFLICT
+
+# Auto-detect may flag PENDING_REVIEW; never auto-activate legal rules.
+auto_activate_rules: false
+mark_affected_rules_pending_review: true
+
+change_log_path: data/regulatory/regulatory_change_log.csv
+freshness_state_path: data/regulatory/source_freshness_state.csv
+conflict_log_path: data/regulatory/regulatory_conflict_log.csv
+summary_path: data/regulatory/monitoring_summary.json
+change_report_path: data/regulatory/regulatory_change_report.md
+persistence_status_path: data/regulatory/persistence_status.json
+
+# Files allowed in monitoring-state persistence (never legal rule activation).
+monitoring_state_files:
+  - source_freshness_state.csv
+  - monitoring_summary.json
+  - regulatory_change_log.csv
+  - regulatory_conflict_log.csv
+  - persistence_status.json
+  - regulatory_change_report.md

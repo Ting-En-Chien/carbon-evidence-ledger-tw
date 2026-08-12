@@ -1747,7 +1747,11 @@ def render_sidebar_source(
 
 
 def render_analysis_settings(lang: str) -> dict[str, bool]:
-    """Framework toggles under progressive disclosure (分析設定)."""
+    """Framework toggles under progressive disclosure (分析設定).
+
+    V1 does not expose CBAM in the sidebar. Backend ``include_cbam`` remains
+    available for tests / future V2 and is forced off for the active UI.
+    """
     with st.expander(t("sidebar.settings", lang), expanded=False):
         st.caption(t("sidebar.settings_help", lang))
         include_ghg = st.checkbox(
@@ -1759,27 +1763,23 @@ def render_analysis_settings(lang: str) -> dict[str, bool]:
             '<p class="cel-module-sub">GHG Protocol</p>',
             unsafe_allow_html=True,
         )
-        include_cbam = st.checkbox(
-            t("sidebar.cbam_title", lang),
-            key="ui_checkbox_cbam",
-            help=t("sidebar.cbam_help", lang),
-        )
-        st.markdown(
-            '<p class="cel-module-sub">EU CBAM</p>',
-            unsafe_allow_html=True,
-        )
         include_ifrs = st.checkbox(
             t("sidebar.ifrs_title", lang),
             key="ui_checkbox_ifrs",
             help=t("sidebar.ifrs_help", lang),
         )
         st.markdown(
-            '<p class="cel-module-sub">IFRS S2</p>',
+            '<p class="cel-module-sub">IFRS S1 / S2</p>',
             unsafe_allow_html=True,
         )
+    # Keep checkbox key stable for session migrations, but do not render CBAM.
+    if "ui_checkbox_cbam" not in st.session_state:
+        st.session_state["ui_checkbox_cbam"] = False
+    else:
+        st.session_state["ui_checkbox_cbam"] = False
     return {
         "include_ghg": bool(include_ghg),
-        "include_cbam": bool(include_cbam),
+        "include_cbam": False,
         "include_ifrs": bool(include_ifrs),
     }
 
@@ -1804,7 +1804,7 @@ def render_sidebar_controls(
     # Preserve prior checkbox keys when settings expander is used elsewhere.
     return {
         "include_ghg": bool(st.session_state.get("ui_checkbox_ghg", True)),
-        "include_cbam": bool(st.session_state.get("ui_checkbox_cbam", True)),
+        "include_cbam": False,
         "include_ifrs": bool(st.session_state.get("ui_checkbox_ifrs", True)),
     }
 
