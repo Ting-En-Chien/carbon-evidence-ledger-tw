@@ -91,3 +91,25 @@ def test_no_arbitrary_readiness_percentage_in_chart_copy() -> None:
     assert "readiness score" not in blob
     assert "readiness percentage" not in blob
     assert "% ready" not in blob
+
+
+def test_chart_height_constants_are_bounded() -> None:
+    assert charts.CHART_HEIGHT_OVERVIEW <= 340
+    assert charts.CHART_HEIGHT_SMALL <= 260
+    assert charts.CHART_HEIGHT_COMPACT <= 160
+
+
+def test_monthly_emissions_series_only_uses_calculated_rows() -> None:
+    result = _full_result()
+    frame = charts.monthly_emissions_series(result, ZH)
+    assert not frame.empty
+    assert set(frame.columns) == {"month", "tco2e"}
+    assert float(frame["tco2e"].sum()) > 0
+
+
+def test_emissions_source_excludes_blocked_as_zero() -> None:
+    result = _full_result()
+    contrib, blocked = charts.emissions_source_rows(result, ZH)
+    assert not contrib.empty
+    assert all(float(v) > 0 for v in contrib["tco2e"])
+    assert not blocked.empty

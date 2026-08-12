@@ -1,0 +1,2 @@
+factor_year,factor_value,numerator_unit,denominator_unit,geography,factor_category,valid_from,valid_to,publication_date,gas,source_locator
+2025,0.455,kgCO2e,kWh,TW,utility_average,2025-01-01,2025-12-31,2026-04-01,CO2e,fixture electricity factor year=2025

@@ -32,6 +32,11 @@ COLOR_SUPPORTING = "#94A3B8"
 COLOR_NAVY = "#172A46"
 COLOR_SLATE = "#64748B"
 
+# Bounded chart heights for SaaS layout (never full-viewport)
+CHART_HEIGHT_OVERVIEW = 300
+CHART_HEIGHT_SMALL = 240
+CHART_HEIGHT_COMPACT = 120
+
 CALC_STATUS_COLORS: dict[str, str] = {
     "calculated": COLOR_CALCULATED,
     "blocked_missing_conversion": COLOR_MISSING_CONVERSION,
@@ -127,9 +132,318 @@ def calculated_emissions_contributions(
     )
     calculated = calculated.dropna(subset=["tco2e"])
     # Blocked / supporting rows are never treated as zero contributions.
-    out = calculated[["activity_name", "tco2e"]].copy()
+    grouped = (
+        calculated.groupby("activity_name", dropna=False)["tco2e"]
+        .sum()
+        .reset_index()
+    )
+    grouped["tco2e"] = grouped["tco2e"].astype(float)
+    return grouped.sort_values("tco2e", ascending=False).reset_index(drop=True)
+
+
+def monthly_emissions_series(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> pd.DataFrame:
+    """Monthly time-series of calculated tCO2e (presentation only)."""
+    activities = result.activity_records_accepted.copy()
+    calcs = result.calculation_results.copy()
+    if activities.empty or calcs.empty:
+        return pd.DataFrame(columns=["month", "tco2e"])
+    merged = activities.merge(
+        calcs[["record_id", "calculation_status", "calculated_tco2e"]],
+        on="record_id",
+        how="left",
+    )
+    ready = merged[
+        merged["calculation_status"].astype(str) == "calculated"
+    ].copy()
+    if ready.empty:
+        return pd.DataFrame(columns=["month", "tco2e"])
+    ready["month_ts"] = pd.to_datetime(
+        ready["activity_start_date"], errors="coerce"
+    )
+    ready = ready.dropna(subset=["month_ts"])
+    ready["tco2e"] = pd.to_numeric(ready["calculated_tco2e"], errors="coerce")
+    ready = ready.dropna(subset=["tco2e"])
+    if ready.empty:
+        return pd.DataFrame(columns=["month", "tco2e"])
+    ready["month"] = ready["month_ts"].dt.to_period("M").astype(str)
+    out = (
+        ready.groupby("month", sort=True)["tco2e"]
+        .sum()
+        .reset_index()
+    )
     out["tco2e"] = out["tco2e"].astype(float)
-    return out.reset_index(drop=True)
+    return out
+
+
+def emissions_source_rows(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return (calculated contributions, blocked labels not shown as zero)."""
+    contrib = calculated_emissions_contributions(result, lang)
+    overview = build_activity_overview(result, lang)
+    if overview.empty:
+        return contrib, pd.DataFrame(columns=["activity_name", "status_label"])
+    blocked = overview[
+        ~overview["calculation_status"]
+        .astype(str)
+        .isin(["calculated", "not_emissions_activity"])
+    ]
+    if blocked.empty:
+        return contrib, pd.DataFrame(columns=["activity_name", "status_label"])
+    labels = (
+        blocked.groupby("activity_name", dropna=False)["calculation_label"]
+        .first()
+        .reset_index()
+        .rename(columns={"calculation_label": "status_label"})
+    )
+    return contrib, labels
+
+
+def _donut_spec(height: int = CHART_HEIGHT_SMALL) -> dict[str, Any]:
+    return {
+        "height": height,
+        "mark": {"type": "arc", "innerRadius": 52, "cornerRadius": 4},
+        "encoding": {
+            "theta": {"field": "count", "type": "quantitative", "stack": True},
+            "color": {
+                "field": "label",
+                "type": "nominal",
+                "legend": {
+                    "title": None,
+                    "labelColor": COLOR_SLATE,
+                    "labelFontSize": 12,
+                    "orient": "right",
+                },
+            },
+            "tooltip": [
+                {"field": "label", "type": "nominal"},
+                {"field": "count", "type": "quantitative"},
+            ],
+        },
+        "view": {"stroke": None},
+        "config": {
+            "axis": {"labelColor": COLOR_SLATE, "titleColor": COLOR_NAVY},
+            "legend": {"labelColor": COLOR_SLATE},
+        },
+    }
+
+
+def _horizontal_status_spec(height: int = CHART_HEIGHT_SMALL) -> dict[str, Any]:
+    return {
+        "height": min(height, CHART_HEIGHT_OVERVIEW),
+        "mark": {"type": "bar", "cornerRadiusEnd": 4, "height": 18},
+        "encoding": {
+            "y": {
+                "field": "activity_name",
+                "type": "nominal",
+                "sort": None,
+                "axis": {
+                    "title": None,
+                    "labelColor": COLOR_NAVY,
+                    "labelFontSize": 12,
+                    "labelLimit": 160,
+                },
+            },
+            "x": {
+                "field": "rank",
+                "type": "quantitative",
+                "axis": None,
+                "scale": {"domain": [0, 1]},
+            },
+            "color": {
+                "field": "label",
+                "type": "nominal",
+                "legend": {
+                    "title": None,
+                    "labelColor": COLOR_SLATE,
+                    "labelFontSize": 12,
+                },
+            },
+            "tooltip": [
+                {"field": "activity_name", "type": "nominal"},
+                {"field": "label", "type": "nominal"},
+            ],
+        },
+        "view": {"stroke": None},
+        "config": {"view": {"stroke": None}},
+    }
+
+
+def _contribution_bar_spec(height: int = CHART_HEIGHT_COMPACT) -> dict[str, Any]:
+    return {
+        "height": height,
+        # Extra right padding so end-of-bar value labels are not clipped.
+        "padding": {"left": 4, "right": 64, "top": 4, "bottom": 4},
+        "layer": [
+            {
+                "mark": {
+                    "type": "bar",
+                    "cornerRadiusEnd": 4,
+                    "color": COLOR_CALCULATED,
+                },
+                "encoding": {
+                    "y": {
+                        "field": "activity_name",
+                        "type": "nominal",
+                        "sort": "-x",
+                        "axis": {
+                            "title": None,
+                            "labelColor": COLOR_NAVY,
+                            "labelFontSize": 12,
+                            "labelLimit": 140,
+                        },
+                    },
+                    "x": {
+                        "field": "tco2e",
+                        "type": "quantitative",
+                        "axis": {
+                            "title": "tCO₂e",
+                            "titleColor": COLOR_SLATE,
+                            "labelColor": COLOR_SLATE,
+                            "labelFontSize": 11,
+                            "grid": True,
+                            "gridColor": "#E2E8F0",
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "activity_name",
+                            "type": "nominal",
+                            "title": "Source",
+                        },
+                        {
+                            "field": "tco2e",
+                            "type": "quantitative",
+                            "title": "tCO₂e",
+                            "format": ",.2f",
+                        },
+                    ],
+                },
+            },
+            {
+                "mark": {
+                    "type": "text",
+                    "align": "left",
+                    "baseline": "middle",
+                    "dx": 6,
+                    "color": COLOR_SLATE,
+                    "fontSize": 11,
+                },
+                "encoding": {
+                    "y": {
+                        "field": "activity_name",
+                        "type": "nominal",
+                        "sort": "-x",
+                    },
+                    "x": {"field": "tco2e", "type": "quantitative"},
+                    "text": {
+                        "field": "tco2e",
+                        "type": "quantitative",
+                        "format": ",.1f",
+                    },
+                },
+            },
+        ],
+        "view": {"stroke": None},
+    }
+
+
+def _monthly_area_spec(height: int = CHART_HEIGHT_OVERVIEW) -> dict[str, Any]:
+    return {
+        "height": height,
+        "mark": {
+            "type": "area",
+            "line": {"color": COLOR_CALCULATED},
+            "color": {
+                "x1": 1,
+                "y1": 1,
+                "x2": 1,
+                "y2": 0,
+                "gradient": "linear",
+                "stops": [
+                    {"offset": 0, "color": "rgba(20, 184, 166, 0.35)"},
+                    {"offset": 1, "color": "rgba(20, 184, 166, 0.02)"},
+                ],
+            },
+        },
+        "encoding": {
+            "x": {
+                "field": "month",
+                "type": "ordinal",
+                "axis": {
+                    "title": None,
+                    "labelColor": COLOR_SLATE,
+                    "labelFontSize": 11,
+                    "labelAngle": 0,
+                },
+            },
+            "y": {
+                "field": "tco2e",
+                "type": "quantitative",
+                "axis": {
+                    "title": "tCO₂e",
+                    "titleColor": COLOR_SLATE,
+                    "labelColor": COLOR_SLATE,
+                    "labelFontSize": 11,
+                    "grid": True,
+                    "gridColor": "#E2E8F0",
+                },
+            },
+            "tooltip": [
+                {"field": "month", "type": "ordinal", "title": "Period"},
+                {
+                    "field": "tco2e",
+                    "type": "quantitative",
+                    "title": "tCO₂e",
+                    "format": ",.1f",
+                },
+            ],
+        },
+        "view": {"stroke": None},
+    }
+
+
+def _gap_bar_spec(height: int = CHART_HEIGHT_SMALL) -> dict[str, Any]:
+    return {
+        "height": height,
+        "mark": {"type": "bar", "cornerRadiusEnd": 4},
+        "encoding": {
+            "y": {
+                "field": "label",
+                "type": "nominal",
+                "sort": "-x",
+                "axis": {
+                    "title": None,
+                    "labelColor": COLOR_NAVY,
+                    "labelFontSize": 12,
+                },
+            },
+            "x": {
+                "field": "count",
+                "type": "quantitative",
+                "axis": {
+                    "title": None,
+                    "labelColor": COLOR_SLATE,
+                    "tickMinStep": 1,
+                    "grid": False,
+                },
+            },
+            "color": {
+                "field": "label",
+                "type": "nominal",
+                "legend": None,
+            },
+            "tooltip": [
+                {"field": "label", "type": "nominal"},
+                {"field": "count", "type": "quantitative"},
+            ],
+        },
+        "view": {"stroke": None},
+    }
 
 
 def ghg_scope_classification_counts(
@@ -219,149 +533,6 @@ def issue_gap_type_counts(
     )
 
 
-def _donut_spec(height: int = 260) -> dict[str, Any]:
-    return {
-        "height": height,
-        "mark": {"type": "arc", "innerRadius": 58, "cornerRadius": 4},
-        "encoding": {
-            "theta": {"field": "count", "type": "quantitative", "stack": True},
-            "color": {
-                "field": "label",
-                "type": "nominal",
-                "legend": {
-                    "title": None,
-                    "labelColor": COLOR_SLATE,
-                    "labelFontSize": 12,
-                    "orient": "right",
-                },
-            },
-            "tooltip": [
-                {"field": "label", "type": "nominal"},
-                {"field": "count", "type": "quantitative"},
-            ],
-        },
-        "view": {"stroke": None},
-        "config": {
-            "axis": {"labelColor": COLOR_SLATE, "titleColor": COLOR_NAVY},
-            "legend": {"labelColor": COLOR_SLATE},
-        },
-    }
-
-
-def _horizontal_status_spec(height: int = 240) -> dict[str, Any]:
-    return {
-        "height": height,
-        "mark": {"type": "bar", "cornerRadiusEnd": 4, "height": 18},
-        "encoding": {
-            "y": {
-                "field": "activity_name",
-                "type": "nominal",
-                "sort": None,
-                "axis": {
-                    "title": None,
-                    "labelColor": COLOR_NAVY,
-                    "labelFontSize": 12,
-                    "labelLimit": 160,
-                },
-            },
-            "x": {
-                "field": "rank",
-                "type": "quantitative",
-                "axis": None,
-                "scale": {"domain": [0, 1]},
-            },
-            "color": {
-                "field": "label",
-                "type": "nominal",
-                "legend": {
-                    "title": None,
-                    "labelColor": COLOR_SLATE,
-                    "labelFontSize": 12,
-                },
-            },
-            "tooltip": [
-                {"field": "activity_name", "type": "nominal"},
-                {"field": "label", "type": "nominal"},
-            ],
-        },
-        "view": {"stroke": None},
-        "config": {"view": {"stroke": None}},
-    }
-
-
-def _contribution_bar_spec(height: int = 120) -> dict[str, Any]:
-    return {
-        "height": height,
-        "mark": {"type": "bar", "cornerRadiusEnd": 4, "color": COLOR_CALCULATED},
-        "encoding": {
-            "y": {
-                "field": "activity_name",
-                "type": "nominal",
-                "axis": {
-                    "title": None,
-                    "labelColor": COLOR_NAVY,
-                    "labelFontSize": 12,
-                },
-            },
-            "x": {
-                "field": "tco2e",
-                "type": "quantitative",
-                "axis": {
-                    "title": "tCO₂e",
-                    "titleColor": COLOR_SLATE,
-                    "labelColor": COLOR_SLATE,
-                    "labelFontSize": 11,
-                    "grid": False,
-                },
-            },
-            "tooltip": [
-                {"field": "activity_name", "type": "nominal"},
-                {"field": "tco2e", "type": "quantitative", "format": ".4g"},
-            ],
-        },
-        "view": {"stroke": None},
-    }
-
-
-def _gap_bar_spec(height: int = 180) -> dict[str, Any]:
-    return {
-        "height": height,
-        "mark": {"type": "bar", "cornerRadiusEnd": 4},
-        "encoding": {
-            "y": {
-                "field": "label",
-                "type": "nominal",
-                "sort": "-x",
-                "axis": {
-                    "title": None,
-                    "labelColor": COLOR_NAVY,
-                    "labelFontSize": 12,
-                },
-            },
-            "x": {
-                "field": "count",
-                "type": "quantitative",
-                "axis": {
-                    "title": None,
-                    "labelColor": COLOR_SLATE,
-                    "tickMinStep": 1,
-                    "grid": False,
-                },
-            },
-            "color": {
-                "field": "label",
-                "type": "nominal",
-                "legend": None,
-            },
-            "tooltip": [
-                {"field": "label", "type": "nominal"},
-                {"field": "count", "type": "quantitative"},
-            ],
-        },
-        "view": {"stroke": None},
-    }
-
-
 def _role_bar_spec(height: int = 200) -> dict[str, Any]:
     return {
         "height": height,
@@ -409,6 +580,8 @@ def _render_vega(data: pd.DataFrame, spec: dict[str, Any]) -> None:
 def render_calculation_status_donut(
     result: PipelineRunResult,
     lang: str = DEFAULT_LANG,
+    *,
+    height: int = CHART_HEIGHT_SMALL,
 ) -> pd.DataFrame:
     """Dashboard donut: calculation-status counts."""
     frame = calculation_status_distribution(result, lang)
@@ -418,7 +591,7 @@ def render_calculation_status_donut(
     if frame.empty:
         return frame
     # Vega-Lite color from column requires domain/range lists for reliability.
-    spec = _donut_spec()
+    spec = _donut_spec(height=height)
     spec["encoding"]["color"]["scale"] = {
         "domain": frame["label"].tolist(),
         "range": frame["color"].tolist(),
@@ -431,19 +604,22 @@ def render_activity_status_bars(
     result: PipelineRunResult,
     lang: str = DEFAULT_LANG,
 ) -> pd.DataFrame:
-    """Dashboard horizontal status bars per activity."""
+    """Dashboard horizontal status bars per activity (capped height)."""
     frame = activity_status_breakdown(result, lang)
     st.markdown(f"**{t('chart.activity_status.title', lang)}**")
     st.caption(t("chart.activity_status.help", lang))
     if frame.empty:
         return frame
-    legend_order = frame.drop_duplicates("label")
-    spec = _horizontal_status_spec(height=max(200, 36 * len(frame) + 40))
+    # Cap to a sample of rows so the chart never fills the viewport.
+    display = frame.head(12).copy()
+    legend_order = display.drop_duplicates("label")
+    height = min(CHART_HEIGHT_OVERVIEW, max(CHART_HEIGHT_SMALL, 28 * len(display) + 40))
+    spec = _horizontal_status_spec(height=height)
     spec["encoding"]["color"]["scale"] = {
         "domain": legend_order["label"].tolist(),
         "range": legend_order["color"].tolist(),
     }
-    _render_vega(frame, spec)
+    _render_vega(display, spec)
     return frame
 
 
@@ -457,8 +633,53 @@ def render_emissions_contribution_bars(
     if frame.empty:
         st.caption(t("chart.emissions_contrib.empty", lang))
         return frame
-    _render_vega(frame, _contribution_bar_spec(height=max(90, 40 * len(frame) + 30)))
+    # Single-category charts stay compact; never explode to full viewport.
+    n = max(1, len(frame))
+    height = min(
+        CHART_HEIGHT_OVERVIEW,
+        max(CHART_HEIGHT_COMPACT, min(40 * n + 36, CHART_HEIGHT_OVERVIEW)),
+    )
+    if n == 1:
+        height = CHART_HEIGHT_COMPACT
+    _render_vega(frame, _contribution_bar_spec(height=height))
     return frame
+
+
+def render_monthly_emissions_trend(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> pd.DataFrame:
+    """Bounded monthly emissions area chart."""
+    frame = monthly_emissions_series(result, lang)
+    if frame.empty:
+        st.caption(t("chart.trend.empty", lang))
+        return frame
+    _render_vega(frame, _monthly_area_spec(height=CHART_HEIGHT_OVERVIEW))
+    return frame
+
+
+def render_emissions_source_bars(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> pd.DataFrame:
+    """Horizontal emissions-by-source chart; blocked rows excluded (not zero)."""
+    contrib, blocked = emissions_source_rows(result, lang)
+    if contrib.empty:
+        st.caption(t("chart.emissions_contrib.empty", lang))
+    else:
+        n = max(1, len(contrib))
+        height = (
+            CHART_HEIGHT_COMPACT
+            if n == 1
+            else min(CHART_HEIGHT_OVERVIEW, max(CHART_HEIGHT_COMPACT, 36 * n + 40))
+        )
+        _render_vega(contrib, _contribution_bar_spec(height=height))
+    if not blocked.empty:
+        names = "、".join(blocked["activity_name"].astype(str).head(4).tolist())
+        st.caption(
+            f"{t('chart.source.not_calculated', lang)}：{names}"
+        )
+    return contrib
 
 
 def render_ghg_scope_donut(

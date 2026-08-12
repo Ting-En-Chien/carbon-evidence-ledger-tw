@@ -1,0 +1,3 @@
+fuel_type,heating_value,unit,factor_year,geography,valid_from,valid_to,publication_date,activity_type,source_locator
+natural_gas,9000,kcal/m3,2025,TW,2025-01-01,2025-12-31,2026-01-15,natural_gas,fixture heating value natural_gas 2025
+diesel,8000,kcal/L,2025,TW,2025-01-01,2025-12-31,2026-01-15,diesel,fixture heating value diesel 2025

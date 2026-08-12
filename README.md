@@ -45,6 +45,8 @@ This repository currently includes:
 - provenance-aware evidence ingestion
 - schema validation and safe unit normalization
 - official emission-factor and regulatory reference registry
+- official reference sync (allowlisted fetch, snapshot hashing, candidates,
+  validation/activation; no silent web-to-calculation path)
 - engineering conversion registry
 - deterministic factor matching and calculation readiness
 - limited auditable emissions calculation
@@ -102,19 +104,51 @@ logic. The interface now includes:
 - beginner-first explanations with progressive technical disclosure
 - Phase 8D clean SaaS dashboard shell (sidebar navigation + compact overview)
 - Phase 8E meaningful Vega-Lite status / classification charts from live results
+- Phase 9A structured company-data intake (CSV/XLSX upload, mapping, validation)
 
-Visitors land on a populated synthetic demonstration with five product areas:
+Visitors land on a populated synthetic demonstration with these product areas:
 
 - **總覽 / Dashboard** — KPI cards, calculation-status charts, calculable
   emissions panel with contribution bars, attention cards, and activity overview
+- **資料匯入 / Data Intake** — CSV/XLSX upload, column/value mapping, schema
+  validation, and accepted/rejected preview (does not replace demo analysis yet)
 - **活動資料 / Activity Data** — record drill-down from evidence to
   calculation and framework use
 - **待處理問題 / Issues & Actions** — operational core QA task list
 - **準則分析 / Frameworks** — separate GHG Protocol, EU CBAM, and IFRS S2 views
-- **稽核與匯出 / Audit & Export** — download-first audit bundle and issue CSV
+- **稽核與匯出 / Audit & Export** — download-first audit bundle, issue CSV,
+  and official-reference maintenance status
+
+### Structured company-data intake
+
+Phase 9A supports:
+
+- CSV and XLSX uploads (10 MB limit)
+- column mapping and activity/unit value mapping
+- schema validation with accepted/rejected preview
+- source-file SHA-256 provenance and deterministic record IDs
+
+Uploaded data are processed in memory and are not committed to Git.
+
+PDF invoice extraction and uploaded-data carbon calculation are **not**
+implemented in Phase 9A (planned for later phases).
 
 Keep all existing disclaimers: this remains a synthetic demonstration, not
 production compliance software.
+
+## Official reference sync (Phase 10A)
+
+Official government factors are maintained through an auditable sync layer.
+Normal analysis stays offline and never auto-activates newly downloaded values.
+
+```bash
+python -m carbon_ledger references check
+python -m carbon_ledger references fetch --retrieved-at 2026-08-10T00:00:00Z
+python -m carbon_ledger references validate
+python -m carbon_ledger references status
+```
+
+See `docs/official_reference_sync.md`.
 
 ## Quick Demo
 

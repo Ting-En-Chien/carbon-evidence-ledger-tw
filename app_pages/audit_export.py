@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import streamlit as st
 
@@ -22,7 +23,11 @@ from carbon_ledger.ui.downloads import (
 )
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.state import get_current_result, get_language
-from carbon_ledger.ui.view_models import audit_summary, evidence_documents_table
+from carbon_ledger.ui.view_models import (
+    audit_summary,
+    evidence_documents_table,
+    official_reference_status_view,
+)
 
 inject_design_system()
 lang = get_language(st.session_state)
@@ -110,6 +115,33 @@ if docs.empty:
     render_empty_state(t("aud.evidence_title", lang), t("iss.empty", lang))
 else:
     st.dataframe(docs, hide_index=True, width="stretch")
+
+st.write("")
+render_section_header(t("aud.ref_title", lang))
+st.caption(t("aud.ref_help", lang))
+ref_status = official_reference_status_view(Path.cwd(), lang)
+st.markdown(
+    f"**{t('aud.ref_last_checked', lang)}:** {ref_status['last_checked_at']}"
+)
+ref_cols = st.columns(2)
+with ref_cols[0]:
+    st.markdown(f"**{t('aud.ref_electricity', lang)}**")
+    for row in ref_status["electricity_rows"]:
+        st.write(f"{row['year']} — {row['label']}")
+    st.caption(
+        f"{t('aud.ref_upstream_authority', lang)}: "
+        f"{ref_status['upstream_factor_authority']} "
+        f"({ref_status['upstream_source_status']})"
+    )
+    st.caption(
+        f"{t('aud.ref_operational_source', lang)}: "
+        f"{ref_status['operational_source_authority']} "
+        f"({ref_status['operational_source_status']})"
+    )
+with ref_cols[1]:
+    st.markdown(f"**{t('aud.ref_heating', lang)}**")
+    for row in ref_status["heating_rows"]:
+        st.write(f"{row['fuel']} — {row['latest_year']}")
 
 st.write("")
 with st.expander(t("aud.advanced", lang), expanded=False):

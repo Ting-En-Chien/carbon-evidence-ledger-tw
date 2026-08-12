@@ -6,12 +6,16 @@ internal status codes from primary UI surfaces and honor UI language.
 
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 from carbon_ledger.pipeline import PipelineRunResult
 from carbon_ledger.ui.i18n import DEFAULT_LANG, status_label, t
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 ACTIVITY_KEYS = {
     "grid_electricity": "activity.grid_electricity",
@@ -607,6 +611,323 @@ def audit_summary(result: PipelineRunResult) -> dict[str, Any]:
         "include_cbam": bool(result.include_cbam),
         "include_ifrs_s2": bool(result.include_ifrs_s2),
     }
+
+
+def official_reference_status_view(
+    repo_root: Any,
+    lang: str = DEFAULT_LANG,
+) -> dict[str, Any]:
+    """Build beginner/admin official-reference status for Audit & Export."""
+    from pathlib import Path
+
+    from carbon_ledger.reference_sync import reference_sync_status
+
+    status = reference_sync_status(Path(repo_root))
+    state_labels = {
+        "available": t("aud.ref_year_available", lang),
+        "candidate": t("aud.ref_year_candidate", lang),
+        "unavailable": t("aud.ref_year_unavailable", lang),
+        "needs_parser_review": t("aud.ref_year_candidate", lang),
+    }
+    electricity_rows = [
+        {
+            "year": year,
+            "state": state,
+            "label": state_labels.get(state, state),
+        }
+        for year, state in status.electricity_years.items()
+    ]
+    heating_rows = [
+        {
+            "fuel": fuel,
+            "latest_year": (
+                t("aud.ref_unregistered", lang)
+                if year == "unregistered"
+                else year
+            ),
+        }
+        for fuel, year in status.heating_value_latest.items()
+    ]
+    return {
+        "last_checked_at": status.last_checked_at,
+        "electricity_rows": electricity_rows,
+        "heating_rows": heating_rows,
+        "snapshot_count": status.snapshot_count,
+        "candidate_count": status.candidate_count,
+        "source_count": status.source_count,
+        "upstream_factor_authority": status.upstream_factor_authority,
+        "operational_source_authority": status.operational_source_authority,
+        "upstream_source_status": status.upstream_source_status,
+        "operational_source_status": status.operational_source_status,
+        "upstream_canonical_url": status.upstream_canonical_url,
+        "operational_source_url": status.operational_source_url,
+    }
+
+
+def _load_emission_factor_lookup(repo_root: str) -> dict[str, dict[str, Any]]:
+    path = Path(repo_root) / "data" / "reference" / "emission_factors.csv"
+    if not path.is_file():
+        return {}
+    frame = pd.read_csv(path)
+    if frame.empty or "factor_id" not in frame.columns:
+        return {}
+    lookup: dict[str, dict[str, Any]] = {}
+    for _, row in frame.iterrows():
+        factor_id = _text(row.get("factor_id"))
+        if not factor_id:
+            continue
+        lookup[factor_id] = {
+            "factor_year": _text(row.get("factor_year")),
+            "factor_value": row.get("factor_value"),
+            "numerator_unit": _text(row.get("numerator_unit")),
+            "denominator_unit": _text(row.get("denominator_unit")),
+            "source_reference_id": _text(row.get("source_reference_id")),
+        }
+    return lookup
+
+
+@lru_cache(maxsize=4)
+def _cached_emission_factor_lookup(repo_root: str) -> dict[str, dict[str, Any]]:
+    return _load_emission_factor_lookup(repo_root)
+
+
+def factor_registry_row(
+    factor_id: str,
+    *,
+    repo_root: Path | None = None,
+) -> dict[str, Any] | None:
+    """Look up factor metadata for UI traces without mutating calculations."""
+    cleaned = _text(factor_id)
+    if not cleaned:
+        return None
+    root = Path(repo_root) if repo_root is not None else REPO_ROOT
+    return _cached_emission_factor_lookup(str(root)).get(cleaned)
+
+
+def calculation_trace_fields(
+    result: PipelineRunResult,
+    record_id: str,
+    lang: str = DEFAULT_LANG,
+    *,
+    repo_root: Path | None = None,
+    official_source: bool = False,
+) -> dict[str, Any]:
+    """Build beginner-facing calculation trace values from real outputs."""
+    detail = activity_detail_context(result, record_id, lang)
+    if not detail:
+        return {}
+    calc = detail.get("calculation") or {}
+    overview = detail.get("overview") or {}
+    status = _text(overview.get("calculation_status"))
+    factor_id = _text(calc.get("factor_id"))
+    registry = factor_registry_row(factor_id, repo_root=repo_root) or {}
+    factor_value = calc.get("factor_value")
+    try:
+        if factor_value is not None and pd.isna(factor_value):
+            factor_value = registry.get("factor_value")
+    except (TypeError, ValueError):
+        pass
+    if factor_value is None:
+        factor_value = registry.get("factor_value")
+    factor_year = _text(registry.get("factor_year"))
+    source_label = (
+        t("act.trace_source_official", lang)
+        if official_source
+        else t("act.trace_source_demo", lang)
+    )
+    return {
+        "status": status,
+        "activity_name": overview.get("activity_name"),
+        "activity_amount": overview.get("activity_amount"),
+        "activity_unit": _text(overview.get("activity_unit")),
+        "factor_id": factor_id,
+        "factor_value": factor_value,
+        "factor_year": factor_year,
+        "calculated_kgco2e": calc.get("calculated_kgco2e"),
+        "calculated_tco2e": calc.get("calculated_tco2e"),
+        "source_label": source_label,
+        "missing": detail.get("calculation_explanation", ""),
+        "next_step": detail.get("calculation_next_action", ""),
+        "is_calculated": status == "calculated",
+    }
+
+
+def uncalculable_activity_cards(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+    *,
+    limit: int = 6,
+) -> list[dict[str, Any]]:
+    """Return beginner cards for activities that are not currently calculable."""
+    overview = build_activity_overview(result, lang)
+    if overview.empty:
+        return []
+    cards: list[dict[str, Any]] = []
+    for _, row in overview.iterrows():
+        status = _text(row.get("calculation_status"))
+        if status in {"calculated", "not_emissions_activity"}:
+            continue
+        cards.append(
+            {
+                "record_id": _text(row.get("record_id")),
+                "activity_name": _text(row.get("activity_name")),
+                "title": t("dash.uncalculable_title", lang),
+                "missing": calculation_explanation(status, lang),
+                "next_step": calculation_next_action(status, lang),
+                "status": status,
+            }
+        )
+        if len(cards) >= limit:
+            break
+    return cards
+
+
+def priority_action_cards(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+    *,
+    limit: int = 4,
+) -> list[dict[str, Any]]:
+    """Concise beginner priority cards (no internal QA codes)."""
+    overview = build_activity_overview(result, lang)
+    if overview.empty:
+        return []
+    # Prefer one card per activity type that is blocked.
+    seen_types: set[str] = set()
+    cards: list[dict[str, Any]] = []
+    for _, row in overview.iterrows():
+        status = _text(row.get("calculation_status"))
+        if status in {"calculated", "not_emissions_activity"}:
+            continue
+        activity_type = _text(row.get("activity_type"))
+        if activity_type in seen_types:
+            continue
+        seen_types.add(activity_type)
+        if status == "blocked_missing_conversion":
+            reason = t("dash.priority.missing_conversion", lang)
+        elif status == "no_factor_configured":
+            reason = t("dash.priority.missing_factor", lang)
+        else:
+            reason = calculation_explanation(status, lang)
+        same_type = overview[
+            overview["activity_type"].astype(str) == (activity_type or "")
+        ]
+        affected_count = int(
+            (
+                ~same_type["calculation_status"].isin(
+                    {"calculated", "not_emissions_activity"}
+                )
+            ).sum()
+        )
+        cards.append(
+            {
+                "record_id": _text(row.get("record_id")),
+                "activity_name": _text(row.get("activity_name")),
+                "reason": reason,
+                "status": status,
+                "affected_count": max(1, affected_count),
+            }
+        )
+        if len(cards) >= limit:
+            break
+    return cards
+
+
+def calculation_table_rows(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+    *,
+    repo_root: Path | None = None,
+) -> pd.DataFrame:
+    """Structured calculation table with factor year for beginner results."""
+    overview = build_activity_overview(result, lang)
+    if overview.empty:
+        return pd.DataFrame()
+    rows: list[dict[str, Any]] = []
+    calcs = result.calculation_results
+    for _, row in overview.iterrows():
+        record_id = _text(row.get("record_id"))
+        status = _text(row.get("calculation_status"))
+        calc = _row_by_record(calcs, record_id)
+        factor_value = None
+        factor_year = ""
+        if calc is not None:
+            raw_factor = calc.get("factor_value")
+            try:
+                if raw_factor is not None and not pd.isna(raw_factor):
+                    factor_value = float(raw_factor)
+            except (TypeError, ValueError):
+                factor_value = None
+            factor_id = _text(calc.get("factor_id"))
+            registry = factor_registry_row(factor_id, repo_root=repo_root) or {}
+            factor_year = _text(registry.get("factor_year"))
+        if status == "calculated" and row.get("calculated_tco2e") is not None:
+            emissions_cell: Any = float(row["calculated_tco2e"])
+        elif status == "not_emissions_activity":
+            emissions_cell = "—"
+        else:
+            emissions_cell = t("chart.source.not_calculated", lang)
+        rows.append(
+            {
+                "record_id": record_id,
+                t("dash.col.activity", lang): row.get("activity_name"),
+                t("dash.col.amount", lang): row.get("activity_amount"),
+                t("intake.col.unit", lang): row.get("activity_unit"),
+                t("dash.col.factor", lang): (
+                    f"{factor_value:.6g}" if factor_value is not None else "—"
+                ),
+                t("dash.col.factor_year", lang): factor_year or "—",
+                t("dash.col.emissions", lang): (
+                    f"{emissions_cell:.6g}"
+                    if isinstance(emissions_cell, float)
+                    else emissions_cell
+                ),
+                t("dash.col.calc", lang): row.get("calculation_label"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def beginner_result_summary(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> dict[str, Any]:
+    """Summarize five beginner questions for the results page."""
+    kpis = dashboard_kpi_counts(result, lang)
+    emissions = calculated_emissions_summary(result, lang)
+    needs_work = max(0, int(kpis["activities"]) - int(kpis["calculated"]))
+    return {
+        "activities": kpis["activities"],
+        "calculated": kpis["calculated"],
+        "needs_work": needs_work,
+        "open_qa_issues": kpis["open_qa_issues"],
+        "source_documents": kpis["source_documents"],
+        "calculated_tco2e": emissions["calculated_tco2e"],
+        "emissions_label": emissions["label"],
+        "calculated_row_count": emissions["calculated_row_count"],
+    }
+
+
+def first_calculated_electricity_record_id(
+    result: PipelineRunResult,
+) -> str | None:
+    """Return a calculated grid_electricity record_id for trace examples."""
+    activities = result.activity_records_accepted
+    calcs = result.calculation_results
+    if activities.empty or calcs.empty:
+        return None
+    electricity = activities[
+        activities["activity_type"].astype(str) == "grid_electricity"
+    ]
+    if electricity.empty:
+        return None
+    for record_id in electricity["record_id"].astype(str).tolist():
+        calc_row = calcs[calcs["record_id"].astype(str) == record_id]
+        if calc_row.empty:
+            continue
+        if _text(calc_row.iloc[0].get("calculation_status")) == "calculated":
+            return record_id
+    return None
 
 
 def activity_detail_context(

@@ -1,0 +1,4 @@
+gwp_id,gas,gwp_value,assessment_basis,source_reference_id,source_locator,valid_from,notes
+gwp_ar5_co2,CO2,1,IPCC AR5 100-year GWP,ref_tw_moenv_2024_emission_factors,"PDF page 36, Global Warming Potential table",2024-02-05,Registered GWP only. Gas-specific factors are not combined into CO2e in Phase 5A.
+gwp_ar5_ch4,CH4,28,IPCC AR5 100-year GWP,ref_tw_moenv_2024_emission_factors,"PDF page 36, Global Warming Potential table",2024-02-05,Registered GWP only. Gas-specific factors are not combined into CO2e in Phase 5A.
+gwp_ar5_n2o,N2O,265,IPCC AR5 100-year GWP,ref_tw_moenv_2024_emission_factors,"PDF page 36, Global Warming Potential table",2024-02-05,Registered GWP only. Gas-specific factors are not combined into CO2e in Phase 5A.

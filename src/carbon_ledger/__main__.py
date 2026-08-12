@@ -81,6 +81,76 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable GHG Protocol, EU CBAM, and IFRS S2 adapters.",
     )
+
+    references = subparsers.add_parser(
+        "references",
+        help=(
+            "Official reference sync maintenance "
+            "(check / fetch / validate / activate / status). "
+            "Does not run carbon calculations and does not auto-activate."
+        ),
+    )
+    ref_sub = references.add_subparsers(dest="references_command")
+    ref_sub.add_parser(
+        "check",
+        help="Check allowlisted official sources without activating factors.",
+    )
+    fetch_parser = ref_sub.add_parser(
+        "fetch",
+        help="Download official artifacts, hash/version, and stage candidates.",
+    )
+    fetch_parser.add_argument(
+        "--retrieved-at",
+        default="2026-08-10T00:00:00Z",
+        help="Explicit retrieval timestamp for reproducibility.",
+    )
+    validate_parser = ref_sub.add_parser(
+        "validate",
+        help="Validate staged reference candidates (no activation).",
+    )
+    validate_parser.add_argument(
+        "--candidate-id",
+        action="append",
+        default=None,
+        help="Optional candidate_id to validate (repeatable).",
+    )
+    activate_parser = ref_sub.add_parser(
+        "activate",
+        help=(
+            "Explicitly activate ONE validated candidate into the local "
+            "versioned registry. Never activates all candidates."
+        ),
+    )
+    activate_parser.add_argument(
+        "--candidate-id",
+        required=True,
+        help="Exact candidate_id to activate (required).",
+    )
+    activate_parser.add_argument(
+        "--activated-at",
+        required=True,
+        help=(
+            "Explicit activation timestamp for reproducibility "
+            "(required; no hidden datetime.now())."
+        ),
+    )
+    activate_parser.add_argument(
+        "--activated-by",
+        default="cli_admin",
+        help="Actor recorded in the activation audit ledger.",
+    )
+    activate_parser.add_argument(
+        "--confirm",
+        action="store_true",
+        help=(
+            "Required confirmation flag. Without --confirm the command only "
+            "prints the pre-activation summary and does not write."
+        ),
+    )
+    ref_sub.add_parser(
+        "status",
+        help="Show local official-reference registry status.",
+    )
     return parser
 
 
@@ -179,6 +249,177 @@ def _run_demo_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_references_command(args: argparse.Namespace) -> int:
+    from carbon_ledger.reference_sync import (
+        CANDIDATE_COLUMNS,
+        SNAPSHOT_COLUMNS,
+        ReferenceSyncError,
+        activate_candidate,
+        check_official_sources,
+        default_paths,
+        fetch_and_stage_sources,
+        format_candidate_activation_summary,
+        reference_sync_status,
+        validate_candidates,
+    )
+
+    repo_root = Path.cwd()
+    command = getattr(args, "references_command", None)
+    if command == "check":
+        rows = check_official_sources(
+            repo_root,
+            retrieved_at="2026-08-10T00:00:00Z",
+        )
+        for row in rows:
+            print(
+                f"{row['source_id']}: {row['status']} — {row['message']}"
+            )
+        return 0
+    if command == "fetch":
+        reports = fetch_and_stage_sources(
+            repo_root,
+            retrieved_at=str(args.retrieved_at),
+        )
+        for report in reports:
+            print(
+                f"{report['source_id']}: {report['status']} "
+                f"(candidates={report.get('candidates_created', 0)})"
+            )
+            if report.get("change_report"):
+                print(report["change_report"])
+                print()
+        return 0
+    if command == "validate":
+        paths = default_paths(repo_root)
+        frame = validate_candidates(
+            paths["candidates_csv"],
+            candidate_ids=args.candidate_id,
+        )
+        if frame.empty:
+            print("No reference candidates found.")
+            return 0
+        for _, row in frame.iterrows():
+            print(
+                f"{row['candidate_id']}: {row['validation_status']} / "
+                f"{row['lifecycle_status']} — {row['reason']}"
+            )
+        return 0
+    if command == "activate":
+        paths = default_paths(repo_root)
+        candidate_id = str(args.candidate_id).strip()
+        activated_at = str(args.activated_at).strip()
+        if not candidate_id:
+            print("Error: --candidate-id is required.", file=sys.stderr)
+            return 2
+        if not activated_at:
+            print("Error: --activated-at is required.", file=sys.stderr)
+            return 2
+
+        candidates = pd.read_csv(
+            paths["candidates_csv"],
+            dtype=str,
+            keep_default_na=False,
+        )
+        for column in CANDIDATE_COLUMNS:
+            if column not in candidates.columns:
+                candidates[column] = ""
+        match = candidates.loc[candidates["candidate_id"] == candidate_id]
+        if match.empty:
+            print(
+                f"Error: Unknown candidate_id {candidate_id!r}.",
+                file=sys.stderr,
+            )
+            return 2
+        candidate = match.iloc[0]
+        snapshots = pd.read_csv(
+            paths["snapshots_csv"],
+            dtype=str,
+            keep_default_na=False,
+        )
+        for column in SNAPSHOT_COLUMNS:
+            if column not in snapshots.columns:
+                snapshots[column] = ""
+        snap_match = snapshots.loc[
+            snapshots["snapshot_id"] == str(candidate.get("snapshot_id", ""))
+        ]
+        snapshot = snap_match.iloc[0] if not snap_match.empty else None
+        print(
+            format_candidate_activation_summary(
+                candidate,
+                snapshot=snapshot,
+            )
+        )
+        print()
+        if not bool(args.confirm):
+            print("Activation not performed.")
+            print(
+                "Review the candidate above and rerun with --confirm."
+            )
+            return 2
+        try:
+            activation = activate_candidate(
+                candidate_id=candidate_id,
+                candidates_csv=paths["candidates_csv"],
+                snapshots_csv=paths["snapshots_csv"],
+                activations_csv=paths["activations_csv"],
+                emission_factors_csv=paths["emission_factors"],
+                fuel_heating_values_csv=paths["fuel_heating_values"],
+                activated_at=activated_at,
+                activated_by=str(args.activated_by),
+            )
+        except ReferenceSyncError as exc:
+            print(f"Error: {exc.code}: {exc.message}", file=sys.stderr)
+            return 2
+        print("Activation completed.")
+        print(f"activation_id: {activation['activation_id']}")
+        print(f"factor_id: {activation['factor_id']}")
+        print(f"snapshot_id: {activation['snapshot_id']}")
+        print(f"activated_at: {activation['activated_at']}")
+        return 0
+    if command == "status":
+        status = reference_sync_status(repo_root)
+        print("Official reference status")
+        print(f"Last checked: {status.last_checked_at}")
+        print("Electricity factor — enterprise inventory")
+        for year, state in status.electricity_years.items():
+            print(f"  {year} — {state}")
+        if status.electricity_categories:
+            print("Electricity factor categories:")
+            for category, state in status.electricity_categories.items():
+                print(f"  {category}:")
+                print(f"    {state}")
+        print(
+            "Upstream authority: "
+            f"{status.upstream_factor_authority} "
+            f"({status.upstream_source_status})"
+        )
+        print(
+            "Operational official source: "
+            f"{status.operational_source_authority} "
+            f"({status.operational_source_status})"
+        )
+        if status.upstream_canonical_url:
+            print(f"Upstream canonical URL: {status.upstream_canonical_url}")
+        if status.operational_source_url:
+            print(f"Operational source URL: {status.operational_source_url}")
+        print("Fuel heating values (latest registered year):")
+        for fuel, year in status.heating_value_latest.items():
+            print(f"  {fuel} — {year}")
+        print(
+            f"Snapshots: {status.snapshot_count}; "
+            f"candidates: {status.candidate_count}; "
+            f"active candidates: {status.active_candidate_count}"
+        )
+        return 0
+
+    print(
+        "Usage: python -m carbon_ledger references "
+        "[check|fetch|validate|activate|status]",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse arguments and run the requested command."""
     parser = build_parser()
@@ -186,6 +427,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run-demo":
         return _run_demo_command(args)
+    if args.command == "references":
+        return _run_references_command(args)
 
     parser.print_help()
     return 0

@@ -3,22 +3,26 @@
 from __future__ import annotations
 
 import hashlib
-import shutil
 from pathlib import Path
 
 import pandas as pd
 
 from carbon_ledger.factors import validate_factor_registry
+from tests.reference_fixtures import (
+    BASELINE_REFERENCE_DIR,
+    LIVE_REFERENCE_DIR,
+    REQUIRED_BASELINE_ELECTRICITY_FACTOR_IDS,
+    copy_baseline_reference_tree,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-REFERENCE_DIR = REPO_ROOT / "data" / "reference"
+REFERENCE_DIR = BASELINE_REFERENCE_DIR
 RAW_DIR = REPO_ROOT / "data" / "raw"
 
 
 def _copy_reference_tree(tmp_path: Path) -> Path:
     destination = tmp_path / "reference"
-    shutil.copytree(REFERENCE_DIR, destination)
-    return destination
+    return copy_baseline_reference_tree(destination)
 
 
 def _sha256(path: Path) -> str:
@@ -36,8 +40,26 @@ def test_registry_loads_expected_five_tables() -> None:
 
 
 def test_seven_emission_factor_rows_exist() -> None:
+    """Baseline fixture retains the original seven-row Phase 5A registry."""
     result = validate_factor_registry(REFERENCE_DIR)
     assert len(result.emission_factors) == 7
+
+
+def test_live_registry_preserves_required_factor_invariants() -> None:
+    """Live mutable registry may grow; assert stable IDs/schema, not row count."""
+    result = validate_factor_registry(LIVE_REFERENCE_DIR)
+    assert result.issues.empty
+    ids = set(result.emission_factors["factor_id"])
+    for factor_id in REQUIRED_BASELINE_ELECTRICITY_FACTOR_IDS:
+        assert factor_id in ids
+    # Duplicate ready electricity rows for the same year+category are not allowed
+    # beyond one industrial 2025 activation in the live path.
+    elec = result.emission_factors.loc[
+        (result.emission_factors["activity_type"] == "grid_electricity")
+        & (result.emission_factors["factor_status"] != "inactive")
+    ]
+    assert not elec.empty
+    assert "ef_tw_grid_electricity_2024" in set(elec["factor_id"])
 
 
 def test_three_gwp_rows_exist() -> None:

@@ -28,7 +28,7 @@ from carbon_ledger.ifrs_s2 import (
     load_ifrs_s2_reporting_context,
     load_ifrs_s2_rules,
 )
-from carbon_ledger.ingest import ingest_evidence
+from carbon_ledger.ingest import REJECTION_COLUMNS, ingest_evidence
 from carbon_ledger.match_factors import match_activity_factors
 from carbon_ledger.normalize import normalize_activity_records
 from carbon_ledger.qa import build_core_qa_issues, load_qa_rules
@@ -82,44 +82,37 @@ def validate_run_id(run_id: str) -> str:
     return cleaned
 
 
-def run_demo_pipeline(
-    repo_root: Path,
+def _empty_rejection_frame() -> pd.DataFrame:
+    return pd.DataFrame(columns=REJECTION_COLUMNS)
+
+
+def _run_validated_activity_pipeline(
     *,
+    repo_root: Path,
     run_id: str,
     ingested_at: pd.Timestamp,
-    include_ghg: bool = False,
-    include_cbam: bool = False,
-    include_ifrs_s2: bool = False,
+    accepted_documents: pd.DataFrame,
+    rejected_documents: pd.DataFrame,
+    accepted_activities: pd.DataFrame,
+    rejected_activities: pd.DataFrame,
+    include_ghg: bool,
+    include_cbam: bool,
+    include_ifrs_s2: bool,
 ) -> PipelineRunResult:
-    """Run the reproducible demo pipeline without writing files.
-
-    Optional adapters never alter the framework-neutral core outputs.
-    """
+    """Run normalize → match → calculate → QA → optional adapters."""
     validated_run_id = validate_run_id(run_id)
     if not isinstance(ingested_at, pd.Timestamp):
         raise ValueError("ingested_at must be a pandas.Timestamp.")
+    if accepted_activities is None or accepted_activities.empty:
+        raise ValueError("accepted_activities must contain at least one row.")
 
     root = Path(repo_root)
-    raw_directory = root / "data" / "raw"
     reference_directory = root / "data" / "reference"
     config_directory = root / "config"
 
     run_ghg = bool(include_ghg or include_ifrs_s2)
     run_cbam = bool(include_cbam)
     run_ifrs = bool(include_ifrs_s2)
-
-    # ------------------------------------------------------------------
-    # Core pipeline
-    # ------------------------------------------------------------------
-    ingestion = ingest_evidence(
-        raw_directory=raw_directory,
-        ingestion_run_id=f"ingestion_{validated_run_id}",
-        ingested_at=pd.Timestamp(ingested_at),
-    )
-    accepted_documents = ingestion.source_documents.accepted
-    rejected_documents = ingestion.source_documents.rejected
-    accepted_activities = ingestion.activity_records.accepted
-    rejected_activities = ingestion.activity_records.rejected
 
     normalized = normalize_activity_records(accepted_activities)
 
@@ -154,9 +147,6 @@ def run_demo_pipeline(
         load_qa_rules(config_directory),
     )
 
-    # ------------------------------------------------------------------
-    # Optional adapters
-    # ------------------------------------------------------------------
     if run_ghg:
         ghg_evaluations = evaluate_ghg_protocol(
             accepted_activities,
@@ -194,10 +184,10 @@ def run_demo_pipeline(
         include_ghg=run_ghg,
         include_cbam=run_cbam,
         include_ifrs_s2=run_ifrs,
-        source_documents_accepted=accepted_documents,
-        source_documents_rejected=rejected_documents,
-        activity_records_accepted=accepted_activities,
-        activity_records_rejected=rejected_activities,
+        source_documents_accepted=accepted_documents.copy(),
+        source_documents_rejected=rejected_documents.copy(),
+        activity_records_accepted=accepted_activities.copy(),
+        activity_records_rejected=rejected_activities.copy(),
         normalized_records=normalized,
         candidate_matches=matching.candidate_matches,
         activity_readiness=matching.activity_readiness,
@@ -206,4 +196,75 @@ def run_demo_pipeline(
         ghg_evaluations=ghg_evaluations,
         cbam_evaluations=cbam_evaluations,
         ifrs_s2_evaluations=ifrs_s2_evaluations,
+    )
+
+
+def run_demo_pipeline(
+    repo_root: Path,
+    *,
+    run_id: str,
+    ingested_at: pd.Timestamp,
+    include_ghg: bool = False,
+    include_cbam: bool = False,
+    include_ifrs_s2: bool = False,
+) -> PipelineRunResult:
+    """Run the reproducible demo pipeline without writing files.
+
+    Optional adapters never alter the framework-neutral core outputs.
+    """
+    validated_run_id = validate_run_id(run_id)
+    if not isinstance(ingested_at, pd.Timestamp):
+        raise ValueError("ingested_at must be a pandas.Timestamp.")
+
+    root = Path(repo_root)
+    raw_directory = root / "data" / "raw"
+
+    ingestion = ingest_evidence(
+        raw_directory=raw_directory,
+        ingestion_run_id=f"ingestion_{validated_run_id}",
+        ingested_at=pd.Timestamp(ingested_at),
+    )
+    return _run_validated_activity_pipeline(
+        repo_root=root,
+        run_id=validated_run_id,
+        ingested_at=pd.Timestamp(ingested_at),
+        accepted_documents=ingestion.source_documents.accepted,
+        rejected_documents=ingestion.source_documents.rejected,
+        accepted_activities=ingestion.activity_records.accepted,
+        rejected_activities=ingestion.activity_records.rejected,
+        include_ghg=include_ghg,
+        include_cbam=include_cbam,
+        include_ifrs_s2=include_ifrs_s2,
+    )
+
+
+def run_uploaded_pipeline(
+    repo_root: Path,
+    *,
+    run_id: str,
+    ingested_at: pd.Timestamp,
+    source_documents: pd.DataFrame,
+    accepted_activities: pd.DataFrame,
+    include_ghg: bool = False,
+    include_cbam: bool = False,
+    include_ifrs_s2: bool = False,
+) -> PipelineRunResult:
+    """Run the validated analysis pipeline on confirmed uploaded activities.
+
+    Uses the live factor registry under data/reference. Does not load
+    bundled synthetic demo rows from data/raw.
+    """
+    if source_documents is None or source_documents.empty:
+        raise ValueError("source_documents must contain at least one row.")
+    return _run_validated_activity_pipeline(
+        repo_root=Path(repo_root),
+        run_id=run_id,
+        ingested_at=ingested_at,
+        accepted_documents=source_documents,
+        rejected_documents=_empty_rejection_frame(),
+        accepted_activities=accepted_activities,
+        rejected_activities=_empty_rejection_frame(),
+        include_ghg=include_ghg,
+        include_cbam=include_cbam,
+        include_ifrs_s2=include_ifrs_s2,
     )

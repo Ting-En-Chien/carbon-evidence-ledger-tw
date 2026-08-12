@@ -1,0 +1,1 @@
+snapshot_id,source_id,authority,reference_type,canonical_url,upstream_canonical_url,upstream_factor_authority,discovered_url,retrieved_url,retrieved_host,retrieved_at,publication_date,file_name,media_type,sha256,byte_size,parser_version,local_path,status,tls_verification,tls_compatibility_mode,notes

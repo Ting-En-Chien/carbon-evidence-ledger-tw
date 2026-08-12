@@ -12,10 +12,14 @@ from carbon_ledger.factors import validate_factor_registry
 from carbon_ledger.ingest import ingest_evidence
 from carbon_ledger.match_factors import match_activity_factors
 from carbon_ledger.normalize import normalize_activity_records
+from tests.reference_fixtures import (
+    BASELINE_REFERENCE_DIR,
+    copy_baseline_reference_tree,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = REPO_ROOT / "data" / "raw"
-REFERENCE_DIR = REPO_ROOT / "data" / "reference"
+REFERENCE_DIR = BASELINE_REFERENCE_DIR
 FIXED_INGESTED_AT = pd.Timestamp("2024-02-01T12:00:00")
 FIXED_RUN_ID = "test_run_phase5b_001"
 
@@ -32,8 +36,7 @@ def _copy_raw_tree(tmp_path: Path) -> Path:
 
 def _copy_reference_tree(tmp_path: Path) -> Path:
     destination = tmp_path / "reference"
-    shutil.copytree(REFERENCE_DIR, destination)
-    return destination
+    return copy_baseline_reference_tree(destination)
 
 
 def _baseline_matching(tmp_path: Path):
