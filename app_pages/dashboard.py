@@ -1,4 +1,4 @@
-"""Compliance Overview — Stage 2 IA shell over existing result components."""
+"""Compliance Overview — Stage 2 IA shell over Phase 11 result components."""
 
 from __future__ import annotations
 

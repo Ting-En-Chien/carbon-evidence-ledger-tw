@@ -2,6 +2,7 @@
 
 Stage 2 V1 navigation: Compliance Overview → Reporting & Export.
 CBAM remains available in the backend but is hidden from the V1 UI.
+Retains Phase 11 analysis progress / result-reveal motion from main.
 """
 
 from __future__ import annotations
@@ -173,6 +174,7 @@ with st.sidebar:
     # V1 product experience: CBAM UI hidden; backend still accepts the flag.
     include_cbam = False
 
+    # Avoid ambiguous "start analysis" after a completed uploaded run.
     show_start_uploaded = prefer_uploaded and not uploaded_completed
     show_rerun = has_result and (uploaded_completed or not prefer_uploaded)
     if show_start_uploaded or show_rerun or not prefer_uploaded:
