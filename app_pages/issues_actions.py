@@ -1,4 +1,4 @@
-"""Issues & Actions — beginner-first operational task list."""
+"""Issues & Actions — compact horizontal summary and actionable to-do list."""
 
 from __future__ import annotations
 
@@ -8,12 +8,16 @@ from carbon_ledger.ui.charts import render_issue_gap_bars
 from carbon_ledger.ui.components import (
     inject_design_system,
     render_empty_state,
-    render_kpi_card,
     render_page_header,
     render_page_help,
+    render_saas_kpi_row,
     render_section_header,
+    render_viz_panel_end,
+    render_viz_panel_start,
 )
+from carbon_ledger.ui.formatting import format_int
 from carbon_ledger.ui.i18n import t
+from carbon_ledger.ui.motion import mark_chart_reveal
 from carbon_ledger.ui.state import get_current_result, get_language
 from carbon_ledger.ui.view_models import issues_table
 
@@ -34,21 +38,71 @@ critical = int((table["severity_code"] == "critical").sum()) if open_issues else
 high = int((table["severity_code"] == "high").sum()) if open_issues else 0
 affected = int(table["record_id"].nunique()) if open_issues else 0
 
-metric_cols = st.columns(4)
-with metric_cols[0]:
-    render_kpi_card(open_issues, t("iss.metric_open", lang))
-with metric_cols[1]:
-    render_kpi_card(critical, t("iss.metric_critical", lang))
-with metric_cols[2]:
-    render_kpi_card(high, t("iss.metric_high", lang))
-with metric_cols[3]:
-    render_kpi_card(affected, t("iss.metric_affected", lang))
+# Horizontal compact cards — viewport stagger + one-time count-up.
+render_saas_kpi_row(
+    [
+        {
+            "label": t("iss.metric_open", lang),
+            "value": format_int(open_issues),
+            "accent": "amber",
+            "icon": "!",
+            "count": {
+                "target": float(open_issues),
+                "decimals": 0,
+                "final": format_int(open_issues),
+            },
+        },
+        {
+            "label": t("iss.metric_critical", lang),
+            "value": format_int(critical),
+            "accent": "coral",
+            "icon": "✕",
+            "count": {
+                "target": float(critical),
+                "decimals": 0,
+                "final": format_int(critical),
+            },
+        },
+        {
+            "label": t("iss.metric_high", lang),
+            "value": format_int(high),
+            "accent": "amber",
+            "icon": "↑",
+            "count": {
+                "target": float(high),
+                "decimals": 0,
+                "final": format_int(high),
+            },
+        },
+        {
+            "label": t("iss.metric_affected", lang),
+            "value": format_int(affected),
+            "accent": "slate",
+            "icon": "▣",
+            "count": {
+                "target": float(affected),
+                "decimals": 0,
+                "final": format_int(affected),
+            },
+        },
+    ],
+    variant="compact",
+    reveal_on_scroll=True,
+    scroll_key="issues-kpi",
+)
 
 if open_issues == 0:
     render_empty_state(t("iss.empty", lang), t("iss.empty", lang))
     st.stop()
 
+render_viz_panel_start(
+    t("iss.gap_title", lang),
+    scroll_key="issues-gap-panel",
+    chart_kind="bars",
+)
+mark_chart_reveal("issues-gap", chart="bars")
 render_issue_gap_bars(result, lang)
+render_viz_panel_end()
 
 st.write("")
 filter_cols = st.columns(3)
@@ -81,9 +135,19 @@ if filtered.empty:
     render_empty_state(t("iss.empty", lang), t("iss.help", lang))
     st.stop()
 
-render_section_header(t("iss.title", lang), t("iss.help", lang))
-display = filtered[
-    [
+render_section_header(
+    t("iss.todo_title", lang),
+    t("iss.todo_help", lang),
+    scroll_key="issues-todo",
+)
+st.markdown(
+    (
+        '<div data-cel-reveal="section" data-cel-key="issues-table" '
+        'data-cel-animation-type="section"></div>'
+    ),
+    unsafe_allow_html=True,
+)
+display = filtered[    [
         "Priority",
         "Activity",
         "Issue",

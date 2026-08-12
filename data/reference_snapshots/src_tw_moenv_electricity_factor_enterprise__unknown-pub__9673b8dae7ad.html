@@ -1,0 +1,786 @@
+
+
+<!DOCTYPE html>
+<!--[if lt IE 7 ]> <html class="ie ie6 no-js" lang="zh-Hant-TW"> <![endif]-->
+<!--[if IE 7 ]>    <html class="ie ie7 no-js" lang="zh-Hant-TW"> <![endif]-->
+<!--[if IE 8 ]>    <html class="ie ie8 no-js" lang="zh-Hant-TW"> <![endif]-->
+<!--[if IE 9 ]>    <html class="ie ie9 no-js" lang="zh-Hant-TW"> <![endif]-->
+<!--[if gt IE 9]><!-->
+<html class="no-js" lang="zh-Hant-TW">
+<!--<![endif]-->
+
+<head lang="zh-Hant-TW"><meta charset="UTF-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" /><meta name="Accessible_website" content="本網站通過AA檢測等級無障礙網頁檢測" /><title>
+	最新消息 - 事業溫室氣體排放量資訊平台
+</title>
+
+    
+    <link rel="shortcut icon" href="../images/ico/favicon.ico" />
+    <link rel="apple-touch-icon" href="../images/ico/touch-icon-iphone.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="../images/ico/touch-icon-ipad.png" />
+    <link rel="apple-touch-icon" sizes="114x114" href="../images/ico/touch-icon-iphone4.png" />
+    <link rel="apple-touch-icon-precomposed" href="../images/ico/apple-touch-icon-precomposed.png" />
+
+    <!-- 行動裝置顯示設定 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+    <!-- 手機板視窗 color -->
+    <meta name="theme-color" content="#386641" />
+
+    <!-- CSS-->
+    <link rel="stylesheet" href="../css/external/fontawesome-all.css">
+    <link rel="stylesheet" href="../css/internal/global.css">
+    <link rel="stylesheet" href="../css/internal/grid.css">
+    <link rel="stylesheet" href="../css/internal/layout.css">
+
+    <!--  JS 大多放在頁面結束，除了 modernizr-->
+    <script src="../js/external/modernizr.js"></script>
+    <script src="../js/external/ie10plus.modernizr.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script>window.jQuery || document.write("<script src='" + "js/external/jq.js" + "'>\x3C/script>")</script>
+
+    
+    <script src="../js/Master/GoogleAnalytics.js?t=20230117"></script>
+
+    <!--MasterHead  Start-------------------------------------------------- -->
+    
+    <!-- Open Graph Protocol Metadata -->
+    <meta property="og:title" content="最新消息 - 事業溫室氣體排放量資訊平台" />
+    <meta property="og:description" content="鑒於「溫室氣體排放量盤查登錄管理辦法」及「第一批應盤查登錄溫室氣體排放量之排放源」的施行，本盤查登錄區提供排放量試算工具，供排放源自我檢視是否達法規所規範之排放規模門檻；另亦包含盤查登錄系統，供排放源將其溫室氣體相關排放量資訊登錄於平台中，以符合法規之要求。" />
+    <meta property="og:type" content="website" />    
+    
+
+    <!--以下 og:image 延伸 非必要-->
+    
+
+    <!--MasterHead  End-------------------------------------------------- -->
+</head>
+<body>
+    <!--Form Star-------------------------------------------------- -->
+    <form method="post" action="./NewsList.aspx?Type_ID=1" id="form1">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwUKLTg0NTExODc1NA8WBh4HVHlwZV9JRAUBMR4HTm93UGFnZWYeClRvdGFsUGFnZXMCCBYCZg9kFgICAw9kFgYCAg9kFhICAQ8WAh4EVGV4dAUV5YWs5ZGK5Y+K5paw6IGe6LOH6KiKZAIFDw8WBB4IQ3NzQ2xhc3MFAm9uHgRfIVNCAgJkZAIJDw8WBB8EBQNvZmYfBQICZGQCCw8PFgQfBAUDb2ZmHwUCAmRkAg8PZBYEAgEPEGQQFQcANeijvemAoOalrS3mh4nnm6Tmn6XnmbvpjITlj4rmn6XpqZflsI3osaEo56ysMeOAgTLmibkpLeijvemAoOalrS3mh4nnm6Tmn6XnmbvpjITlsI3osaEo5pO05aSn55uk5p+lKQnmnI3li5nmpa0M5aSn5bCI5qCh6ZmiBumGq+mZognpgYvovLjmpa0VBwEwAUEBQgFDAUQBRQFGFCsDB2dnZ2dnZ2cWAWZkAgMPEA8WAh4HRW5hYmxlZGhkEBUBABUBATAUKwMBZxYBZmQCFw8PFgIfAwUCNzRkZAIZDxBkEBUIATEBMgEzATQBNQE2ATcBOBUIATABMQEyATMBNAE1ATYBNxQrAwhnZ2dnZ2dnZxYBZmQCGw8WAh8DBemlATx1bCBjbGFzcz0nbmV3cy1saXN0Jz48bGk+PHNwYW4gY2xhc3M9J25ld3MtbGlzdC1kYXRlJz4yMDI2LzA4LzExPC9zcGFuPjxkaXYgY2xhc3M9J25ld3MtbGlzdC1jb24nPjxhIGNsYXNzPSduZXdzLWxpc3QtdGl0bGUnIHRhcmdldD0nX2JsYW5rJyB0aXRsZT0nW+WPpumWi+aWsOWIhumggV0g5YWs5ZGK5Y+K5paw6IGe6LOH6KiK6Kmz57Sw5YWn5paHJyBhcmlhLWxhYmVsPSdb5Y+m6ZaL5paw5YiG6aCBXSDlhazlkYrlj4rmlrDogZ7os4foqIroqbPntLDlhafmlocnIGhyZWY9IE5ld3NDb250LmFzcHg/VHlwZV9JRD0xJlJlY29yZF9JRD0zMzA0ICc+56Kz6LK75Yi25bqm5Lul5rib6YeP54K65qC45b+D77yM5YuZ5a+m5L+u5q2j56Kz6LK75pS26LK76L6m5rOV6YOo5YiG5qKd5paHPC9hPjxwIGNsYXNzPSd0eHRsaW1pdCc+56Kz6LK75Yi25bqm5pa8IDExNCDlubTmraPlvI/kuIrot6/vvIw0NjEg5bug5pS26LK75bCN6LGh77yI5ZCI6KiIIDI0MCDlrrbkvIHmpa3vvInmlrzku4ogMTE1IOW5tCA1IOaciOWdh+WFqOaVuOWujOaIkOe5s+iyu++8jOeCuuaIkeWci+eis+WumuWDueapn+WItui/juS+huatt+WPsuaAp+eahOmXnOmNtemHjOeoi+eikeOAgui/keacn+eSsOWig+mDqOmgkOWRiuS/ruato+OAjOeis+iyu+aUtuiyu+i+puazleOAjeesrCAzIOaineS5iyAx44CB56ysIDkg5qKd6IiH44CM6Ieq5Li75rib6YeP6KiI55Wr566h55CG6L6m5rOV44CN56ysIDExIOaineS5iyAx44CB56ysIDE3IOaine+8jOmHneWwjeeSsOS/neWcmOmrlOWwjeaWvOaineaWh+iNieahiOeahOmXnOW/g+aEj+imi++8jOeSsOWig+mDqOiqquaYjuWmguS4i++8mg0K5LiA44CB6K6T6aaW5qyh6YGU5b615pS26ZaA5qq75LmL5LqL5qWt77yM5Y+v5bu25b6MIDEg5bm057mz56Kz6LK7DQrnkrDlooPpg6joqqrmmI7vvIzkuovmpa3pm5blj6/kvp3og73mupDkvb/nlKjlj4rnlJ/nlKLmg4XlvaLpoJDkvLDmjpLmlL7ph4/vvIzkvYbmmK/lkKbkvp3ms5XmiJDngrrnorPosrvlvrXmlLblsI3osaHvvIzku6Xlj4rlr6bpmpvmjpLmlL7ph4/oiIfmlLbosrvmjpLmlL7ph4/vvIzku43poIjntpPms5Xlrprnm6Tmn6XjgIHnmbvpjITlj4rmn6XpqZfnqIvluo/norroqo3vvIzkuI3og73lg4Xku6Xkuovmpa3oh6rooYzkvLDnrpfntZDmnpzkvZzngrrlvrXmlLbkvp3mk5rjgILpppbmrKHntI3nrqHkuovmpa3lpoLlnKjlrozmiJDmn6XpqZfjgIHnorroqo3ntI3nrqHlvozvvIzlt7LnhKHlhYXotrPmmYLplpPnm6Tpu57muJvph4/mjqrmlr3jgIHnt6jliJfosqHli5npoJDnrpflj4rnlLPoq4voh6rkuLvmuJvph4/oqIjnlavkuIvvvIzlj6rog73mjInkuIDoiKzosrvnjofnubPosrvvvIzoiIfml6LmnInntI3nrqHkuovmpa3lj5blvpflhKrmg6DosrvnjofkuYvmupblgpnmop3ku7bkuKbkuI3kuIDoh7TjgIINCuWboOatpO+8jOacrOasoeS/ruato+aYjuWumu+8jOmmluasoeespuWQiOebpOafpeOAgeeZu+mMhOWPiuafpempl+aineS7tu+8jOS4lOacquabvuS+neazleeUs+WgseaOkuaUvumHj+aIlue5s+e0jeeis+iyu+S5i+S6i+alre+8jOWFtueis+iyu+eUs+Wgsee5s+e0jee+qeWLmeaHieiHqui+pueQhuebpOafpeOAgeeZu+mMhOWPiuafpempl+S9nOalreW5tOW6pueahOasoeW5tOi1t+mBqeeUqOOAguS+i+WmguS6i+alreaWvCAxMTUg5bm06aaW5qyh6L6m55CGIDExNCDlubTluqbmjpLmlL7ph4/nm6Tmn6XjgIHnmbvpjITlj4rmn6XpqZfvvIzmh4nmlrwgMTE2IOW5tCA1IOaciOW6leWJjeeUs+Wgsee5s+e0jSAxMTUg5bm05bqm5o6S5pS+6YeP55qE56Kz6LK744CC5q2k6aCF5L+u5q2j5piv57Wm5LqI6aaW5qyh57SN566h5LqL5qWt5ZCI55CG5L2c5qWt5Y+K5rib6YeP6KaP5YqD5pmC6ZaT77yM5Lim5pyq5YWN6Zmk5YW25b6M57qM5L6d5rOV57mz6LK75Y+K5Z+36KGM5rib6YeP5LmL6LKs5Lu744CCDQrkuozjgIHpq5jnorPmtKnmvI/kuovmpa3kvb/nlKjlhYjmnJ/lsIjmoYjmuJvph4/poY3luqbmirXmiaPnorPosrsNCueSsOWig+mDqOijnOWFheiqquaYju+8jOaciemXnOWFiOacn+WwiOahiOa4m+mHj+mhjeW6pu+8jOaYr+S6i+alreWcqOa6q+WupOawo+mrlOa4m+mHj+WPiueuoeeQhuazleaWveihjOWJje+8jOmfv+aHieaUv+W6nOaOqOWLleiHqumhmOebpOafpeOAgeafpempl+WPiuaXqeacn+a4m+mHj++8jOS+neeVtuaZguOAjOihjOaUv+mZoueSsOWig+S/neitt+e9suWFiOacn+WwiOahiOaaqOaKteaPm+WwiOahiOaOqOWLleWOn+WJh+OAjeWPluW+l+S5i+a4m+mHj+mhjeW6pu+8jOWcqOiAg+mHj+WItuW6pui9ieaPm+OAgeS6i+alreaXqeacn+aKleWFpeS5i+a4m+mHj+WKquWKm+S4i++8jOacrOasoeS/ruato+iNieahiO+8jOS/guWcqOWatOagvOeahOmZkOWItuaineS7tuS4i++8iOeis+iyu+mWi+W+teW+jOS4ieW5tOWFp+OAgeaJo+mZpOmHj+S4jeW+l+i2hemBjuS6i+alreaUtuiyu+aOkuaUvumHjyAxMOWPiuaJo+mZpOavlOeOh+eCuiAwLjHvvInvvIzorpPpq5jnorPmtKnmvI/poqjpmqrkuovmpa3kvobkvb/nlKjlhYjmnJ/lsIjmoYjmuJvph4/poY3luqblnKjvvIzkuZ/lsLHmmK/pq5jnorPmtKnmvI/poqjpmqrkuovmpa3kvb/nlKggMTAg5Zm45YWI5pyf5bCI5qGI6aGN5bqm77yM5Y+q6IO95omj6ZmkIDEg5Zm455qE56Kz6LK75pS26LK75o6S5pS+6YeP77yM5q+U5LiA6Iis5LqL5qWt6YGp55So5LmLIDAuMyDmiaPpmaTmr5Tnjofmm7TngrrlmrTmoLzjgIINCueSsOWig+mDqOmAsuS4gOatpeiqquaYju+8jOiHs+aWvOWwmuacquS9v+eUqOeahOWFiOacn+WwiOahiOmhjeW6puaVuOmHj++8jOW4s+mdoumhjeW6puS4puS4jeetieWQjOWPr+ebtOaOpeaJo+mZpOeahOaUtuiyu+aOkuaUvumHj+aIlueis+iyu+aUtuWFpea4m+WwkeOAguWNs+S9v+S7pSA0LDQwMCDokKzlmbjpoY3luqbkvLDnrpfvvIzntpMgMC4xIOavlOeOh+aPm+eul++8jOeQhuirluaJo+mZpOmHj+iHs+WkmueCuiA0NDAg6JCs5Zm477yM5LmL5b6M5LuN6aCI5Y+X5Yiw5YCL5Yil5LqL5qWt5pS26LK75o6S5pS+6YePIDEw5LiK6ZmQ44CB5LiJ5bm05L2/55So5pyf6ZmQ5Y+K5omj6Zmk5q+U546H562J6ZmQ5Yi277yM5a+m6Zqb5Y+v5L2/55So6YeP5bCH5pu05L2O77yM5LiN6IO955u05o6l5bCH5YWo6YOo5biz6Z2i6aGN5bqm6KaW54K656Kz6LK75rib5pS244CCDQrnkrDlooPpg6jlsIrph43lkITnlYzlsI3norPosrvlg7nmoLzoqIromZ/oiIfliLbluqbnmoTpl5zliIfvvIznm7jpl5zkv67mraPnm67liY3ku43lnKjmhI/opovokpDpm4bnqIvluo/vvIzlvoznuozlsIfntpzlkIjlkITnlYzmhI/opovvvIzmjIHnuozmqqLoppbpoY3luqblr6bpmpvkvb/nlKjmg4XlvaLlj4rlhbblsI3norPosrvmuJvph4/mlYjmnpzkuYvlvbHpn7/vvIznorrkv53liLbluqblhbzpoafnqIvluo/lhazlubPjgIHnlKLmpa3ovYnlnovoiIflr6bos6rmuJvph4/vvIzkuI3lm6DphY3lpZfmjqrmlr3ogIzlvLHljJbnorPosrvliLbluqbkuYvlr6bos6rmuJvph4/miJDmlYjjgIINCjwvcD48LyBkaXYgPjwvbGk+PGxpPjxzcGFuIGNsYXNzPSduZXdzLWxpc3QtZGF0ZSc+MjAyNi8wOC8wNzwvc3Bhbj48ZGl2IGNsYXNzPSduZXdzLWxpc3QtY29uJz48YSBjbGFzcz0nbmV3cy1saXN0LXRpdGxlJyB0YXJnZXQ9J19ibGFuaycgdGl0bGU9J1vlj6bplovmlrDliIbpoIFdIOWFrOWRiuWPiuaWsOiBnuizh+ioiuips+e0sOWFp+aWhycgYXJpYS1sYWJlbD0nW+WPpumWi+aWsOWIhumggV0g5YWs5ZGK5Y+K5paw6IGe6LOH6KiK6Kmz57Sw5YWn5paHJyBocmVmPSBOZXdzQ29udC5hc3B4P1R5cGVfSUQ9MSZSZWNvcmRfSUQ9MzMwMyAnPuS6i+alrea6q+WupOawo+mrlOaOkuaUvumHj+izh+ioiuW5s+WPsDA477yPMTfvvIjkuIDvvInkuLvmqZ/oqK3lrproqr/mlbTvvIzmmqvlgZzmnI3li5njgII8L2E+PHAgY2xhc3M9J3R4dGxpbWl0Jz7kuovmpa3muqvlrqTmsKPpq5TmjpLmlL7ph4/os4foqIrlubPlj7DpoJDlrpowOO+8jzE377yI5LiA77yJ5pyD6YCy6KGM5Li75qmf6Kit5a6a6Kq/5pW05L2c5qWt77yM5Yiw5pmC57ay56uZ5bmz5Y+w5oiW5pyD5Ye654++5LiN56mp55qE5oOF5rOB77yM5b2x6Z+/56+E5ZyN5YyF5ZCr55uk5p+l55m76YyE44CB5p+l6amX566h55CG44CB6Ieq6aGY5rib6YeP562J5bmz5Y+w77yM5Y+v6IO95pyD5pyJ55+t5pqr5Lit5pa35oOF5b2i77yM6Iul5pyJ6YG65ryP5L+h5Lu26YCa55+l77yM6KuL5pa86ZqU5aSp6Iez57O757Wx56K66KqN5qGI5Lu254uA5oWL77yM6Iul5pyJ6aC757mB55m75Ye655qE5oOF5b2i77yM6KuL5pa86ZqU5aSp5YaN5L2/55So57O757Wx77yM6YCg5oiQ5LiN5L6/77yM5pWs6KuL6KaL6KuS44CCPC9wPjwvIGRpdiA+PC9saT48bGk+PHNwYW4gY2xhc3M9J25ld3MtbGlzdC1kYXRlJz4yMDI2LzA3LzMwPC9zcGFuPjxkaXYgY2xhc3M9J25ld3MtbGlzdC1jb24nPjxhIGNsYXNzPSduZXdzLWxpc3QtdGl0bGUnIHRhcmdldD0nX2JsYW5rJyB0aXRsZT0nW+WPpumWi+aWsOWIhumggV0g5YWs5ZGK5Y+K5paw6IGe6LOH6KiK6Kmz57Sw5YWn5paHJyBhcmlhLWxhYmVsPSdb5Y+m6ZaL5paw5YiG6aCBXSDlhazlkYrlj4rmlrDogZ7os4foqIroqbPntLDlhafmlocnIGhyZWY9IE5ld3NDb250LmFzcHg/VHlwZV9JRD0xJlJlY29yZF9JRD0zMzAyICc+5LqL5qWt5rqr5a6k5rCj6auU5o6S5pS+6YeP6LOH6KiK5bmz5Y+wMDjvvI8wNu+8iOWbm++8ieOAgTA477yPMDnvvIjml6XvvInjgIEwOO+8jzE277yI5pel77yJ5Li75qmf6Kit5a6a6Kq/5pW077yM5pqr5YGc5pyN5YuZ44CCPC9hPjxwIGNsYXNzPSd0eHRsaW1pdCc+5LqL5qWt5rqr5a6k5rCj6auU5o6S5pS+6YeP6LOH6KiK5bmz5Y+w5pqr5a6aMDjvvI8wNu+8iOWbm++8ieOAgTA477yPMDnvvIjml6XvvInjgIEwOO+8jzE277yI5pel77yJ77yM6YCZ5LiJ5aSp6YCy6KGM5Li75qmf6Kit5a6a6Kq/5pW05L2c5qWt77yM5Yiw5pmC57ay56uZ5bmz5Y+w5oiW5pyD5Ye654++5LiN56mp55qE5oOF5rOB77yM5Y+v6IO95pyD5pyJ55+t5pqr5Lit5pa35oOF5b2i77yM6Iul5pyJ6YG65ryP5L+h5Lu26YCa55+l77yM6KuL5pa86ZqU5aSp6Iez57O757Wx56K66KqN5qGI5Lu254uA5oWL77yM6Iul5pyJ6aC757mB55m75Ye655qE5oOF5b2i77yM6KuL5pa86ZqU5aSp5YaN5L2/55So57O757Wx77yM6YCg5oiQ5LiN5L6/77yM5pWs6KuL6KaL6KuS44CCPC9wPjwvIGRpdiA+PC9saT48bGk+PHNwYW4gY2xhc3M9J25ld3MtbGlzdC1kYXRlJz4yMDI2LzA3LzE3PC9zcGFuPjxkaXYgY2xhc3M9J25ld3MtbGlzdC1jb24nPjxhIGNsYXNzPSduZXdzLWxpc3QtdGl0bGUnIHRhcmdldD0nX2JsYW5rJyB0aXRsZT0nW+WPpumWi+aWsOWIhumggV0g5YWs5ZGK5Y+K5paw6IGe6LOH6KiK6Kmz57Sw5YWn5paHJyBhcmlhLWxhYmVsPSdb5Y+m6ZaL5paw5YiG6aCBXSDlhazlkYrlj4rmlrDogZ7os4foqIroqbPntLDlhafmlocnIGhyZWY9IE5ld3NDb250LmFzcHg/VHlwZV9JRD0xJlJlY29yZF9JRD0zMjk5ICc+5rib6LyV5LyB5qWt6LKg5pOU77yB55Kw5aKD6YOo6IiH6YeR566h5pyD5pSc5omL6Kq/5ZKM55uk5p+l6KaP56+E44CB5bu6572u56+E55aH5LiJ5L+C5pW45Lim56CU6KiC5Y+N5ryC57ag5oyH5byVPC9hPjxwIGNsYXNzPSd0eHRsaW1pdCc+54K65rib6LyV5LyB5qWt55Sz5aCx6LKg5pOU5Lim6aCG5oeJ5q2Q55uf5rC457qM57ac5ZCI5aWX5qGI77yIRVUgT21uaWJ1cyBJ77yJ5pS+57ep6IiH57Ch5YyW6Lao5Yui77yM55Kw5aKD6YOo6IiH6YeR566h5pyD5bGV6ZaL6Leo6YOo5pyD5Y2U5ZWG77yM5bCH6Kq/5ZKM55uk5p+l6KaP56+E44CB5ZCI5L2c5bu6572u56+E55aH5LiJ56Kz5o6S5pS+5L+C5pW477yM5Lul6YG/5YWN5LyB5qWt6YeN5bel5Lim6ZmN5L2O5oiQ5pys44CC5q2k5aSW77yM6Yed5bCN5Z2K6ZaT5rC+5r+r5LiU5pS26LK76auY5piC55qEIEVTRyDnjY7poIXoiIfpoafllY/mnI3li5nvvIznkrDlooPpg6jpoJDoqIjmlrwgMTE1IOW5tOW6leWJjeioguWumuWPjea8gue2oOaMh+W8le+8jOW7uuani+mAj+aYjuS4lOWFt+WFrOS/oeWKm+eahOe2oOiJsueUn+aFi+ezu++8jOW8leWwjuS8gealreiQveWvpuecn+Wvpua4m+eis+OAgg0K5LiA44CB5rqr5a6k5rCj6auU56+E55aH5LiJ54Sh6aCI5by35Yi256K65L+hDQrph5HnrqHmnIPmlrzljrsgMTE0IOW5tOW6leW3suWFrOW4g+S4iuW4guarg+WFrOWPuOWIhuS4iemajuauteaOpei7jCBJRlJTIOawuOe6jOaPremcsua6luWJh+OAgumHneWwjeesrOS4iemajuaute+8iOWvpuaUtuizh+acrOmhjeacqumBlCA1MCDlhITlhYPvvInkuYvkvIHmpa3vvIzoh6ogMjAyOCDlubTotbfpgannlKjoqbLmupbliYfnt6joo73msLjnuozosqHli5nos4foqIrvvIzkuKbmlrwgMjAyOSDlubTotbfnlLPloLHjgIINCueCuue1puS6iOWFheWIhuW9iOaAp++8jOS4iuW4guarg+WFrOWPuOevhOeWh+S4ieaPremcsuW7tuiHs+mBqeeUqOa6luWJh+W+jOesrOWbm+WAi+acg+ioiOW5tOW6pui1t+mBqeeUqO+8iOesrOS4iemajuauteS8gealreWPr+aWvCAyMDMyIOW5tOaPremcsiAyMDMxIOW5tOevhOeWh+S4ieebpOafpeaVuOaTmu+8ie+8m+S4lOebruWJjSBJRlJTIOa6luWJh+WPiumHkeeuoeacg+OAgeeSsOWig+mDqOWdh+acquimgeaxguevhOeWh+S4ieaVuOaTmuW/hemgiOWPluW+l+esrOS4ieaWueeiuuS/oe+8jOatpOiIieWwh+Wkp+W5hemZjeS9juS8gealreWIneacn+eahOmBteW+quaIkOacrOOAguatpOWklu+8jOiAg+mHj+esrOS4iemajuauteS5i+S4reWwj+Wei+alreiAheizh+a6kOaciemZkO+8jOmHkeeuoeacg+ato+mAj+mBjuWVj+WNt+iqv+afpe+8jOipleS8sOWPg+iAg+atkOebn+WPiuWci+mam+i2qOWLouewoeWMluS4reWwj+Wei+alreiAhemBqeeUqOawuOe6jOa6luWJh+eahOebuOmXnOimj+Wumu+8jOS+i+WmguW7tuW+jOaIluixgeWFjeOAjOawo+WAmeS7peWkluS5i+awuOe6jOizh+ioiuOAjeWPiuOAjOevhOeWh+S4iea6q+WupOawo+mrlOaOkuaUvuizh+ioiuOAjeS5i+WPr+iDveaAp+OAgg0K5LqM44CB55uk5p+l6KaP5YmH6Kq/5ZKM77yM5YSq5YWI5bu6572u6Zu75a2Q5Y2K5bCO6auU56+E55aH5LiJ5L+C5pW4DQrngrrop6Pmsbrlhanpg6jmnIPnm6Tmn6Xopo/lrprkuI3kuIDmiYDlsI7oh7TnmoTph43lt6XllY/poYzvvIzph5HnrqHmnIPpmaTlhYHoqLHnm7TmjqXlvJXnlKjnkrDlooPpg6jliJfnrqHkuovmpa3kuYvnr4TnlofkuIDjgIHkuozmn6XpqZfntZDmnpzlpJbvvIzph5HnrqHmnIPkuqblsIfnr4TnlofkuIDjgIHkuoznmoTnorrkv6HnlLPloLHmnJ/pmZDmlL7lr6zmnIDpgbLoh7Pmr4/lubQgMTAg5pyI5bqV77yM6JeJ55Sx55Sz5aCx5pyf56iL55qE5LiA6Ie05YyW77yM5YWN6Zmk6YeN6KSH5p+l6amX5LmL5oiQ5pys6LKg5pOU44CC6Yed5bCN5LyB5qWt5Y+N5pig56+E55aH5LiJ6LOH5paZ6JKQ6ZuG5Zuw6Zuj44CB5L6b5oeJ6Y+I5L+C5pW45LiN6Laz562J5Zuw5aKD77yM55Kw5aKD6YOo5bCH6IiH57aT5r+f6YOo44CB6YeR566h5pyD562J6YOo5pyD5YWx5ZCM5ZCI5L2c77yM6YCQ5q2l5bu656uL56+E55aH5LiJ5pys5Zyf56Kz5o6S5pS+5L+C5pW444CC5Y+m5Zug44CM5Y2K5bCO6auU44CN6IiH44CM6Zu75a2Q6Zu257WE5Lu26KO96YCg5qWt44CN5Ye65Y+j6YeR6aGN5Y2g5q+U6auY77yM6YWN5ZCI5YWo55CD5L6b5oeJ6Y+I6ZyA5rGC77yM5bCH5YSq5YWI6KaP5YqD5bu6572u55u46Zec5L+C5pW444CCDQrkuInjgIHlj4PogIPmrZDnvo7ntqDoibLopo/nr4TvvIznoJToqILoh7rngaPlj43mvILntqDmjIflvJUNCuaciemRkeaWvOmDqOWIhuS6i+alreS4jeeVtuW8leeUqOawuOe6jOeNjumgheOAgeiqh+Wkp+WxgOmDqOe4vuaViOiAjOW8leeZvOa8gue2oOeWkeaFru+8jOeSsOWig+mDqOWwh+WPg+iAg+atkOe+juacgOaWsOi2qOWLou+8iOWmguemgeatouacque2k+mpl+itieaomeeroOOAgeimgeaxguaPremcsuipleavlOWIqeebiumXnOiBr+OAgeiBsuaYjumgiOWFt+WCmeitieaTmuetie+8ie+8jOioguWumuOAjOS8gealreS9v+eUqOawuOe6jOeNjumgheiIh+awuOe6jOaomeeroOS5i+WPjea8gue2oOaMh+W8leOAje+8jOW8leWwjuiHuueBo+eUseOAjOm8k+WLteaPremcsuOAjei9ieWQkeOAjOeuoeWItuWuo+eoseOAje+8jOmYsuevhOiqpOWwjua2iOiyu+iAheiIh+aKleizh+S6uuOAgg0K55Kw5aKD6YOo5by36Kq/77yM6Kmy5oyH5byV5qC45b+D5Zyo5pa86KaP56+E5LqL5qWt5pa85buj5ZGK44CB5aCx5ZGK5pu45oiW5ZWG5ZOB6Yq35ZSu5Lit55qE44CM5L2/55So6KGM54K644CN77yM5b+F6aCI56ym5ZCI77ya55yf5a+m5pyJ5pWI44CB56+E5ZyN55u456ix44CB56aB5q2i5qih57OK5LiJ5aSn5Y6f5YmH44CC5ZCM5pmC77yM6KmV6ZGR5Zau5L2N5Lqm5oeJ6YG15b6q5a6M5pW05o+t6Zyy6KmV6YG45Z+65rqW44CB5o+t6Zyy6IiH5LqL5qWt6ZaT5LmL5Yip55uK6Zec5L+C44CB6ICD6YeP6YeN5aSn6LKg6Z2i6YGV6KaP5LqL5Lu25Lim5ZaE55uh6Kq/5p+l6LKs5Lu7562J5Y6f5YmH44CCDQrnkrDlooPpg6jooajnpLrvvIwyMDUwIOa3qOmbtuaOkuaUvumcgOWLmeWvpuaOqOmAsuOAguaUv+W6nOWwh+aMgee6jOWujOWWhOeis+ebpOafpeWfuuekjuW7uuiore+8jOS4puS7peWvpuizqueahOmHkeiejeiqmOWboOW8leWwjua4m+eis+OAguacquS+huWwh+iIh+mHkeeuoeacg+e3iuWvhuWNlOS9nO+8jOmZquS8tOS8gealreepqeatpeWJjeihjO+8jOWFseWQjOaJk+mAoOWFt+WCmeWci+mam+ertueIreWKm+eahOawuOe6jOiHuueBo+OAgg0KPC9wPjwvIGRpdiA+PC9saT48bGk+PHNwYW4gY2xhc3M9J25ld3MtbGlzdC1kYXRlJz4yMDI2LzA2LzE3PC9zcGFuPjxkaXYgY2xhc3M9J25ld3MtbGlzdC1jb24nPjxhIGNsYXNzPSduZXdzLWxpc3QtdGl0bGUnIHRhcmdldD0nX2JsYW5rJyB0aXRsZT0nW+WPpumWi+aWsOWIhumggV0g5YWs5ZGK5Y+K5paw6IGe6LOH6KiK6Kmz57Sw5YWn5paHJyBhcmlhLWxhYmVsPSdb5Y+m6ZaL5paw5YiG6aCBXSDlhazlkYrlj4rmlrDogZ7os4foqIroqbPntLDlhafmlocnIGhyZWY9IE5ld3NDb250LmFzcHg/VHlwZV9JRD0xJlJlY29yZF9JRD0zMjk3ICc+55uk5p+l55m76YyE57O757WxMTE05bm05bqm6Zu75Yqb5o6S56Kz5L+C5pW46Ieq5Y2z5pel77yIMTE15bm0NuaciDE35pel77yJ6LW35L6d57aT5r+f6YOo6IO95rqQ572y5YWs5biD6Kq/5pW0PC9hPjxwIGNsYXNzPSd0eHRsaW1pdCc+57aT5r+f6YOo6IO95rqQ572y5pa8MTE15bm0NuaciDLml6XlhazluIMxMTTlubTpm7vlipvmjpLnorPkv4LmlbjngrowLjQ2N+WFrOaWpENPMmUv5bqm77yM55So5pa85qqi6KaW5YWs55So5ZSu6Zu75qWt5pW06auU6Yq35ZSu6Zu76YeP5LmL5bmz5Z2H6Zu75Yqb5o6S56Kz5oOF5b2i77yM5L2c54K66Zu75qWt566h5Yi25qmf6Zec6YCy6KGM566h55CG5LmL5L6d5pOa44CC6Kmy572y6KGo56S677yM6L+R5bm055Si5qWt54K65Zug5oeJ5ZyL6Zqb5L6b5oeJ6Y+I57ag6Zu76ZyA5rGC77yM6YCP6YGO5ZCE56iu566h6YGT6LO86LK36LyD5aSa57ag6Zu777yM54iw6IeqMTE05bm06LW35bCH5YmN6L+w6Zu75Yqb5o6S56Kz5L+C5pW45Y+m5YqD5YiG44CM55Si5qWt6Zu75Yqb5o6S56Kz5L+C5pW444CN54K6MC40NjblhazmlqRDTzJlL+W6pu+8jOaPkOS+m+S8gealremAsuihjOaOkuaUvumHj+ebpOafpeWPiuaPremcsuaZguS9v+eUqO+8jOWFtumBqeeUqOWwjeixoeeCuumbu+WDueeorumhnuS5i+ihqOeHiOeHn+alreOAgeS9juWjk+mbu+WKm+OAgemrmOWjk+mbu+WKm+OAgeeJuemrmOWjk+mbu+WIqeeUqOaItu+8m+S7peWPiuOAjOawkeeUn+S9j+Wuhembu+WKm+aOkueis+S/guaVuOOAjeeCujAuNDcx5YWs5pakQ08yZS/luqbvvIzpgannlKjlsI3osaHngrrkvY/lroXvvIzpm7vlg7nnqK7poZ7ngrrooajnh4jpnZ7nh5/mpa3jgIHljIXnh4jnlKjmiLbjgIINCuS+neaTmue2k+a/n+mDqOiDvea6kOe9suWwjeaWvOmbu+WKm+aOkuaUvuS/guaVuOS5i+iqv+aVtO+8jOacrOmDqOWFrOWRiuOAjOS6i+alreaHieebpOafpeeZu+mMhOWPiuafpempl+a6q+WupOawo+mrlOaOkuaUvumHj+aOkuaUvua6kOOAjeaIluOAjOS6i+alreaHieebpOafpeeZu+mMhOa6q+WupOawo+mrlOaOkuaUvumHj+aOkuaUvua6kOOAjeWNs+mBqeeUqOOAjOeUoualrembu+WKm+aOkueis+S/guaVuOOAje+8jOebpOafpeeZu+mMhOezu+e1seiHqjExNeW5tDbmnIgxN+aXpei1t+mFjeWQiOiqv+aVtO+8jOiLpeS6i+alreW3suaWvDExNeW5tDbmnIgy5pel5YmN5a6M5oiQ5o6S5pS+6YeP5riF5YaK5Y+K55uk5p+l5aCx5ZGK5pu45LiK5YKz77yM5Lim5bey5a6M5oiQ5p+l6amX5L2c5qWt6ICF77yM5YW25pei5pyJ5p+l6amX57WQ5p6c5LuN5bGs5pyJ5pWI77yM5q+L6aCI5Zug5pys5qyh57O757Wx6Kq/5pW06YeN5paw6L6m55CG5p+l6amX5L2c5qWt44CC6Kmz57Sw5YWn5a656KuL5Y+D6ICD57aT5r+f6YOo6IO95rqQ572y5omA5YWs5biDMTE05bm05bqm6Zu75Yqb5o6S56Kz5L+C5pW477yI6ZmE5Lu277yJ5Lul5Y+K5paw6IGe6YCj57WQ77yaaHR0cHM6Ly93d3cubW9lYS5nb3YudHcvTU5TL3BvcHVsYWNlL25ld3MvTmV3cy5hc3B4P2tpbmQ9MSZtZW51X2lkPTQwJm5ld3NfaWQ9MTIyODkx44CCPC9wPjwvIGRpdiA+PC9saT48bGk+PHNwYW4gY2xhc3M9J25ld3MtbGlzdC1kYXRlJz4yMDI2LzA2LzExPC9zcGFuPjxkaXYgY2xhc3M9J25ld3MtbGlzdC1jb24nPjxhIGNsYXNzPSduZXdzLWxpc3QtdGl0bGUnIHRhcmdldD0nX2JsYW5rJyB0aXRsZT0nW+WPpumWi+aWsOWIhumggV0g5YWs5ZGK5Y+K5paw6IGe6LOH6KiK6Kmz57Sw5YWn5paHJyBhcmlhLWxhYmVsPSdb5Y+m6ZaL5paw5YiG6aCBXSDlhazlkYrlj4rmlrDogZ7os4foqIroqbPntLDlhafmlocnIGhyZWY9IE5ld3NDb250LmFzcHg/VHlwZV9JRD0xJlJlY29yZF9JRD0zMjk1ICc+5LqL5qWt5rqr5a6k5rCj6auU5o6S5pS+6YeP6LOH6KiK5bmz5Y+wMDbvvI8xNu+8iOS6jO+8ieS4u+apn+ioreWumuiqv+aVtO+8jOaaq+WBnOacjeWLmeOAgjwvYT48cCBjbGFzcz0ndHh0bGltaXQnPuS6i+alrea6q+WupOawo+mrlOaOkuaUvumHj+izh+ioiuW5s+WPsOaaq+WumjA277yPMTbvvIjkuozvvInpgLLooYzkuLvmqZ/oqK3lrproqr/mlbTkvZzmpa3vvIzliLDmmYLntrLnq5nlubPlj7DmiJbmnIPlh7rnj77kuI3nqannmoTmg4Xms4HvvIzlj6/og73mnIPmnInnn63mmqvkuK3mlrfmg4XlvaLvvIzoi6XmnInpgbrmvI/kv6Hku7bpgJrnn6XvvIzoq4vmlrzpmpTlpKnoh7Pns7vntbHnorroqo3moYjku7bni4DmhYvvvIzoi6XmnInpoLvnuYHnmbvlh7rnmoTmg4XlvaLvvIzoq4vmlrzpmpTlpKnlho3kvb/nlKjns7vntbHvvIzpgKDmiJDkuI3kvr/vvIzmlazoq4vopovoq5LjgII8L3A+PC8gZGl2ID48L2xpPjxsaT48c3BhbiBjbGFzcz0nbmV3cy1saXN0LWRhdGUnPjIwMjYvMDUvMjE8L3NwYW4+PGRpdiBjbGFzcz0nbmV3cy1saXN0LWNvbic+PGEgY2xhc3M9J25ld3MtbGlzdC10aXRsZScgdGFyZ2V0PSdfYmxhbmsnIHRpdGxlPSdb5Y+m6ZaL5paw5YiG6aCBXSDlhazlkYrlj4rmlrDogZ7os4foqIroqbPntLDlhafmlocnIGFyaWEtbGFiZWw9J1vlj6bplovmlrDliIbpoIFdIOWFrOWRiuWPiuaWsOiBnuizh+ioiuips+e0sOWFp+aWhycgaHJlZj0gTmV3c0NvbnQuYXNweD9UeXBlX0lEPTEmUmVjb3JkX0lEPTMyOTMgJz7kv67mraPkuovmpa3muqvlrqTmsKPpq5TmjpLmlL7ph4/os4foqIrlubPlj7DkuYvnlLLng7flj4rnn7PljJbnlLLng7fmuqvmmpbljJbmvZvli6LvvIjkuIvnqLFHV1DvvInpgannlKjmg4XlvaI8L2E+PHAgY2xhc3M9J3R4dGxpbWl0Jz7kuIDjgIHnkrDlooPpg6jlt7LmlrwxMTPlubQy5pyINeaXpeWFrOWRiuOAjOa6q+WupOawo+mrlOaOkuaUvuS/guaVuOOAje+8jOWFtuS4reOAjOmZhOihqOWbm+OAgea6q+aaluWMlua9m+WLou+8iEdXUO+8ieOAje+8jOiqquaYjueUsueDt+S5i0dXUOeCujI444CB55+z5YyW55Sy54O35LmLR1dQ54K6MzDjgIINCuS6jOOAgeS+neaTmuiBr+WQiOWci+aUv+W6nOmWk+awo+WAmeiuiuWMluWwiOmWgOWnlOWToeacg++8iEludGVyZ292ZXJubWVudGFsIFBhbmVsIG9uIENsaW1hdGUgQ2hhbmdlLCBJUEND77yJ56ys5YWt5qyh6KmV5Lyw5aCx5ZGK77yIU2l4dGggQXNzZXNzbWVudCBSZXBvcnQsIEFSNu+8ieWumue+qe+8jOiLpeeUsueDt+aOkuaUvuS+huiHquWMluefs+eHg+aWmeaciemXnOS5i+mAuOaVo+aOkuaUvua6kO+8iOWmguefs+ayueiIh+WkqeeEtuawo+ezu+e1seOAgeeFpOekpumWi+aOoeetie+8ieaIluW3pealreijveeoi+S4reeUsueDt+S5i+eis+S+hua6kOWxrOaWvOWMluefs+eis++8iOWmgueis+WMlumIo+ijvemAoOOAgeS5meeDr+ijvemAoOetie+8ie+8jOaHieaOoeeUqOefs+WMlueUsueDt+S5i0dXUOeCujMw77yb5YW26aSY5L6G5rqQ5YmH5o6h55So55Sy54O35LmLR1dQ54K6MjjvvIzljIXmi6znh4Pmlpnnh4Pnh5LvvIjljIXlkKvlm7rlrprlj4rnp7vli5XoqK3lgpnvvInjgIINCuS4ieOAgeS6i+alrea6q+WupOawo+mrlOaOkuaUvumHj+izh+ioiuW5s+WPsOW3suaWvDExNeW5tDHmnIgx5pel6YWN5ZCISVBDQyBBUjbkuYvjgIznlLLng7fjgI3lj4rjgIznn7PljJbnlLLng7fjgI3pgannlKjlrprnvqnvvIznm6Tmn6XnmbvpjITos4fmlpnoh6oxMTTlubTluqbotbfvvIzmlrzlubPlj7Dns7vntbHljp/vvIjnh4PvvInnianmlpnpgbjmk4fljJbnn7Pnh4PmlpnvvIzkuJTmjpLmlL7lnovlvI/pgbjmk4foo73nqIvmjpLmlL7mupDmiJbpgLjmlaPmjpLmlL7mupDvvIzns7vntbHlsIfoh6rli5XluLblhaXlj4rmjqHnlKjnn7PljJbnlLLng7fvvIjljbNHV1DngrozMO+8ieioiOeul+aOkuaUvumHj++8jOWFtumkmOeHg+aWmeeHg+eHku+8iOWMheWQq+WbuuWumuWPiuenu+WLleioreWCme+8ieWJh+aOoeOAjOeUsueDt+OAje+8iOWNs0dXUOeCujI477yJ6KiI566X44CCDQrlm5vjgIHoi6Xkuovmpa3nmbvpjITnm6Tmn6Xos4fmlpnmmYLvvIznmbznj77mjpLmlL7mupDnlLLng7fmjpLmlL7ph4/mnKrkvp3liY3ov7DnrKzkuInpu57opo/liYfpgLLooYzpgYvnrpfvvIzlho3oq4vmlrznm6Tmn6XnmbvpjITos4fmlpnvvJ7vvJ4gIDMu5o6S5pS+5rqQ5a6a5oCn5Y+K5a6a6YeP77ye77yeICDlrprph4/nm6Tmn6XvvIzpu57mk4rjgIzph43mlrDoqIjnrpfjgI3mjInpiJXvvIzkuKbnorroqo3mjpLmlL7ph4/oqIjnrpfmraPnorrlvozvvIzpu57mk4rjgIzlhLLlrZjjgI3mjInpiJXvvIznm7jpl5zmk43kvZznpLrmhI/lnJblj6/lj4PogIPmnKzlhazlkYrpmYTku7bjgII8L3A+PC8gZGl2ID48L2xpPjxsaT48c3BhbiBjbGFzcz0nbmV3cy1saXN0LWRhdGUnPjIwMjYvMDUvMTk8L3NwYW4+PGRpdiBjbGFzcz0nbmV3cy1saXN0LWNvbic+PGEgY2xhc3M9J25ld3MtbGlzdC10aXRsZScgdGFyZ2V0PSdfYmxhbmsnIHRpdGxlPSdb5Y+m6ZaL5paw5YiG6aCBXSDlhazlkYrlj4rmlrDogZ7os4foqIroqbPntLDlhafmlocnIGFyaWEtbGFiZWw9J1vlj6bplovmlrDliIbpoIFdIOWFrOWRiuWPiuaWsOiBnuizh+ioiuips+e0sOWFp+aWhycgaHJlZj0gTmV3c0NvbnQuYXNweD9UeXBlX0lEPTEmUmVjb3JkX0lEPTMyOTEgJz7nkrDlooPpg6jlvLfoqr/miJHlnIvnorPlrprlg7nmqZ/liLbku6Xlr6bos6rmuJvph4/ngrrmoLjlv4Mg5YW86aGn55Si5qWt6L2J5Z6L6IiH6auY5ZOB6LOq5rib6YeP6aGN5bqmPC9hPjxwIGNsYXNzPSd0eHRsaW1pdCc+6L+R5pyf5aqS6auU6Zec5rOo5ZyL5YWn56Kz5qyK5Lqk5piT5biC5aC054++5rOB6IiH56Kz6LK75Yi25bqm77yM55Kw5aKD6YOo5by36Kq/77yM5oiR5ZyL56Kz5a6a5YO55Yi25bqm55qE5qC45b+D5Zyo5pa86amF5YuV55Si5qWt6L2J5Z6L44CB6JC95a+m5a+m6LOq5rib6YeP77yM6ICM6Z2e6L+95rGC56Kz5biC5aC05Lqk5piT6YeP44CCDQrnkrDlooPpg6joqqrmmI7vvIzmiJHlnIvnorPlrprlg7nnj77ooYzmjqHnorPosrvliLbluqblj4roh6rpoZjmuJvph4/pm5nou4zkvbXooYzvvIzluLbli5XlkITpoZ7kuovmpa3lhbHlkIzmuJvnorPjgILogIPph4/miJHlnIvnorPosrvliLbluqbljrvlubTkuIrot6/vvIzlm6DmraToqILlrprnlLHkvY7oh7Ppq5jliIbpmo7mrrXosrvnjofoqr/ljYfopo/lioPku6XpmY3kvY7nlKLmpa3ooZ3mk4rvvIznkrDlooPpg6jlsIfmjIHnuozmqqLoppbnlKLmpa3muJvnorPmiJDmlYjvvIzmu77li5XmqqLoqI7norPosrvosrvnjofvvJvogIzoh6rpoZjmuJvph4/ngrrnorPosrvliLbluqbkuYvphY3lpZfmjqrmlr3vvIzlm6DmiYDnlKLnlJ/nmoTmuJvph4/poY3luqblj6/mirXmuJvnorPosrvvvIzmlYXkvp3lvqrlnIvpmpvmqJnmupbvvIznorrkv53muJvph4/poY3luqblhbflgpnlj6/ph4/muKzjgIHlj6/loLHlkYrjgIHlj6/mn6XpqZfkuJTlhbflpJbliqDmgKfjgIHmsLjkuYXmgKfkuJTnhKHph43opIfoqIjnrpfnrYnpq5jlk4Hos6rmop3ku7bvvIzlvp7ogIzpgb/lhY3nlKLnlJ/jgIzmvILntqDjgI3niK3orbDjgILlkIzmmYLvvIznkrDlooPpg6jkuZ/lnKjkuI3lvbHpn7/lr6bos6rmuJvph4/miJDmlYjmop3ku7bkuIvvvIzpmbjnuoznsr7pgLLoiIfnsKHljJblr6norbDooYzmlL/nqIvluo/vvIzku6Xmj5DljYflr6norbDmlYjnjofkuKbkv4PpgLLlkITnlYzlj4PoiIfjgIINCueSsOWig+mDqOaMh+WHuu+8jOePvuW3suS+neOAjOa6q+WupOawo+mrlOiHqumhmOa4m+mHj+WwiOahiOeuoeeQhui+puazleOAjeWFrOmWi+WvqeWumjE1MOmghea4m+mHj+aWueazle+8jOWFtuS4reWMheWQqzjpoIXmlrDlop7kv67oqILnmoToh6rnhLbnorPljK/mlrnms5XlrbjvvIjmpI3mnpfjgIHmo64g4oiVIOerueael+e2k+eHn+OAgeWcn+WjpOeuoeeQhuOAgee0heaoueael+akjeael+iIh+a1t+iNieW+qeiCsu+8ie+8jOS4puW3suiou+WGiumAmumBjjQw5Lu25rib6YeP5bCI5qGI77yI5ZCr5qSN5p6XNeahiO+8ie+8jOacquS+huWwh+mZuOe6jOeUoueUn+mhjeW6pu+8jOebuOmXnOa4m+mHj+aWueazleWPiuWvqeafpemAmumBjuS5i+WwiOahiOeahuWFrOmWi+aWvOOAjOa6q+WupOawo+mrlOiHqumhmOa4m+mHj+aaqOaKteaPm+izh+ioiuW5s+iHuuOAje+8jOaPkOS+m+WQhOeVjOafpemWseOAguiHs+aWvOeis+W4guWgtOS6pOaYk+mDqOWIhu+8jOeSsOWig+mDqOW8t+iqv++8jOmaqOiRl+eis+iyu+WItuW6puS4iui3r++8jOmgkOacn+aMgeaciea4m+mHj+mhjeW6puS5i+S6i+alreWwh+WEquWFiOeUqOaWvOiHqui6q+eis+iyu+aKtea4m++8jOS4lOmDqOWIhuS6i+alreioiOeVq+Wwh+a4m+mHj+mhjeW6pueUqOaWvOiHqui6q+eSsOipleaJv+irvuS5i+a6q+WupOawo+mrlOWinumHj+aKteaPm+mcgOaxgu+8jOWboOatpOeis+W4guWgtOS6pOaYk+mHj+i8g+WwkeS/guWcqOmgkOacn+aOjOaPoeS5i+S4reOAgg0K55Kw5aKD6YOo5pyA5b6M5by36Kq/77yM5oiR5ZyL56Kz5a6a5YO56Lev5b6R5Y+D54Wn5ZyL6Zqb5rib6YeP6Lao5Yui5Y+K5YWx6K2Y77yM5Lul5a+m6LOq5rib6YeP54K655uu5qiZ77yM55Si5qWt5oeJ5Lul6KO956iL5pS55ZaE44CB6IO95rqQ5pWI546H5o+Q5Y2H562J6Ieq6Lqr5rib56Kz6IiH6L2J5Z6L5o6q5pa954K65YSq5YWI77yM5rib6YeP6aGN5bqm5oq15o+b5oeJ6KaW54K66YGU5oiQ5reo6Zu255qE5pyA5b6M5omL5q6177yM5LiN5oeJ5pys5pyr5YCS572u44CC5q2k5aSW77yM54K66YCy5LiA5q2l5rS757Wh5oiR5ZyL56Kz5biC5aC077yM55Kw5aKD6YOo5bey6KaP5YqDMjAyN+W5tOiHszIwMjjlubTlsI7lhaXnuL3ph4/nrqHliLboiIfmjpLmlL7kuqTmmJPliLbluqbvvIhFVFPvvInoqabooYzvvIzlsYbmmYLlsIfluLbli5XlnIvlhafnorPkuqTmmJPnmoTmtLvntaHvvIzlvJXpoJjmiJHlnIvnlKLmpa3oiIflnIvpmpvmsKPlgJnooYzli5XmjqXou4zjgIINCjwvcD48LyBkaXYgPjwvbGk+PGxpPjxzcGFuIGNsYXNzPSduZXdzLWxpc3QtZGF0ZSc+MjAyNi8wNC8yODwvc3Bhbj48ZGl2IGNsYXNzPSduZXdzLWxpc3QtY29uJz48YSBjbGFzcz0nbmV3cy1saXN0LXRpdGxlJyB0YXJnZXQ9J19ibGFuaycgdGl0bGU9J1vlj6bplovmlrDliIbpoIFdIOWFrOWRiuWPiuaWsOiBnuizh+ioiuips+e0sOWFp+aWhycgYXJpYS1sYWJlbD0nW+WPpumWi+aWsOWIhumggV0g5YWs5ZGK5Y+K5paw6IGe6LOH6KiK6Kmz57Sw5YWn5paHJyBocmVmPSBOZXdzQ29udC5hc3B4P1R5cGVfSUQ9MSZSZWNvcmRfSUQ9MzI4OSAnPueSsOWig+mDqOexsuiri+S6i+alreaWvDTmnIgzMOaXpeWJjeWujOaIkOa6q+WupOawo+mrlOaOkuaUvumHj+ebpOafpeeZu+mMhO+8jOS7peWFjemAvuacn+WPl+e9sDwvYT48cCBjbGFzcz0ndHh0bGltaXQnPuavj+W5tDTmnIgzMOaXpeeCuuazleWumua6q+WupOawo+mrlOaOkuaUvumHj+ebpOafpeizh+aWmeeahOeZu+mMhOaIquatouaXpeOAgueSsOWig+mDqOeJueWIpeaPkOmGku+8jOeUs+WgseaIquatouWcqOWNs++8jOeEoeirluaYr+mBjuWOu+mVt+acn+WIl+euoeeahOaOkuaUvuWkp+aItu+8jOaIluaYr+WOu++8iDExNO+8ieW5tOWFrOWRiue0jeeuoemcgOaWvOS7iuW5tOmmluW6pueUs+WgseeahOaTtOWkp+ebpOafpeWwjeixoe+8jOWLmeW/heaWvOmZkOacn+WFp+WujOaIkOeZu+mMhO+8jOiLpeacquS+neacn+mZkOWujOaIkOiAhe+8jOWwh+S+neimj+WumumZkOacn+ijnOato++8jOmAvuacn+S7jeacquWujOaIkOiAhe+8jOWwh+S+neazleiZleaWsOiHuuW5ozEw6JCs5YWD5Lul5LiKMTAw6JCs5YWD5Lul5LiL572w6Y2w44CCDQrmnKzmrKHnlLPloLHlsI3osaHljIXlkKvku6XkuIvlhanlpKfpoZ7vvIzmh4nmlrw05pyIMzDml6XliY3oh7PjgIzkuovmpa3muqvlrqTmsKPpq5TmjpLmlL7ph4/os4foqIrlubPlj7DjgI3vvIhodHRwczovL2doZ3JlZ2lzdHJ5Lm1vZW52Lmdvdi50d++8ieWujOaIkDExNOW5tOW6puaOkuaUvumHj+ebpOafpeeZu+mMhOS9nOalre+8mg0K5LiA44CB56ys5LiA5om55Y+K56ys5LqM5om55YiX566h5bCN6LGh77ya55m86Zu744CB6Yu86ZC144CB55+z5rK554WJ6KO944CB5rC05rOl44CB5Y2K5bCO6auU5Y+K6JaE6Iac6Zu75pm26auU5ray5pm26aGv56S65Zmo5qWt562J77yM5Y+K5ZCE6KGM5qWt5rqr5a6k5rCj6auU5bm05o6S5pS+6YeP5ZCI6KiI6YGUMi416JCs5YWs5Zm45LqM5rCn5YyW56Kz55W26YeP5Lul5LiK5LmL5LqL5qWt44CCDQrkuozjgIHmk7TlpKfnm6Tmn6XliJfnrqHlsI3osaHvvJrljIXlkKvmnI3li5nmpa3jgIHpgYvovLjmpa3jgIHphqvpmaLjgIHlpKflsIjmoKHpmaLlj4roo73pgKDmpa3nrYnku4rlubTpppbluqbnlLPloLHlsI3osaHjgIINCueSsOWig+mDqOingOWvn+eZvOePvu+8jOWCs+e1seWIl+euoeaOkuaUvuWkp+aItuWboOW3suWft+ihjOWkmuW5tOS4lOS7iuW5tOa2ieWPiueis+iyu+W+teaUtu+8jOeUs+WgsemAsuW6pui8g+W/q++8m+iAjOaTtOWkp+ebpOafpeWwjeixoeeCuummluW5tOeUs+Wgse+8jOalreiAheaFi+W6pui8g+eCuuisueaFju+8jOWwjuiHtOebruWJjeWujOaIkOeOh+ebuOWwjei8g+S9juOAgueSsOWig+mDqOW8t+iqv++8jOaTtOWkp+e0jeeuoemmluW5tOeahOaguOW/g+ebruaomeWcqOaWvOW7uuani+S6i+alreeahOebpOafpeiDveWKm++8jOiLpealreiAheWboOaTlOaGguaVuOaTmueyvueiuuW6puiAjOmBsuacqumAgeS7tu+8jOWPjeiAjOWPr+iDveWboOmAvuacn+iAjOWPl+e9sOOAguWwjeaWvOmmluasoeeUs+WgseS4jeWujOWCmeS5i+iZle+8jOW+jOe6jOS6puaciemZkOacn+aUueWWhOaZgumWk+WPr+mAsuihjOijnOato++8jOeSsOWig+mDqOWwh+WNlOWKqeaqouimluS4puS/g+iri+alreiAheWujOWWhOizh+aWme+8jOiri+S6i+alreaUvuW/g+Wmguacn+eUs+WgseOAgg0K54K65Y2U5Yqp5pO05aSn5YiX566h5LqL5qWt55uk5p+l55m76YyE77yM55Kw5aKD6YOo5bey5o6h5Y+W5Lul5LiL5pSv5o+05o6q5pa977yaDQrkuIDjgIHkuLvli5Xmj5DphpLvvJrmlrznlLPloLHmnJ/pmZDliY0x5YCL5pyI55m85biD5paw6IGe5o+Q6YaS77yM5Lim5pa85YWp6YCx5YmN6YCP6YGO5bmz5Y+w55m86YCB6YCa55+l5Lim6LyU5Lul6Zu76Kmx6IGv57mr44CCDQrkuozjgIHmioDooZPoq67oqaLvvJrmj5DkvpvlpJrloLTovJTlsI7oqqrmmI7mnIPos4foqIrvvIzkuKbmjIHnuozplovmlL7oq67oqaLnqpflj6Plj4rmioDooZPljZTliqnmnI3li5njgIINCuS4ieOAgeWwiOS6uuWNlOWKqe+8muiLpeacieezu+e1seaTjeS9nOaIlueUs+WgseeWkeWVj++8jOiri+aSpeaJk+irruipouWwiOe3miAwMuKAkzIzMjLigJMyMDUw5oiWIDAy4oCTMjc3NeKAkzM5MTnliIbmqZ8zODHjgIEyODPjgIEyMDTvvJvkuqblj6/pm7vpg7Xoh7NuZXR6ZXJvQG1vZW52Lmdvdi50d+OAgg0K55Kw5aKD6YOo5YaN5qyh5ZG857Gy77yM6Led6Zui5oiq5q2i5pel5pyf5YOF5YmpMemAse+8jOiri+WwmuacquWujOaIkOebpOafpeeZu+mMhOeahOS6i+alreWEmOmAn+i+pueQhu+8jOmBv+WFjeWboOS4gOaZgueWj+W/veiAjOW9semfv+S8gealreS/oeitveWPiumdouiHqOijgee9sOOAgg0KPC9wPjwvIGRpdiA+PC9saT48bGk+PHNwYW4gY2xhc3M9J25ld3MtbGlzdC1kYXRlJz4yMDI2LzA0LzA3PC9zcGFuPjxkaXYgY2xhc3M9J25ld3MtbGlzdC1jb24nPjxhIGNsYXNzPSduZXdzLWxpc3QtdGl0bGUnIHRhcmdldD0nX2JsYW5rJyB0aXRsZT0nW+WPpumWi+aWsOWIhumggV0g5YWs5ZGK5Y+K5paw6IGe6LOH6KiK6Kmz57Sw5YWn5paHJyBhcmlhLWxhYmVsPSdb5Y+m6ZaL5paw5YiG6aCBXSDlhazlkYrlj4rmlrDogZ7os4foqIroqbPntLDlhafmlocnIGhyZWY9IE5ld3NDb250LmFzcHg/VHlwZV9JRD0xJlJlY29yZF9JRD0zMjg1ICc+44CQ56Kz55uk5p+l5LiN5rGC5Lq677yB55Kw5aKD6YOo5o6o44CM6YCj6Y6W5qWt57Ch5YyW5bel5YW344CN77yM5LiJ5q2l6amf6LyV6ayG5a6M5oiQ55Sz5aCx44CRPC9hPjxwIGNsYXNzPSd0eHRsaW1pdCc+ICAgICDnkrDlooPpg6jmj5DphpLjgIzkuovmpa3mh4nnm6Tmn6XnmbvpjITmuqvlrqTmsKPpq5TmjpLmlL7ph4/kuYvmjpLmlL7mupDjgI3vvIzmh4nmlrzku4oxMTXlubQ05pyIMzDml6XliY3lrozmiJDpppbmrKHnorPnm6Tmn6XvvIHph53lsI3lhbflgpnlpJrmk5rpu57nh5/pgYvnibnmgKfnmoTpgKPpjpbkvr/liKnllYblupfjgIHotoXntJrluILloLTlj4rpm7vkv6Hmpa3ogIXvvIznibnliKXmjqjlh7rjgIznsKHljJbloavloLHooajllq7jgI3oiIfjgIzoh6rli5XljJblvZnmlbTjgI3lip/og73vvIzokL3lr6bjgIzkuI3mnIPpurvnhanjgIHkuI3nlKjlp5TlpJbjgIHkuI3poIjmn6XpqZfjgI3nmoTljp/liYfvvIzljZTliqnmpa3ogIXlpoLmnJ/nlLPloLHjgIINCiAgICAg55Kw5aKD6YOo5pa8M+aciDMx5pel5LiL5Y2I6IiJ6L6m55qE5rqr5a6k5rCj6auU55uk5p+l55m76YyE5L2c5qWt6LyU5bCO6Kqq5piO5pyD77yM5o+Q5Ye65LiJ5aSn57Ch5YyW6IiH57K+6YCy5L2c5rOV77yaDQogICAgIOS4gOOAgemWgOW4guWhq+WgseWOu+WwiOalreWMlu+8mjjlgIvln7rmnKzmrITkvY3ovJXprIbkuIrmiYsNCiAgICAg6Yed5bCN6ZaA5biC56uv77yM55Kw5aKD6YOo6Kit6KiI5bCI5bGs57Ch5YyW6KGo5Zau44CC6ZaA5biC5Lq65ZOh54Sh6ZyA5YW35YKZ6KSH6Zuc55qE6KiI566X55+l6K2Y77yM5YOF6ZyA5aGr5a+r5YiG5pOa6bue44CB6Zu76Jmf44CB6Kit5YKZ5ZCN56ix44CB5rS75YuV5pW45pOa6YeP562JOOmgheaXpeW4uOeHn+mBi+ebuOmXnOizh+aWme+8jOWNs+WPr+WujOaIkOWfuuekjuaVuOaTmuaUtumbhu+8jOWkp+W5hemZjeS9juesrOS4gOe3muS6uuWToeeahOaTjeS9nOmWgOaqu+OAgg0KICAgICDkuozjgIHnuL3pg6jlvZnmlbToh6rli5XljJbvvJpFeGNlbCBQb3dlciBRdWVyeSDkuInmraXpqZ/mlbTlkIgNCiAgICAg6Yed5bCN57i96YOo5b2Z5pW056uv77yM55Kw5aKD6YOo5byV5YWl6Ieq5YuV5YyW6JmV55CG5bel5YW344CC5Yip55SoIEV4Y2VsIOWFp+W7uueahCBQb3dlciBRdWVyeSDlip/og73vvIznuL3pg6josqDosqzkurrlk6Hlg4XpnIDnsKHllq7kuInmraXpqZ/vvIzljbPlj6/nnqzplpPlkIjkvbXmiJDljYPkuIrokKznrYbnmoTploDluILlm57lgrPos4fmlpnjgILmraToiInkuI3lg4XmtojpmaTpgJDnrYbopIfoo73osrzkuIrnmoTooYzmlL/osqDmk5TvvIzmm7Tog73mnInmlYjpgb/lhY3kurrlt6Xlu7rmqpTnmoTpjK/oqqTvvIznorrkv53mlbjmk5rnsr7norrluqbjgIINCiAgICAg5LiJ44CB5rOV6KaP5bCN5o6l5piO56K65YyW77ya54m557SE5Yqg55uf6ZaA5biC5ZCM5q2l57SN5YWlDQogICAgIOeSsOWig+mDqOWGjeasoeaPkOmGkiAxMTQg5bm05bqV5L+u5q2j5LmL44CM5rqr5a6k5rCj6auU5o6S5pS+6YeP55uk5p+l55m76YyE5Y+K5p+l6amX566h55CG6L6m5rOV44CN6YeN6bue77yM5YyF5ZCr77yaDQogICAgIOKXj+e0jeeuoeevhOWcje+8mueJuee0hOiIh+WKoOebn+mWgOW4gumcgOWQjOatpee0jeWFpeebpOafpeevhOWcjeOAgg0KICAgICDil4/nqIvluo/nsKHljJbvvJrph53lsI3lsI/opo/mqKHpgLjmlaPmjpLmlL7mupDmj5DkvpvnsKHljJbkvZzmpa3mtYHnqIvjgIINCiAgICAg4peP6KaP56+E6Kq/5pW077ya6Kq/5pW054eD5paZ6IiH5Y6f77yI54mp77yJ5paZ5qqi5ris6KaP56+E77yM5piO56K65YyW5pO05aSn5YiX566h5LqL5qWt5LmL55uk5p+l5aCx5ZGK5pu45YWn5a6544CCDQogICAgIOeSsOWig+mDqOWRvOexsu+8jOWHoemBlOaTtOWkp+WIl+euoemWgOaqu+S5i+S8gealre+8jOiri+WLmeW/heaWvDExNeW5tDTmnIgzMOaXpeWJje+8jOiHs+OAjOS6i+alrea6q+WupOawo+mrlOaOkuaUvumHj+izh+ioiuW5s+WPsOOAje+8iGh0dHBzOi8vZ2hncmVnaXN0cnkubW9lbnYuZ292LnR377yJ5a6M5oiQIDExNCDlubTmjpLmlL7ph4/nmbvpjIToiIfnm6Tmn6XloLHlkYrmm7jkuIrlgrPjgILmraTlpJbvvIznkrDlooPpg6jlsIfmlrwgNOaciDjml6Ug6IiJ6L6m56ys5LqM5aC06LyU5bCO6Kqq5piO5pyD77yM5bCN6LGh5ra16JOL5pyN5YuZ5qWt44CB6YGL6Ly45qWt44CB6Yar6Zmi5Y+K5aSn5bCI5qCh6Zmi562J44CC5q2h6L+O5ZCE55WM6Li06LqN5Y+D6IiH77yM5Lim5oyB57qM5o+Q5L6b57K+6YCy5bu66K2w77yM5YWx5ZCM5o6o5YuV5reo6Zu26L2J5Z6L44CCPC9wPjwvIGRpdiA+PC9saT48L3VsPmQCHQ9kFgICAQ8PFgIfBmhkZAIDDxYCHwMFCDE2MzU0MDYzZAIEDxYCHwMFCjIwMjYvMDgvMTFkZBO6K1TsowVlNkrank8TfRzdl+Im9AlOUriGjCx3R/kR" />
+
+
+<script src="/EPA_GHG/ScriptResource.axd?d=3NiWkmiy-AQvIm8wNKRXW4CPBTB4SBsdI8dfRRReNpamkfK1FjTIIfxtfCm5va4mKM7FMyBIDpBdbXG2HlcXvMqbTCcTwabC-MIhJWkxnRbpKWZK56zv9-4gprVDYCSumNJ8-kqcu9qq1gQL4gIUWF1SMFhSxVwDUm0l53rctah7LXkHopMq6-DfkXIx550e0&amp;t=32e5dfca" type="text/javascript"></script>
+<script type="text/javascript">
+//<![CDATA[
+if (typeof(Sys) === 'undefined') throw new Error('ASP.NET Ajax 用戶端架構無法載入。');
+//]]>
+</script>
+
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="0D3B45B7" />
+<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="/wEdABNmm/h75jqJ+UdY14WUoqqycdGq1eMH2pbzxrxg1Kz0XSP8fNkGolKm//Cnwcr/DJLctbwRHgdzOOX1NwfexEk/jx+Q9BVSlExzxuVpdQc1/LTEPon8r7346DnXruTN6683xUxkFyqU5WLkEtEVEh7EIBPxMRBmxH4GwYMHy7QyLMwrsYQtuTGnXoMd8YKb7q6droE5Ag3rbLEfR/p9qvBGB+ggMu6XfVKt+yVJQQB4p0oaaGGmx13naTPnuEiWATzbARU5IA7gUcym5zTAe1ub77jiWmRL7zKtHwnR18ljAmdENj7h9BzwnZIyx30rng9Neii0qCRvzt5/veXaJvQOHEQfYBYQ7lSmK5HOYW1+3TmQ57E+WOgATUY7OaFTkpUua0XeA8rvSFAkbB7FQpmna0jCCFwxQ5zOv3ccl46F8mkJ/LxsNIVanqtrh6jqiqo=" />
+        <div id="Wrap">
+            <div class="TopNotice">您的瀏覽器不支援 JavaScript 功能，可能會造成部分網頁功能無法正常使用時，建議開啟瀏覽器 JavaScript 狀態</div>
+            <a name="Top" id="Top"></a>
+            <div class="TopAccessibility">
+                <a href="#Content" id="TopA" title="跳到主要內容區塊" tabindex="1">跳到主要內容區塊</a>
+            </div>
+
+            <!-- Header include nav, logo, menu -->
+            <header id="Header" class="clearfix">
+                <!-- mobile Header -->
+                <div class="m-header-info">
+                    <div class="m-epaLogo">
+                        <div class="wrapper">
+                            <a href="https://www.moenv.gov.tw/" title="[另開新分頁 ] 環境部官網" aria-label="[另開新分頁] 環境部官網" target="_blank">
+                                <img src="../images/logo-moenv.png" alt="環境部 Logo" aira-label="環境部 Logo">
+                            </a>
+                            <a href="https://www.moenv.gov.tw/cca/FFA3CA122AD03ED" title="[另開新分頁] 氣候變遷署官網" aria-label="[另開新分頁] 氣候變遷署官網" target="_blank">
+                                <img src="../images/logo-cca.png" alt="氣候變遷署 Logo" aira-label="氣候變遷署 Logo">
+                            </a>
+                            <p>環境部氣候變遷署</p>
+                        </div>
+                    </div>
+                    <div class="m-ghglogo">
+                        <div class="wrapper">
+                            <button class="btn-openMenu" role="button" title="開啟選單" aria-label="開啟選單" type="button" value="openMenu">
+                                <i class="fas fa-bars" aria-hidden="true"></i>
+                            </button>
+                            <h2 class="logo-title">事業溫室氣體排放量資訊平台</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- web Header -->
+                <div class="w-header-con">
+                    <div class="wrapper">
+                        <div class="w-header-info">
+                            <!-- top nav -->
+                            <nav class="nav">
+                                <ul class="nav-info">
+                                    <li>
+                                        <div class="accesskey">
+                                            <a href="#Accesskey_1" id="Accesskey_1" name="Accesskey_1" accesskey="1" title="上方選單連結區。" aria-label="上方選單連結區，此區塊列有本網站的全站搜索以及主要網站連結。">:::</a>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <a href="../Default.aspx" title="回首頁" aria-label="回首頁">
+                                            <i class="fas fa-home fa-fw" aria-hidden="true"></i>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="../Sitemap.aspx" title="前往 網站導覽" aria-label="前往 網站導覽">
+                                            <i class="fas fa-sitemap fa-fw" aria-hidden="true"></i>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="https://oaout.moenv.gov.tw/law/index.aspx" target="_blank" title="[另開新分頁] 環境部 法規查詢系統" aria-label="[另開新分頁]環境部 法規查詢系統">
+                                            <i class="fas fa-book fa-fw" aria-hidden="true"></i>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="../Default_en.aspx" class="nav-en" title="go to English website" aria-label="go to English website">EN
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="https://www.facebook.com/MOENV.TW" class="nav-fb" target="_blank" title="[另開新分頁]環境部 facebook" aria-label="[另開新分頁]環境部 facebook">
+                                            <i class="fab fa-facebook-f fa-fw" aria-hidden="true"></i>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <div class="advSearch">
+                                            <div class="advSearch-info">
+                                                <label for="advSearch-input" class="sr-only">全站搜尋</label>
+                                                <input type="search" id="advSearch-input" placeholder="請輸入關鍵字" title="請輸入關鍵字" role="search">
+                                                <button type="button" role="button" id="btnSearch" class="nav-search" title="搜尋" aria-label="搜尋" value="search">
+                                                    <i class="fas fa-search fa-fw" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li class="nav-info-Keyword">推薦關鍵字：
+                                        <a href="https://ghgregistry.moenv.gov.tw/epa_ghg/" class="nav-word" target="_blank" title="[另開新分頁] 溫室氣體">溫室氣體
+                                        </a>
+                                        、
+                                        <a href="https://ghgregistry.moenv.gov.tw/epa_ghg/News/NewsList.aspx?Type_ID=1" class="nav-word" target="_blank" title="[另開新分頁] 熱值">熱值
+                                        </a>
+                                        、
+                                        <a href="https://ghgregistry.moenv.gov.tw/upload/Tools/AI/113%E5%B9%B42%E6%9C%885%E6%97%A5%E5%85%AC%E5%91%8A%E6%BA%AB%E5%AE%A4%E6%B0%A3%E9%AB%94%E6%8E%92%E6%94%BE%E4%BF%82%E6%95%B8.pdf" class="nav-word" target="_blank" title="[檔案下載連結 另開新視窗] 檔案類型：PDF 檔案名稱：排放係數">排放係數(PDF)
+                                        </a>
+                                        、
+                                        <a href="https://oaout.moenv.gov.tw/law/LawContent.aspx?id=GL005954" class="nav-word" target="_blank" title="[另開新分頁] 溫室氣體排放量盤查登錄及查驗管理辦法">溫室氣體排放量盤查登錄及查驗管理辦法
+                                        </a>
+                                        、
+                                        <a href="https://ghgregistry.moenv.gov.tw/upload/Tools/AI/113%E5%B9%B42%E6%9C%885%E6%97%A5%E5%85%AC%E5%91%8A%E6%BA%AB%E5%AE%A4%E6%B0%A3%E9%AB%94%E6%8E%92%E6%94%BE%E4%BF%82%E6%95%B8.pdf" class="nav-word" target="_blank" title="[檔案下載連結 另開新視窗] 檔案類型：PDF 檔案名稱：GWP">GWP(PDF)
+                                        </a>
+                                        、
+                                        <a href="https://ghgregistry.moenv.gov.tw/epa_ghg/News/NewsList.aspx?Type_ID=3" class="nav-word" target="_blank" title="[另開新分頁] 問答集">問答集
+                                        </a>
+                                        、
+                                        <a href="https://ghgregistry.moenv.gov.tw/epa_ghg/Downloads/00_0_info_FileDownloads.aspx" class="nav-word" target="_blank" title="[另開新分頁] 盤查指引">盤查指引
+                                        </a>
+                                    </li>
+                                </ul>
+                            </nav>
+
+                            <!-- Logo -->
+                            <div class="logo">
+                                <a href="https://www.moenv.gov.tw/" title="[另開新分頁]環境部官網" aria-label="[另開新分頁]環境部官網" target="_blank">
+                                    <img src="../images/logo-moenv.png" alt="環境部 Logo" aira-label="環境部 Logo">
+                                </a>
+                                <a href="https://www.moenv.gov.tw/cca/FFA3CA122AD03ED" title="[另開新分頁]氣候變遷署官網" aria-label="[另開新分頁]氣候變遷署官網" target="_blank">
+                                    <img src="../images/logo-cca.png" alt="氣候變遷署 Logo" aira-label="氣候變遷署 Logo">
+                                </a>
+                                <div class="logo-info">
+                                    <p>環境部氣候變遷署</p>
+                                    <h1 class="logo-title">事業溫室氣體排放量資訊平台</h1>
+                                </div>
+
+                            </div>
+
+                            <!-- Menu -->
+                            <div class="menu">
+                                <ul class="menu-info">
+                                    <li>
+                                        <a href="javascript:void(0)" role="button" aria-expanded="false">最新消息</a>
+                                        <ul class="submenu">
+                                            <li>
+                                                <a href="NewsList.aspx?Type_ID=1" title="前往 公告及新聞資訊">公告及新聞資訊</a>
+                                            </li>
+                                            
+                                            <li>
+                                                <a href="NewsList.aspx?Type_ID=4" title="前往 會議活動">會議活動</a>
+                                            </li>
+                                            <li>
+                                                <a href="NewsList.aspx?Type_ID=3" title="前往 常見問答查詢">常見問答查詢</a>
+                                            </li>
+                                            
+                                            <li>
+                                                <a href="counselling.aspx" title="前往 輔導資源">輔導資源</a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                    <li>
+                                        <!--<a href="javascript:void(0)">下載專區</a>-->
+                                        <a href='../Downloads/00_0_info_FileDownloads.aspx' title="前往 下載專區" aria-expanded="false">下載專區</a>
+                                        <ul class="submenu">
+
+                                            <li>
+                                                <a href="../Downloads/FileDownloads.aspx?Type_ID=2&Category=insp" title="前往 服務業">服務業</a>
+                                            </li>
+
+                                            <li>
+                                                <a href="../Downloads/FileDownloads.aspx?Type_ID=5&Category=insp" title="前往 大專校院">大專校院</a>
+                                            </li>
+
+                                            <li>
+                                                <a href="../Downloads/FileDownloads.aspx?Type_ID=4&Category=insp" title="前往 醫院">醫院</a>
+                                            </li>
+
+                                            <li>
+                                                <a href="../Downloads/FileDownloads.aspx?Type_ID=3&Category=insp" title="前往 運輸業">運輸業</a>
+                                            </li>
+
+                                            <li>
+                                                <a href="../Downloads/FileDownloads.aspx?Type_ID=1&Category=insp" title="前往 製造業">製造業</a>
+                                            </li>
+
+                                            <li>
+                                                <a href="../Downloads/FileDownloads_GOV.aspx?Type_ID=1&Category=insp" title="前往 政府機關">政府機關</a>
+                                            </li>
+
+                                            <li>
+                                                <a href="../Downloads/FileDownloads_TAF.aspx?Type_ID=1&Category=insp" title="前往 認查驗機構">認查驗機構</a>
+                                            </li>
+                                            <!--
+                                            <li>
+                                                <a href="../Downloads/FileDownloads.aspx?Type_ID=6" title="前往 系統手冊下載" aria-label="前往 系統手冊下載">系統手冊下載</a>
+                                            </li>-->
+                                        </ul>
+                                    </li>
+                                    <li>
+                                        <a href="javascript:void(0)" role="button" aria-expanded="false">盤查指引與試算</a>
+                                        <ul class="submenu">
+                                            <li>
+                                                <a href="../GuideAndCalculation/GuideAndCalculation.aspx" title="前往 應盤查登錄及查驗對象之盤查作業指引">應盤查登錄及查驗對象之盤查作業指引</a>
+                                            </li>
+                                            <li>
+                                                <a href="../GuideAndCalculation/GuideAndCalculation_02.aspx" title="前往 應盤查登錄對象之盤查作業指引">應盤查登錄對象之盤查作業指引</a>
+                                            </li>
+                                            <li>
+                                                <a href="../calcaulate/03_0_info_edit.aspx" title="前往 試算工具">試算工具</a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                    <li>
+                                        <a href="javascript:void(0)" role="button" aria-expanded="false">盤查登錄</a>
+                                        <ul class="submenu">
+                                            <li>
+                                                <a href="../Accession/Accession.aspx" title="前往 新手上路">新手上路</a>
+                                            </li>
+                                            <!--
+											<li>
+                                                <a href="../Accession/Qa.aspx" title="前往 常見問答查詢" aria-label="前往 常見問答查詢">常見問答查詢</a>
+                                            </li>
+											-->
+                                            <li>
+                                                <a href="../Accession/PublicInformation.aspx" title="前往 公開資訊及查詢">公開資訊及查詢</a>
+                                            </li>
+                                            <li>
+                                                <a href="../Accession/PublicInformation_moenv.aspx" title="前往 環境部排放量資訊公開">環境部排放量資訊公開</a>
+                                            </li>
+                                            <li>
+                                                <a href="https://ghgregistry.moenv.gov.tw/ghg_New/_login/inventory/login" target="_blank" title="[另開新分頁] 盤查系統登入">盤查系統登入</a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                    <li>
+                                        <a href="javascript:void(0)" role="button" aria-expanded="false">查驗管理</a>
+                                        <ul class="submenu">
+                                            <li>
+                                                <a href="../VerificationMgt/VerificationMgt.aspx" title="前往 查驗管理簡介">查驗管理簡介</a>
+                                            </li>
+                                            <li>
+                                                <a href="../VerificationMgt/CertificationBody.aspx" title="前往 合格認證機構">合格認證機構</a>
+                                            </li>
+                                            <li>
+                                                <a href="../VerificationMgt/PermitApply.aspx" title="前往 查詢機構許可申請">查詢機構許可申請</a>
+                                            </li>
+                                            <li>
+                                                <a href="../VerificationMgt/InspectionAgency.aspx" title="前往 合格查驗機構">合格查驗機構</a>
+                                            </li>
+                                            <li>
+                                                <a href="https://ghgregistry.moenv.gov.tw/ghg_New/_login/check/login" target="_blank" title="[另開新分頁]  查驗管理系統登入">查驗管理系統登入</a>
+                                            </li>
+                                            <li>
+                                                <a href="https://ghgregistry.moenv.gov.tw/ghg_New/_login/surecheck/login" target="_blank" title="[另開新分頁]  認證管理系統登入">認證管理系統登入</a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                    
+                                </ul>
+                            </div>
+
+                            <!-- Close m-Menu button -->
+                            <div class="closeMenu">
+                                <a href="#!" class="btn-closeMenu" title="關閉選單" role="button">關閉選單</a>
+                            </div>
+                        </div>
+
+                        <div class="menu-Overlay"></div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 112/2/9 for 試算 add by taor -->
+            
+            
+
+            <!-- KV Banner -->
+            <div id="Banner" class="banner-mask"></div>
+            <!--MasterContent Start-------------------------------------------------- -->
+            
+    <main id="Content" class="clearfix">
+        <div class="accesskey">
+            <a href="#Accesskey_2" id="Accesskey_2" name="Accesskey_2" accesskey="2" title="中間主要內容區，此區塊列有本網站的主要內容區。" aria-label="中間主要內容區，此區塊列有本網站的主要內容區。">:::</a>
+        </div>
+        <div class="wrapper">
+            <!-- Page Object include page title, breadcrumb, social media -->
+            <div class="page-object">
+                <div class="page-title">
+                    <h2>
+                        公告及新聞資訊
+                    </h2>                    
+                </div>
+                <div class="page-cont">
+                    <div class="page-breadcrumb">
+                        <span id="CPHCont_SiteMapPath1"><span><a title="首頁 Home" href="/EPA_GHG/Default.aspx">首頁</a></span><span> &gt; </span><span><a>最新消息</a></span><span> &gt; </span><span class="current-node">公告及新聞資訊</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sub Menu -->
+            <div class="sub-menu">
+                <ul class="sub-menu-info">
+                    <li>                        
+                        
+                        <a id="CPHCont_lbt_Type1" title="前往 公告及新聞資訊" class="on" href="javascript:__doPostBack(&#39;ctl00$CPHCont$lbt_Type1&#39;,&#39;&#39;)">公告及新聞資訊</a>
+                    </li>
+					<!--
+                    <li>
+                        
+                        <a id="CPHCont_lbt_Type2" title="前往 新聞資訊" class="off" aria-label="前往 新聞資訊" href="javascript:__doPostBack(&#39;ctl00$CPHCont$lbt_Type2&#39;,&#39;&#39;)">新聞資訊</a>
+                    </li>
+					-->          
+                    <li>
+                        
+                        <a id="CPHCont_lbt_Type4" title="前往 會議活動" class="off" href="javascript:__doPostBack(&#39;ctl00$CPHCont$lbt_Type4&#39;,&#39;&#39;)">會議活動</a>
+                    </li>
+					<li>
+                        
+                        <a id="CPHCont_lbt_Type3" title="前往 常見問答" class="off" href="javascript:__doPostBack(&#39;ctl00$CPHCont$lbt_Type3&#39;,&#39;&#39;)">常見問答</a>
+                    </li>          
+					<li>
+                        <a id="CPHCont_lbt_Type5" title="前往 輔導資源" class="off" href="javascript:__doPostBack(&#39;ctl00$CPHCont$lbt_Type5&#39;,&#39;&#39;)">輔導資源</a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- 查詢區域 -->
+            <section>
+                <div class="queryArea">
+                    <h3 class="section-title"><i class="fas fa-search" aria-label="true"></i>查詢條件</h3>
+					
+					<div id="CPHCont_pnl_9">
+	 
+						<fieldset class="MyIuputField">
+							<legend class="sr-only">請輸入關鍵字</legend>
+							<label for="CPHCont_txt_SelectKeyword" class="Mylabel">關鍵字：</label>
+							
+							<input name="ctl00$CPHCont$txt_SelectKeyword" maxlength="10" id="CPHCont_txt_SelectKeyword" type="text" placeholder="輸入關鍵字進行搜尋" title="關鍵字輸入框" />
+							<br/>&nbsp;
+						</fieldset>
+					
+</div>
+					<div id="CPHCont_pnl_1">
+	                                                                                                      
+                    <fieldset class="MyIuputField">
+                        <legend class="sr-only">請選擇欲查詢日期區間</legend>
+                        <label for="CPHCont_txt_SelectStartDate" class="Mylabel">日期：</label>
+                        
+                        <input name="ctl00$CPHCont$txt_SelectStartDate" id="CPHCont_txt_SelectStartDate" type="date" title="輸入欲查詢起日期" />
+                        - 
+                        
+                        <input name="ctl00$CPHCont$txt_SelectEndDate" id="CPHCont_txt_SelectEndDate" type="date" title="輸入欲查詢訖日期" />
+                    </fieldset>
+					
+</div>
+                    <div class="commandArea">
+                        
+                        <input type="submit" name="ctl00$CPHCont$btn_serch" value="查詢" id="CPHCont_btn_serch" class="btn btn-primary" />
+                    </div>
+                </div>
+            </section>
+
+            <!-- 列表 -->
+            <section>
+               
+                <div class="TopTools">
+                    <div class="MyPager">                        
+                        共  
+                        <span id="CPHCont_lbl_TotalCount" class="Alert">74</span>筆資料，每頁顯示 10 筆，
+                        <label for="CPHCont_ddl_Page">顯示</label>
+                        <select name="ctl00$CPHCont$ddl_Page" id="CPHCont_ddl_Page" title="選取後將自動換頁">
+	<option selected="selected" value="0">1</option>
+	<option value="1">2</option>
+	<option value="2">3</option>
+	<option value="3">4</option>
+	<option value="4">5</option>
+	<option value="5">6</option>
+	<option value="6">7</option>
+	<option value="7">8</option>
+
+</select>頁                        
+                    </div>
+                </div>
+                <ul class='news-list'><li><span class='news-list-date'>2026/08/11</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3304 '>碳費制度以減量為核心，務實修正碳費收費辦法部分條文</a><p class='txtlimit'>碳費制度於 114 年正式上路，461 廠收費對象（合計 240 家企業）於今 115 年 5 月均全數完成繳費，為我國碳定價機制迎來歷史性的關鍵里程碑。近期環境部預告修正「碳費收費辦法」第 3 條之 1、第 9 條與「自主減量計畫管理辦法」第 11 條之 1、第 17 條，針對環保團體對於條文草案的關心意見，環境部說明如下：
+一、讓首次達徵收門檻之事業，可延後 1 年繳碳費
+環境部說明，事業雖可依能源使用及生產情形預估排放量，但是否依法成為碳費徵收對象，以及實際排放量與收費排放量，仍須經法定盤查、登錄及查驗程序確認，不能僅以事業自行估算結果作為徵收依據。首次納管事業如在完成查驗、確認納管後，已無充足時間盤點減量措施、編列財務預算及申請自主減量計畫下，只能按一般費率繳費，與既有納管事業取得優惠費率之準備條件並不一致。
+因此，本次修正明定，首次符合盤查、登錄及查驗條件，且未曾依法申報排放量或繳納碳費之事業，其碳費申報繳納義務應自辦理盤查、登錄及查驗作業年度的次年起適用。例如事業於 115 年首次辦理 114 年度排放量盤查、登錄及查驗，應於 116 年 5 月底前申報繳納 115 年度排放量的碳費。此項修正是給予首次納管事業合理作業及減量規劃時間，並未免除其後續依法繳費及執行減量之責任。
+二、高碳洩漏事業使用先期專案減量額度抵扣碳費
+環境部補充說明，有關先期專案減量額度，是事業在溫室氣體減量及管理法施行前，響應政府推動自願盤查、查驗及早期減量，依當時「行政院環境保護署先期專案暨抵換專案推動原則」取得之減量額度，在考量制度轉換、事業早期投入之減量努力下，本次修正草案，係在嚴格的限制條件下（碳費開徵後三年內、扣除量不得超過事業收費排放量 10及扣除比率為 0.1），讓高碳洩漏風險事業來使用先期專案減量額度在，也就是高碳洩漏風險事業使用 10 噸先期專案額度，只能扣除 1 噸的碳費收費排放量，比一般事業適用之 0.3 扣除比率更為嚴格。
+環境部進一步說明，至於尚未使用的先期專案額度數量，帳面額度並不等同可直接扣除的收費排放量或碳費收入減少。即使以 4,400 萬噸額度估算，經 0.1 比率換算，理論扣除量至多為 440 萬噸，之後仍須受到個別事業收費排放量 10上限、三年使用期限及扣除比率等限制，實際可使用量將更低，不能直接將全部帳面額度視為碳費減收。
+環境部尊重各界對碳費價格訊號與制度的關切，相關修正目前仍在意見蒐集程序，後續將綜合各界意見，持續檢視額度實際使用情形及其對碳費減量效果之影響，確保制度兼顧程序公平、產業轉型與實質減量，不因配套措施而弱化碳費制度之實質減量成效。
+</p></ div ></li><li><span class='news-list-date'>2026/08/07</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3303 '>事業溫室氣體排放量資訊平台08／17（一）主機設定調整，暫停服務。</a><p class='txtlimit'>事業溫室氣體排放量資訊平台預定08／17（一）會進行主機設定調整作業，到時網站平台或會出現不穩的情況，影響範圍包含盤查登錄、查驗管理、自願減量等平台，可能會有短暫中斷情形，若有遺漏信件通知，請於隔天至系統確認案件狀態，若有頻繁登出的情形，請於隔天再使用系統，造成不便，敬請見諒。</p></ div ></li><li><span class='news-list-date'>2026/07/30</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3302 '>事業溫室氣體排放量資訊平台08／06（四）、08／09（日）、08／16（日）主機設定調整，暫停服務。</a><p class='txtlimit'>事業溫室氣體排放量資訊平台暫定08／06（四）、08／09（日）、08／16（日），這三天進行主機設定調整作業，到時網站平台或會出現不穩的情況，可能會有短暫中斷情形，若有遺漏信件通知，請於隔天至系統確認案件狀態，若有頻繁登出的情形，請於隔天再使用系統，造成不便，敬請見諒。</p></ div ></li><li><span class='news-list-date'>2026/07/17</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3299 '>減輕企業負擔！環境部與金管會攜手調和盤查規範、建置範疇三係數並研訂反漂綠指引</a><p class='txtlimit'>為減輕企業申報負擔並順應歐盟永續綜合套案（EU Omnibus I）放緩與簡化趨勢，環境部與金管會展開跨部會協商，將調和盤查規範、合作建置範疇三碳排放係數，以避免企業重工並降低成本。此外，針對坊間氾濫且收費高昂的 ESG 獎項與顧問服務，環境部預計於 115 年底前訂定反漂綠指引，建構透明且具公信力的綠色生態系，引導企業落實真實減碳。
+一、溫室氣體範疇三無須強制確信
+金管會於去 114 年底已公布上市櫃公司分三階段接軌 IFRS 永續揭露準則。針對第三階段（實收資本額未達 50 億元）之企業，自 2028 年起適用該準則編製永續財務資訊，並於 2029 年起申報。
+為給予充分彈性，上市櫃公司範疇三揭露延至適用準則後第四個會計年度起適用（第三階段企業可於 2032 年揭露 2031 年範疇三盤查數據）；且目前 IFRS 準則及金管會、環境部均未要求範疇三數據必須取得第三方確信，此舉將大幅降低企業初期的遵循成本。此外，考量第三階段之中小型業者資源有限，金管會正透過問卷調查，評估參考歐盟及國際趨勢簡化中小型業者適用永續準則的相關規定，例如延後或豁免「氣候以外之永續資訊」及「範疇三溫室氣體排放資訊」之可能性。
+二、盤查規則調和，優先建置電子半導體範疇三係數
+為解決兩部會盤查規定不一所導致的重工問題，金管會除允許直接引用環境部列管事業之範疇一、二查驗結果外，金管會亦將範疇一、二的確信申報期限放寬最遲至每年 10 月底，藉由申報期程的一致化，免除重複查驗之成本負擔。針對企業反映範疇三資料蒐集困難、供應鏈係數不足等困境，環境部將與經濟部、金管會等部會共同合作，逐步建立範疇三本土碳排放係數。另因「半導體」與「電子零組件製造業」出口金額占比高，配合全球供應鏈需求，將優先規劃建置相關係數。
+三、參考歐美綠色規範，研訂臺灣反漂綠指引
+有鑑於部分事業不當引用永續獎項、誇大局部績效而引發漂綠疑慮，環境部將參考歐美最新趨勢（如禁止未經驗證標章、要求揭露評比利益關聯、聲明須具備證據等），訂定「企業使用永續獎項與永續標章之反漂綠指引」，引導臺灣由「鼓勵揭露」轉向「管制宣稱」，防範誤導消費者與投資人。
+環境部強調，該指引核心在於規範事業於廣告、報告書或商品銷售中的「使用行為」，必須符合：真實有效、範圍相稱、禁止模糊三大原則。同時，評鑑單位亦應遵循完整揭露評選基準、揭露與事業間之利益關係、考量重大負面違規事件並善盡調查責任等原則。
+環境部表示，2050 淨零排放需務實推進。政府將持續完善碳盤查基礎建設，並以實質的金融誘因引導減碳。未來將與金管會緊密協作，陪伴企業穩步前行，共同打造具備國際競爭力的永續臺灣。
+</p></ div ></li><li><span class='news-list-date'>2026/06/17</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3297 '>盤查登錄系統114年度電力排碳係數自即日（115年6月17日）起依經濟部能源署公布調整</a><p class='txtlimit'>經濟部能源署於115年6月2日公布114年電力排碳係數為0.467公斤CO2e/度，用於檢視公用售電業整體銷售電量之平均電力排碳情形，作為電業管制機關進行管理之依據。該署表示，近年產業為因應國際供應鏈綠電需求，透過各種管道購買較多綠電，爰自114年起將前述電力排碳係數另劃分「產業電力排碳係數」為0.466公斤CO2e/度，提供企業進行排放量盤查及揭露時使用，其適用對象為電價種類之表燈營業、低壓電力、高壓電力、特高壓電利用戶；以及「民生住宅電力排碳係數」為0.471公斤CO2e/度，適用對象為住宅，電價種類為表燈非營業、包燈用戶。
+依據經濟部能源署對於電力排放係數之調整，本部公告「事業應盤查登錄及查驗溫室氣體排放量排放源」或「事業應盤查登錄溫室氣體排放量排放源」即適用「產業電力排碳係數」，盤查登錄系統自115年6月17日起配合調整，若事業已於115年6月2日前完成排放量清冊及盤查報告書上傳，並已完成查驗作業者，其既有查驗結果仍屬有效，毋須因本次系統調整重新辦理查驗作業。詳細內容請參考經濟部能源署所公布114年度電力排碳係數（附件）以及新聞連結：https://www.moea.gov.tw/MNS/populace/news/News.aspx?kind=1&menu_id=40&news_id=122891。</p></ div ></li><li><span class='news-list-date'>2026/06/11</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3295 '>事業溫室氣體排放量資訊平台06／16（二）主機設定調整，暫停服務。</a><p class='txtlimit'>事業溫室氣體排放量資訊平台暫定06／16（二）進行主機設定調整作業，到時網站平台或會出現不穩的情況，可能會有短暫中斷情形，若有遺漏信件通知，請於隔天至系統確認案件狀態，若有頻繁登出的情形，請於隔天再使用系統，造成不便，敬請見諒。</p></ div ></li><li><span class='news-list-date'>2026/05/21</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3293 '>修正事業溫室氣體排放量資訊平台之甲烷及石化甲烷溫暖化潛勢（下稱GWP）適用情形</a><p class='txtlimit'>一、環境部已於113年2月5日公告「溫室氣體排放係數」，其中「附表四、溫暖化潛勢（GWP）」，說明甲烷之GWP為28、石化甲烷之GWP為30。
+二、依據聯合國政府間氣候變化專門委員會（Intergovernmental Panel on Climate Change, IPCC）第六次評估報告（Sixth Assessment Report, AR6）定義，若甲烷排放來自化石燃料有關之逸散排放源（如石油與天然氣系統、煤礦開採等）或工業製程中甲烷之碳來源屬於化石碳（如碳化鈣製造、乙烯製造等），應採用石化甲烷之GWP為30；其餘來源則採用甲烷之GWP為28，包括燃料燃燒（包含固定及移動設備）。
+三、事業溫室氣體排放量資訊平台已於115年1月1日配合IPCC AR6之「甲烷」及「石化甲烷」適用定義，盤查登錄資料自114年度起，於平台系統原（燃）物料選擇化石燃料，且排放型式選擇製程排放源或逸散排放源，系統將自動帶入及採用石化甲烷（即GWP為30）計算排放量，其餘燃料燃燒（包含固定及移動設備）則採「甲烷」（即GWP為28）計算。
+四、若事業登錄盤查資料時，發現排放源甲烷排放量未依前述第三點規則進行運算，再請於盤查登錄資料＞＞  3.排放源定性及定量＞＞  定量盤查，點擊「重新計算」按鈕，並確認排放量計算正確後，點擊「儲存」按鈕，相關操作示意圖可參考本公告附件。</p></ div ></li><li><span class='news-list-date'>2026/05/19</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3291 '>環境部強調我國碳定價機制以實質減量為核心 兼顧產業轉型與高品質減量額度</a><p class='txtlimit'>近期媒體關注國內碳權交易市場現況與碳費制度，環境部強調，我國碳定價制度的核心在於驅動產業轉型、落實實質減量，而非追求碳市場交易量。
+環境部說明，我國碳定價現行採碳費制度及自願減量雙軌併行，帶動各類事業共同減碳。考量我國碳費制度去年上路，因此訂定由低至高分階段費率調升規劃以降低產業衝擊，環境部將持續檢視產業減碳成效，滾動檢討碳費費率；而自願減量為碳費制度之配套措施，因所產生的減量額度可抵減碳費，故依循國際標準，確保減量額度具備可量測、可報告、可查驗且具外加性、永久性且無重複計算等高品質條件，從而避免產生「漂綠」爭議。同時，環境部也在不影響實質減量成效條件下，陸續精進與簡化審議行政程序，以提升審議效率並促進各界參與。
+環境部指出，現已依「溫室氣體自願減量專案管理辦法」公開審定150項減量方法，其中包含8項新增修訂的自然碳匯方法學（植林、森 ∕ 竹林經營、土壤管理、紅樹林植林與海草復育），並已註冊通過40件減量專案（含植林5案），未來將陸續產生額度，相關減量方法及審查通過之專案皆公開於「溫室氣體自願減量暨抵換資訊平臺」，提供各界查閱。至於碳市場交易部分，環境部強調，隨著碳費制度上路，預期持有減量額度之事業將優先用於自身碳費抵減，且部分事業計畫將減量額度用於自身環評承諾之溫室氣體增量抵換需求，因此碳市場交易量較少係在預期掌握之中。
+環境部最後強調，我國碳定價路徑參照國際減量趨勢及共識，以實質減量為目標，產業應以製程改善、能源效率提升等自身減碳與轉型措施為優先，減量額度抵換應視為達成淨零的最後手段，不應本末倒置。此外，為進一步活絡我國碳市場，環境部已規劃2027年至2028年導入總量管制與排放交易制度（ETS）試行，屆時將帶動國內碳交易的活絡，引領我國產業與國際氣候行動接軌。
+</p></ div ></li><li><span class='news-list-date'>2026/04/28</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3289 '>環境部籲請事業於4月30日前完成溫室氣體排放量盤查登錄，以免逾期受罰</a><p class='txtlimit'>每年4月30日為法定溫室氣體排放量盤查資料的登錄截止日。環境部特別提醒，申報截止在即，無論是過去長期列管的排放大戶，或是去（114）年公告納管需於今年首度申報的擴大盤查對象，務必於限期內完成登錄，若未依期限完成者，將依規定限期補正，逾期仍未完成者，將依法處新臺幣10萬元以上100萬元以下罰鍰。
+本次申報對象包含以下兩大類，應於4月30日前至「事業溫室氣體排放量資訊平台」（https://ghgregistry.moenv.gov.tw）完成114年度排放量盤查登錄作業：
+一、第一批及第二批列管對象：發電、鋼鐵、石油煉製、水泥、半導體及薄膜電晶體液晶顯示器業等，及各行業溫室氣體年排放量合計達2.5萬公噸二氧化碳當量以上之事業。
+二、擴大盤查列管對象：包含服務業、運輸業、醫院、大專校院及製造業等今年首度申報對象。
+環境部觀察發現，傳統列管排放大戶因已執行多年且今年涉及碳費徵收，申報進度較快；而擴大盤查對象為首年申報，業者態度較為謹慎，導致目前完成率相對較低。環境部強調，擴大納管首年的核心目標在於建構事業的盤查能力，若業者因擔憂數據精確度而遲未送件，反而可能因逾期而受罰。對於首次申報不完備之處，後續亦有限期改善時間可進行補正，環境部將協助檢視並促請業者完善資料，請事業放心如期申報。
+為協助擴大列管事業盤查登錄，環境部已採取以下支援措施：
+一、主動提醒：於申報期限前1個月發布新聞提醒，並於兩週前透過平台發送通知並輔以電話聯繫。
+二、技術諮詢：提供多場輔導說明會資訊，並持續開放諮詢窗口及技術協助服務。
+三、專人協助：若有系統操作或申報疑問，請撥打諮詢專線 02–2322–2050或 02–2775–3919分機381、283、204；亦可電郵至netzero@moenv.gov.tw。
+環境部再次呼籲，距離截止日期僅剩1週，請尚未完成盤查登錄的事業儘速辦理，避免因一時疏忽而影響企業信譽及面臨裁罰。
+</p></ div ></li><li><span class='news-list-date'>2026/04/07</span><div class='news-list-con'><a class='news-list-title' target='_blank' title='[另開新分頁] 公告及新聞資訊詳細內文' aria-label='[另開新分頁] 公告及新聞資訊詳細內文' href= NewsCont.aspx?Type_ID=1&Record_ID=3285 '>【碳盤查不求人！環境部推「連鎖業簡化工具」，三步驟輕鬆完成申報】</a><p class='txtlimit'>     環境部提醒「事業應盤查登錄溫室氣體排放量之排放源」，應於今115年4月30日前完成首次碳盤查！針對具備多據點營運特性的連鎖便利商店、超級市場及電信業者，特別推出「簡化填報表單」與「自動化彙整」功能，落實「不會麻煩、不用委外、不須查驗」的原則，協助業者如期申報。
+     環境部於3月31日下午舉辦的溫室氣體盤查登錄作業輔導說明會，提出三大簡化與精進作法：
+     一、門市填報去專業化：8個基本欄位輕鬆上手
+     針對門市端，環境部設計專屬簡化表單。門市人員無需具備複雜的計算知識，僅需填寫分據點、電號、設備名稱、活動數據量等8項日常營運相關資料，即可完成基礎數據收集，大幅降低第一線人員的操作門檻。
+     二、總部彙整自動化：Excel Power Query 三步驟整合
+     針對總部彙整端，環境部引入自動化處理工具。利用 Excel 內建的 Power Query 功能，總部負責人員僅需簡單三步驟，即可瞬間合併成千上萬筆的門市回傳資料。此舉不僅消除逐筆複製貼上的行政負擔，更能有效避免人工建檔的錯誤，確保數據精確度。
+     三、法規對接明確化：特約加盟門市同步納入
+     環境部再次提醒 114 年底修正之「溫室氣體排放量盤查登錄及查驗管理辦法」重點，包含：
+     ●納管範圍：特約與加盟門市需同步納入盤查範圍。
+     ●程序簡化：針對小規模逸散排放源提供簡化作業流程。
+     ●規範調整：調整燃料與原（物）料檢測規範，明確化擴大列管事業之盤查報告書內容。
+     環境部呼籲，凡達擴大列管門檻之企業，請務必於115年4月30日前，至「事業溫室氣體排放量資訊平台」（https://ghgregistry.moenv.gov.tw）完成 114 年排放量登錄與盤查報告書上傳。此外，環境部將於 4月8日 舉辦第二場輔導說明會，對象涵蓋服務業、運輸業、醫院及大專校院等。歡迎各界踴躍參與，並持續提供精進建議，共同推動淨零轉型。</p></ div ></li></ul>
+
+				<div id="CPHCont_pnl_10">
+	 
+                <div class="Pagination">
+                    <ul>
+                        <li>
+                            <a id="CPHCont_lkbPagePrev" class="aspNetDisabled" title="上一頁" style="cursor: pointer">上一頁</a>
+                        </li>
+                        <li>
+                            <a id="CPHCont_lkbPageNext" title="下一頁" href="javascript:__doPostBack(&#39;ctl00$CPHCont$lkbPageNext&#39;,&#39;&#39;)" style="cursor: pointer">下一頁</a>
+                        </li>
+                    </ul>
+                </div>
+				
+</div>
+               
+                
+            </section>
+        </div>
+    </main>
+
+            <!--MasterContent End-------------------------------------------------- -->
+
+            <!-- Footer -->
+            <footer id="Footer" class="clearfix">
+                <div class="accesskey">
+                    <a href="#Accesskey_3" id="Accesskey_3" name="Accesskey_3" accesskey="3" title="下方選單連結區。" aria-label="下方選單連結區，此區塊有[資訊安全政策]、[首長信箱]等連結，以及相關聯絡資訊。">:::</a>
+                </div>
+                <div class="fatFooter">
+                    <div class="wrapper">
+                        <nav class="fatFooterArea">
+                            <ul class="fatFooter-menu">
+                                <li>
+                                    <a href="#!" role="button">最新消息</a>
+                                    <ul class="faFooter-submenu">
+                                        <li>
+                                            <a href="NewsList.aspx?Type_ID=1" title="前往 公告及新聞資訊">公告及新聞資訊</a>
+                                        </li>
+                                        <!--
+                                        <li>
+                                            <a href="NewsList.aspx?Type_ID=2" title="前往 新聞資訊" aria-label="前往 新聞資訊">新聞資訊</a>
+                                        </li>
+										-->
+                                        <li>
+                                            <a href="NewsList.aspx?Type_ID=4" title="前往 會議活動">會議活動</a>
+                                        </li>
+                                        <li>
+                                            <a href="NewsList.aspx?Type_ID=3" title="前往 常見問答查詢">常見問答查詢</a>
+                                        </li>
+                                        <li>
+                                            <a href="counselling.aspx" title="前往 輔導資源">輔導資源</a>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li>
+                                    <!--<a href="javascript:;">下載專區</a>-->
+                                    <a href='../Downloads/00_0_info_FileDownloads.aspx' title="前往 下載專區" role="button">下載專區</a>
+                                    <ul class="faFooter-submenu">
+                                        <li>
+                                            <a href="../Downloads/FileDownloads.aspx?Type_ID=2&Category=insp" title="前往 服務業">服務業</a>
+                                        </li>
+                                        <li>
+                                            <a href="../Downloads/FileDownloads.aspx?Type_ID=5&Category=insp" title="前往 大專校院">大專校院</a>
+                                        </li>
+                                        <li>
+                                            <a href="../Downloads/FileDownloads.aspx?Type_ID=4&Category=insp" title="前往 醫院">醫院</a>
+                                        </li>
+                                        <li>
+                                            <a href="../Downloads/FileDownloads.aspx?Type_ID=3&Category=insp" title="前往 運輸業">運輸業</a>
+                                        </li>
+                                        <li>
+                                            <a href="../Downloads/FileDownloads.aspx?Type_ID=1&Category=insp" title="前往 製造業">製造業</a>
+                                        </li>
+                                        <li>
+                                            <a href="../Downloads/FileDownloads_GOV.aspx?Type_ID=1&Category=insp" title="前往 政府機關">政府機關</a>
+                                        </li>
+                                        <li>
+                                            <a href="../Downloads/FileDownloads_TAF.aspx?Type_ID=1&Category=insp" title="前往 認查驗機構">認查驗機構</a>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li>
+                                    <a href="javascript:;" role="button">盤查指引與試算</a>
+                                    <ul class="faFooter-submenu">
+                                        <li>
+                                            <a href="../GuideAndCalculation/GuideAndCalculation.aspx" title="前往 應盤查登錄及查驗對象之盤查作業指引">應盤查登錄及查驗對象之盤查作業指引</a>
+                                        </li>
+                                        <li>
+                                            <a href="../GuideAndCalculation/GuideAndCalculation_02.aspx" title="前往 應盤查登錄對象之盤查作業指引">應盤查登錄對象之盤查作業指引</a>
+                                        </li>
+                                        <li>
+                                            <a href="../calcaulate/03_0_info_edit.aspx" title="前往 試算工具">試算工具</a>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li>
+                                    <a href="javascript:;" role="button">盤查登錄</a>
+                                    <ul class="faFooter-submenu">
+                                        <li>
+                                            <a href="../Accession/Accession.aspx" title="前往 新手上路">新手上路</a>
+                                        </li>
+                                        <li>
+                                            <a href="../Accession/PublicInformation.aspx" title="前往 公開資訊及查詢">公開資訊及查詢</a>
+                                        </li>
+                                        <li>
+                                            <a href="../Accession/PublicInformation_moenv.aspx" title="前往 環境部排放量資訊公開">環境部排放量資訊公開</a>
+                                        </li>
+                                        <li>
+                                            <a href="https://ghgregistry.moenv.gov.tw/ghg_New/_login/inventory/login" target="_blank" title="[另開新分頁]  盤查系統登入">盤查系統登入</a>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li>
+                                    <a href="javascript:;" role="button">查驗管理</a>
+                                    <ul class="faFooter-submenu">
+                                        <li>
+                                            <a href="../VerificationMgt/VerificationMgt.aspx" title="前往 查驗管理簡介" aria-label="前往 查驗管理簡介">查驗管理簡介</a>
+                                        </li>
+                                        <li>
+                                            <a href="../VerificationMgt/CertificationBody.aspx" title="前往 合格認證機構" aria-label="前往 合格認證機構">合格認證機構</a>
+                                        </li>
+                                        <li>
+                                            <a href="../VerificationMgt/PermitApply.aspx" title="前往 查詢機構許可申請" aria-label="前往 查詢機構許可申請">查詢機構許可申請</a>
+                                        </li>
+                                        <li>
+                                            <a href="../VerificationMgt/InspectionAgency.aspx" title="前往 合格查驗機構" aria-label="前往 合格查驗機構">合格查驗機構</a>
+                                        </li>
+                                        <li>
+                                            <a href="https://ghgregistry.moenv.gov.tw/ghg_New/_login/check/login" target="_blank" title="[另開新分頁]  查驗管理系統登入" aria-label="[另開新分頁]  查驗管理系統登入">查驗管理系統登入</a>
+                                        </li>
+                                        <li>
+                                            <a href="https://ghgregistry.moenv.gov.tw/ghg_New/_login/surecheck/login" target="_blank" title="[另開新分頁]  認證管理系統登入" aria-label="[另開新分頁]  認證管理系統登入">認證管理系統登入</a>
+                                        </li>
+                                    </ul>
+                                </li>
+                                
+                                
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                <div class="footerArea">
+                    <div class="wrapper">
+                        <div class="footerArea-con">
+                            <ul class="privacy">
+                                <li>
+                                    <a href="https://www.moenv.gov.tw/Page/E6525EED58F263A3" target="_blank" title="[另開新分頁] 環境部-隱私權保護政策">隱私權保護政策</a>｜
+                                </li>
+                                <li>
+                                    <a href="https://www.moenv.gov.tw/Page/285410B281867E93" target="_blank" title="[另開新分頁] 環境部-網站安全政策">網站安全政策</a>｜
+                                </li>
+                                <li>
+                                    <a href="https://www.moenv.gov.tw/Page/7CED63B63DB9E5DF" target="_blank" title="[另開新分頁] 環境部-網站資料開放宣告">網站資料開放宣告</a>｜
+                                </li>
+                                <li>
+                                    <a href="https://epamail.moenv.gov.tw/front/mailboxhome" target="_blank" title="[另開新分頁] 環境部-首長信箱">首長信箱</a>
+                                </li>
+                            </ul>
+                            <div class="footerArea-info">
+                                <address>
+                                    <p>氣候變遷署地址：100209 台北市中正區愛國西路2號</p>
+                                    <p>氣候變遷署電話：(02)2322-2050</p>
+                                    <p>盤查及擴大盤查之法規、執行作業相關問題：(02)2775-3919分機381、283、204</p>
+                                    <p>盤查系統相關問題：(02)2721-5155分機711、714、713</p>
+                                    <p>盤查憑證登入相關問題：(02)2721-5155分機715</p>
+                                    <p>政府機關盤查登錄相關問題：(02)2775-3919分機283</p>
+                                    <p>
+                                        瀏覽人次：16354063
+                                        ｜更新日期：2026/08/11
+                                    </p>
+                                </address>
+                                <div class="markA">
+                                    <a href="https://accessibility.moda.gov.tw/Applications/Detail?category=20251209164021" target="_blank" title="[另開新分頁] 無障礙網站" aria-label="[另開新分頁] 無障礙網站">
+                                        <img src="../images/Mark/img-AccessibilityAA.png" border="0" width="88" height="31" alt="通過AA等級無障礙網頁檢測" aria-label="通過AA等級無障礙網頁檢測">
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="goTop">
+                    <a href="#TopA" role="button" class="btn-goTop" title="回到 頁面最頂端" aria-label="回到 頁面最頂端">
+                        <i class="fas fa-sort-up" aria-hidden="true"></i>回頂端
+                    </a>
+                </div>
+            </footer>
+        </div>
+
+
+        <!-- JS -->
+        <script src="../js/external/jq-ui.min.js"></script>
+        <script>
+            $('.btn-goTop').on('click', function (e) {
+                e.preventDefault();
+                $('html, body').animate({
+                    scrollTop: 0
+                }, function () {
+                    $('#TopA').attr('tabindex', '-1').focus();
+                });
+                return false;
+            });
+        </script>
+
+        
+        <script> 
+            (function () {
+                var cx = '224e82307c7944417';
+                var gcse = document.createElement('script');
+                gcse.type = 'text/javascript';
+                gcse.async = true;
+                gcse.src = 'https://cse.google.com/cse.js?cx=' + cx;
+                var s = document.getElementsByTagName('script')[0];
+                s.parentNode.insertBefore(gcse, s);
+            })();
+            $(document).ready(function () {
+                // 點擊搜尋按鈕
+                $("#btnSearch").on('click', function (e) {
+                    e.preventDefault();
+                    DoAdvancedSearch();
+                });
+
+                // 在輸入框按 Enter
+                $("#advSearch-input").on('keypress', function (e) {
+                    if (e.which === 13) {
+                        e.preventDefault(); // 避免觸發 ASP.NET form postback
+                        DoAdvancedSearch();
+                        return false;
+                    }
+                });
+            });
+            function DoAdvancedSearch(id) {
+                var KeyWord;
+                KeyWord = $.trim($("#advSearch-input").val());
+                if (KeyWord !== "") {
+                    window.location.href = "../AdvancedSearch.aspx?q=" + encodeURIComponent(KeyWord);
+                }
+            }
+        </script>
+
+        <script> 
+            _strClint = "#CPHCont_"; //ClintID
+            _strClintName = "ctl00$CPH_Content$";  //ClintName
+            //jQuery物件設定
+            $(document).ready(function () {
+                var mHeight = $("#Wrap").height();
+                var mWidth = $("#Wrap").width();
+
+                //無障礙
+                var $a = $('.TopAccessibility a');
+                $a.on('click', function (evt) {
+                    var $href = $($(this).attr('href')),
+                        $target = $href.find('a').eq(0).get(0);
+                    setTimeout(function () { try { $target.focus(); } catch (e) { } }, 0);
+                });
+
+                //open Menu for mobile
+                $('.btn-openMenu').on('click', function (e) {
+                    $('.w-header-info').addClass('on')
+                });
+
+                //close Menu for mobile
+                $('.btn-closeMenu').on('click', function (e) {
+                    $('.w-header-info').removeClass('on')
+                });
+            });
+
+            //open Menu for web & add A11y setting
+            $('ul.menu-info > li > a').on('click', function (e) {
+                const $this = $(this);
+                const $submenu = $this.next('ul.submenu');
+                const isOpen = $submenu.hasClass('on');
+                $('ul.menu-info > li > a').removeClass('animate').attr('aria-expanded', 'false');
+                $('ul.submenu').removeClass('on');
+
+                if (!isOpen) {
+                    $this.addClass('animate').attr('aria-expanded', 'true');
+                    $submenu.addClass('on');
+                }
+                e.stopPropagation();
+            });
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('ul.menu-info').length) {
+                    $('ul.menu-info > li > a').removeClass('animate').attr('aria-expanded', 'false');
+                    $('ul.submenu').removeClass('on');
+                }
+            });
+
+            //Breadcrumb A11y setting
+            window.onload = function () {
+                var currentNode = document.querySelector(".current-node");
+                if (currentNode) {
+                    currentNode.setAttribute("aria-current", "page");
+                }
+            };
+        </script>
+        <!--MasterContent JS Star-------------------------------------------------- -->
+        
+        
+        <!--MasterContent JS End-------------------------------------------------- -->
+    </form>
+    <!--Form End -------------------------------------------------- -->
+</body>
+</html>

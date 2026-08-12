@@ -19,11 +19,11 @@ STATE_LANGUAGE = "ui_language"
 
 MESSAGES: dict[str, dict[str, str]] = {
     # Navigation
-    "nav.dashboard": {"zh-TW": "總覽", "en": "Dashboard"},
+    "nav.dashboard": {"zh-TW": "分析結果", "en": "Analysis results"},
     "nav.intake": {"zh-TW": "資料匯入", "en": "Data Intake"},
     "nav.activity": {"zh-TW": "活動資料", "en": "Activity Data"},
     "nav.issues": {"zh-TW": "待處理問題", "en": "Issues & Actions"},
-    "nav.frameworks": {"zh-TW": "準則分析", "en": "Frameworks"},
+    "nav.frameworks": {"zh-TW": "準則分析", "en": "Framework analysis"},
     "nav.audit": {"zh-TW": "稽核與匯出", "en": "Audit & Export"},
     # Brand / header
     "brand.name": {
@@ -38,6 +38,7 @@ MESSAGES: dict[str, dict[str, str]] = {
     "header.language_aria": {"zh-TW": "語言", "en": "Language"},
     # Sidebar
     "sidebar.current_analysis": {"zh-TW": "目前分析", "en": "Current analysis"},
+    "sidebar.current_source": {"zh-TW": "目前資料來源", "en": "Current data source"},
     "sidebar.workspace_name": {
         "zh-TW": "虛構台灣扣件公司",
         "en": "Synthetic Taiwan Fastener Co.",
@@ -45,6 +46,11 @@ MESSAGES: dict[str, dict[str, str]] = {
     "sidebar.reporting_context": {
         "zh-TW": "2024 示範資料",
         "en": "2024 synthetic demonstration",
+    },
+    "sidebar.source_demo": {"zh-TW": "示範資料", "en": "Demo data"},
+    "sidebar.source_uploaded": {
+        "zh-TW": "你上傳的公司資料",
+        "en": "Your uploaded company data",
     },
     "sidebar.analysis_contents": {"zh-TW": "分析內容", "en": "Analysis modules"},
     "sidebar.ghg_title": {"zh-TW": "公司碳盤查", "en": "Corporate GHG inventory"},
@@ -70,6 +76,17 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "sidebar.run": {"zh-TW": "開始分析", "en": "Start analysis"},
+    "sidebar.run_demo": {"zh-TW": "執行示範分析", "en": "Run demo analysis"},
+    "sidebar.run_uploaded": {
+        "zh-TW": "使用這批資料開始分析",
+        "en": "Analyze this uploaded dataset",
+    },
+    "sidebar.rerun": {"zh-TW": "重新分析", "en": "Re-run analysis"},
+    "sidebar.settings": {"zh-TW": "分析設定", "en": "Analysis settings"},
+    "sidebar.settings_help": {
+        "zh-TW": "選擇要一併執行的準則分析模組。預設全部開啟。",
+        "en": "Choose framework modules to include. All are on by default.",
+    },
     "sidebar.need_help": {"zh-TW": "需要協助？", "en": "Need help?"},
     "sidebar.tutorial_link": {
         "zh-TW": "操作教學 →",
@@ -77,13 +94,53 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "sidebar.running": {"zh-TW": "正在分析…", "en": "Running analysis…"},
     "sidebar.loading": {
+        "zh-TW": "正在整理資料並計算…",
+        "en": "Preparing data and calculating…",
+    },
+    "sidebar.loading_demo": {
         "zh-TW": "正在整理內建示範資料…",
         "en": "Loading bundled synthetic evidence…",
+    },
+    "sidebar.loading_uploaded": {
+        "zh-TW": "正在使用你上傳的資料進行分析…",
+        "en": "Analyzing your uploaded company data…",
     },
     "sidebar.complete": {"zh-TW": "分析完成", "en": "Analysis complete"},
     "sidebar.pipeline_done": {
         "zh-TW": "管線已完成。",
         "en": "Pipeline complete.",
+    },
+    "analysis.stage.reading": {
+        "zh-TW": "正在讀取活動資料…",
+        "en": "Reading activity data…",
+    },
+    "analysis.stage.quality": {
+        "zh-TW": "正在檢查資料品質…",
+        "en": "Checking data quality…",
+    },
+    "analysis.stage.factors": {
+        "zh-TW": "正在配對官方排放係數…",
+        "en": "Matching official emission factors…",
+    },
+    "analysis.stage.calculate": {
+        "zh-TW": "正在計算可計算的排放量…",
+        "en": "Calculating eligible emissions…",
+    },
+    "analysis.stage.issues": {
+        "zh-TW": "正在整理待處理問題…",
+        "en": "Organizing unresolved issues…",
+    },
+    "analysis.complete_banner": {
+        "zh-TW": "分析完成 ✓",
+        "en": "Analysis complete ✓",
+    },
+    "analysis.complete_detail": {
+        "zh-TW": "{total} 筆活動資料已完成檢查。{done} 筆目前可計算。",
+        "en": "{total} activity records checked. {done} are currently calculable.",
+    },
+    "analysis.toast": {
+        "zh-TW": "分析完成：{done}/{total} 筆可計算",
+        "en": "Analysis complete: {done}/{total} calculable",
     },
     "error.analysis_failed": {
         "zh-TW": "分析暫時無法完成。",
@@ -95,6 +152,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     # Common
     "common.demo_badge": {"zh-TW": "示範資料", "en": "Demo data"},
+    "common.uploaded_badge": {
+        "zh-TW": "你上傳的公司資料",
+        "en": "Your uploaded company data",
+    },
     "common.partial_result": {"zh-TW": "部分結果", "en": "Partial result"},
     "common.not_run": {"zh-TW": "尚未執行", "en": "Not run"},
     "common.how_to_use": {"zh-TW": "這頁怎麼用？", "en": "How to use this page"},
@@ -212,14 +273,125 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "產品數量證據",
         "en": "Product quantity evidence",
     },
-    # Dashboard
-    "dash.page_title": {"zh-TW": "碳資料總覽", "en": "Carbon data overview"},
+    # Dashboard / analysis results
+    "dash.page_title": {"zh-TW": "分析結果", "en": "Analysis results"},
     "dash.page_subtitle": {
-        "zh-TW": "查看目前能計算的排放、資料缺口，以及下一步需要處理的項目。",
+        "zh-TW": "先看這批資料算出了什麼、還缺什麼，再查看細節。",
         "en": (
-            "See currently calculable emissions, data gaps, and what needs "
-            "attention next."
+            "See what this dataset can calculate, what is still missing, "
+            "then explore details."
         ),
+    },
+    "dash.complete_title": {"zh-TW": "分析完成 ✓", "en": "Analysis complete ✓"},
+    "dash.source_section": {"zh-TW": "資料來源", "en": "Data source"},
+    "dash.period_section": {"zh-TW": "資料期間", "en": "Data period"},
+    "dash.activities_kpi": {"zh-TW": "活動資料", "en": "Activity records"},
+    "dash.calculated_kpi": {"zh-TW": "已成功計算", "en": "Successfully calculated"},
+    "dash.needs_work_kpi": {"zh-TW": "仍需處理", "en": "Still needs attention"},
+    "dash.kpi.emissions": {"zh-TW": "已計算排放量", "en": "Calculated emissions"},
+    "dash.kpi.completion": {"zh-TW": "計算完成", "en": "Calculation complete"},
+    "dash.kpi.unresolved": {"zh-TW": "仍需處理", "en": "Still unresolved"},
+    "dash.kpi.unresolved_hint": {
+        "zh-TW": "尚未完成計算的活動",
+        "en": "Activities still blocked",
+    },
+    "dash.kpi.source": {"zh-TW": "資料來源", "en": "Data sources"},
+    "dash.kpi.source_hint": {
+        "zh-TW": "來源文件 · 官方係數已連結",
+        "en": "Source documents · official factors linked",
+    },
+    "dash.section_emissions": {"zh-TW": "排放結果", "en": "Emissions results"},
+    "dash.section_trend": {"zh-TW": "排放趨勢", "en": "Emissions trend"},
+    "dash.section_trend_help": {
+        "zh-TW": "依活動期間彙總目前已計算的排放量。",
+        "en": "Monthly totals from currently calculated activities.",
+    },
+    "dash.section_sources": {"zh-TW": "排放來源", "en": "Emissions sources"},
+    "dash.section_sources_help": {
+        "zh-TW": "只顯示已計算活動；尚未計算者不顯示為 0。",
+        "en": "Calculated activities only; blocked items are not shown as zero.",
+    },
+    "dash.section_completeness": {"zh-TW": "資料完整度", "en": "Data completeness"},
+    "dash.section_completeness_help": {
+        "zh-TW": "目前計算狀態分布（支援圖表，不是主要結果）。",
+        "en": "Supporting status distribution — not the primary result chart.",
+    },
+    "dash.completeness_note": {
+        "zh-TW": "完整度用於提醒下一步，不代表公司總排放。",
+        "en": "Completeness guides next steps; it is not total company emissions.",
+    },
+    "dash.section_priority": {"zh-TW": "優先處理", "en": "Priority actions"},
+    "dash.section_priority_help": {
+        "zh-TW": "先處理這些缺口，才能擴大可計算範圍。",
+        "en": "Resolve these gaps to expand what can be calculated.",
+    },
+    "dash.priority.missing_conversion": {
+        "zh-TW": "缺少熱值轉換資料",
+        "en": "Missing heating-value conversion data",
+    },
+    "dash.priority.missing_factor": {
+        "zh-TW": "缺少適用排放係數",
+        "en": "Missing applicable emission factor",
+    },
+    "dash.priority.affected": {
+        "zh-TW": "影響 {count} 筆活動",
+        "en": "Affects {count} activities",
+    },
+    "dash.section_calc_table": {"zh-TW": "計算明細", "en": "Calculation table"},
+    "dash.section_calc_table_help": {
+        "zh-TW": "點選一列可查看計算驗算。",
+        "en": "Select a row to open the calculation check.",
+    },
+    "dash.col.factor": {"zh-TW": "係數", "en": "Factor"},
+    "dash.col.factor_year": {"zh-TW": "係數年度", "en": "Factor year"},
+    "dash.col.emissions": {"zh-TW": "排放量", "en": "Emissions"},
+    "dash.cta.view_issues": {"zh-TW": "查看問題", "en": "View issues"},
+    "dash.cta.how_to_fix": {"zh-TW": "查看如何處理", "en": "See how to fix"},
+    "dash.cta.view_frameworks": {"zh-TW": "查看準則分析", "en": "Open frameworks"},
+    "dash.cta.update_data": {"zh-TW": "更新資料", "en": "Update data"},
+    "dash.frameworks_card": {
+        "zh-TW": "準則分析 · {count} 個分析模組可查看",
+        "en": "Framework analysis · {count} modules available",
+    },
+    "dash.trace_evidence": {
+        "zh-TW": "查看完整證據鏈",
+        "en": "View full evidence chain",
+    },
+    "dash.section_uncalculable": {
+        "zh-TW": "哪些資料還不能算",
+        "en": "What still cannot be calculated",
+    },
+    "dash.section_activity_status": {
+        "zh-TW": "各活動的計算狀態",
+        "en": "Calculation status by activity",
+    },
+    "dash.section_trace": {"zh-TW": "計算驗算", "en": "Calculation check"},
+    "dash.section_frameworks": {"zh-TW": "準則分析", "en": "Framework analysis"},
+    "dash.section_advanced": {
+        "zh-TW": "進階技術資料",
+        "en": "Advanced technical details",
+    },
+    "dash.uncalculable_title": {
+        "zh-TW": "目前無法計算",
+        "en": "Currently not calculable",
+    },
+    "dash.uncalculable_missing": {"zh-TW": "缺少：", "en": "Missing:"},
+    "dash.uncalculable_next": {"zh-TW": "下一步：", "en": "Next step:"},
+    "dash.period_unknown": {"zh-TW": "期間未標示", "en": "Period not labeled"},
+    "dash.current_analysis": {"zh-TW": "目前分析", "en": "Current analysis"},
+    "dash.file_label": {"zh-TW": "檔案：", "en": "File:"},
+    "dash.period_label": {"zh-TW": "資料期間：", "en": "Data period:"},
+    "dash.activity_count_label": {
+        "zh-TW": "{count} 筆活動資料",
+        "en": "{count} activity records",
+    },
+    "chart.trend.empty": {
+        "zh-TW": "目前尚無可繪製的月度排放趨勢。",
+        "en": "No monthly emissions trend is available yet.",
+    },
+    "chart.source.not_calculated": {
+        "zh-TW": "尚未計算",
+        "en": "Not yet calculated",
     },
     "dash.tutorial_hint": {
         "zh-TW": "第一次使用？查看 3 分鐘操作教學 →",
@@ -417,6 +589,15 @@ MESSAGES: dict[str, dict[str, str]] = {
     "iss.metric_critical": {"zh-TW": "重大", "en": "Critical"},
     "iss.metric_high": {"zh-TW": "高優先", "en": "High priority"},
     "iss.metric_affected": {"zh-TW": "受影響活動", "en": "Affected activities"},
+    "iss.todo_title": {"zh-TW": "待辦清單", "en": "To-do list"},
+    "iss.todo_help": {
+        "zh-TW": "每個問題都對應下一步行動，不會把缺資料當成 0。",
+        "en": (
+            "Each issue maps to a next action; "
+            "missing data is never treated as zero."
+        ),
+    },
+    "iss.gap_title": {"zh-TW": "缺少資料類型", "en": "Missing data types"},
     "iss.filter_severity": {"zh-TW": "優先程度", "en": "Severity"},
     "iss.filter_type": {"zh-TW": "問題類型", "en": "Issue type"},
     "iss.filter_activity": {"zh-TW": "活動", "en": "Activity"},
@@ -571,6 +752,41 @@ MESSAGES: dict[str, dict[str, str]] = {
     "aud.calculations": {"zh-TW": "排放計算", "en": "Calculations"},
     "aud.issues": {"zh-TW": "待處理問題", "en": "Open issues"},
     "aud.enabled": {"zh-TW": "已啟用分析", "en": "Enabled adapters"},
+    "aud.ref_title": {"zh-TW": "官方參考資料", "en": "Official reference data"},
+    "aud.ref_help": {
+        "zh-TW": (
+            "此區塊供資料維護檢視。一般碳分析不會連網抓取係數，"
+            "也不會自動啟用新下載的官方數值。"
+        ),
+        "en": (
+            "Maintenance view only. Normal analysis does not crawl the web "
+            "and never auto-activates newly downloaded official values."
+        ),
+    },
+    "aud.ref_electricity": {
+        "zh-TW": "電力排放係數（企業盤查）",
+        "en": "Electricity factor — enterprise inventory",
+    },
+    "aud.ref_upstream_authority": {
+        "zh-TW": "上游係數權責機關",
+        "en": "Upstream factor authority",
+    },
+    "aud.ref_operational_source": {
+        "zh-TW": "運作中的官方來源",
+        "en": "Operational official source",
+    },
+    "aud.ref_heating": {
+        "zh-TW": "燃料熱值",
+        "en": "Fuel heating values",
+    },
+    "aud.ref_last_checked": {
+        "zh-TW": "上次檢查",
+        "en": "Last checked",
+    },
+    "aud.ref_year_available": {"zh-TW": "已登錄", "en": "available"},
+    "aud.ref_year_candidate": {"zh-TW": "候選", "en": "candidate"},
+    "aud.ref_year_unavailable": {"zh-TW": "尚未登錄", "en": "unavailable"},
+    "aud.ref_unregistered": {"zh-TW": "尚未登錄", "en": "unregistered"},
     # Tutorial
     "tut.title": {
         "zh-TW": "第一次使用 Carbon Evidence Ledger？",
@@ -666,8 +882,28 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "explain.no_factor_configured": {
-        "zh-TW": "尚未設定適用的排放係數。",
-        "en": "No suitable emission factor is configured for this activity.",
+        "zh-TW": (
+            "尚未找到適用於這筆活動期間的官方排放係數。"
+            "系統不會自動使用不同年度的係數。"
+        ),
+        "en": (
+            "No official emission factor applies to this activity period. "
+            "The system will not silently use a different year's factor."
+        ),
+    },
+    "explain.no_factor_configured_year": {
+        "zh-TW": (
+            "尚未找到適用於這筆活動期間的官方排放係數。\n"
+            "活動期間：\n{activity_year}\n"
+            "目前已登錄：\n{registered_years}\n"
+            "系統不會自動使用不同年度的係數。"
+        ),
+        "en": (
+            "No official emission factor applies to this activity period.\n"
+            "Activity period:\n{activity_year}\n"
+            "Currently registered:\n{registered_years}\n"
+            "The system will not silently use a different year's factor."
+        ),
     },
     "explain.not_emissions_activity": {
         "zh-TW": "這筆是輔助營運資料，不是排放來源本身。",
@@ -1019,6 +1255,17 @@ MESSAGES: dict[str, dict[str, str]] = {
     "intake.step2": {"zh-TW": "02 對應欄位", "en": "02 Map columns"},
     "intake.step3": {"zh-TW": "03 確認資料", "en": "03 Confirm data"},
     "intake.step4": {"zh-TW": "04 檢查結果", "en": "04 Validation result"},
+    "intake.journey.upload": {"zh-TW": "上傳資料", "en": "Upload data"},
+    "intake.journey.confirm": {"zh-TW": "確認資料", "en": "Confirm data"},
+    "intake.journey.results": {"zh-TW": "查看分析結果", "en": "View analysis results"},
+    "intake.upload_priority": {
+        "zh-TW": "上傳公司資料",
+        "en": "Upload company data",
+    },
+    "intake.understood": {
+        "zh-TW": "我們看懂這份 Excel 了 ✓",
+        "en": "We understood this Excel file ✓",
+    },
     "intake.upload_label": {
         "zh-TW": "選擇公司資料檔案",
         "en": "Choose a company data file",
@@ -1158,20 +1405,57 @@ MESSAGES: dict[str, dict[str, str]] = {
     "intake.rej.value": {"zh-TW": "目前值", "en": "Current value"},
     "intake.next_phase": {
         "zh-TW": (
-            "資料格式已準備完成。\n"
-            "下一階段會將通過驗證的資料接入排放計算與準則分析。"
+            "資料已準備完成。下一步可使用這批資料開始排放計算與準則分析。"
         ),
         "en": (
-            "Data format is ready.\n"
-            "A later phase will connect accepted rows to emissions "
-            "calculation and framework analysis."
+            "Data is ready. Next, analyze this batch for emissions "
+            "calculation and framework checks."
         ),
     },
-    "intake.demo_notice": {
-        "zh-TW": "目前匯入資料尚未取代示範分析結果。",
-        "en": (
-            "Uploaded data does not replace the demo analysis results yet."
+    "intake.ready_title": {
+        "zh-TW": "資料已準備完成 ✓",
+        "en": "Data is ready ✓",
+    },
+    "intake.ready_body": {
+        "zh-TW": "{count} 筆資料已通過格式檢查。",
+        "en": "{count} records passed format checks.",
+    },
+    "intake.ready_next": {
+        "zh-TW": (
+            "下一步，系統會使用這批資料進行排放計算、資料缺口檢查與準則分析。"
         ),
+        "en": (
+            "Next, the system will use this batch for emissions calculation, "
+            "gap checks, and framework analysis."
+        ),
+    },
+    "intake.start_analysis": {
+        "zh-TW": "使用這批資料開始分析",
+        "en": "Analyze this uploaded dataset",
+    },
+    "intake.back_edit": {"zh-TW": "返回修改資料", "en": "Back to edit data"},
+    "intake.demo_notice": {
+        "zh-TW": (
+            "上傳並完成檢查後，可改用你的公司資料開始分析；"
+            "在此之前仍顯示示範分析結果。"
+        ),
+        "en": (
+            "After upload and format checks, you can analyze your company "
+            "data. Until then, demo analysis results remain visible."
+        ),
+    },
+    "act.trace_activity": {"zh-TW": "活動量", "en": "Activity amount"},
+    "act.trace_factor": {"zh-TW": "使用排放係數", "en": "Emission factor used"},
+    "act.trace_factor_year": {"zh-TW": "係數年度", "en": "Factor year"},
+    "act.trace_calc": {"zh-TW": "計算", "en": "Calculation"},
+    "act.trace_source": {"zh-TW": "來源", "en": "Source"},
+    "act.trace_source_official": {
+        "zh-TW": "官方同步參考資料",
+        "en": "Official synced reference",
+    },
+    "act.trace_source_demo": {
+        "zh-TW": "示範參考資料",
+        "en": "Demo reference data",
     },
     "intake.run_validation": {
         "zh-TW": "資料格式檢查",

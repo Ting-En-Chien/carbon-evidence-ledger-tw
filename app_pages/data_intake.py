@@ -37,8 +37,10 @@ from carbon_ledger.ui.components import (
     render_kpi_row,
     render_page_header,
     render_section_header,
+    render_upload_journey,
 )
 from carbon_ledger.ui.i18n import t
+from carbon_ledger.ui.motion import execute_analysis_with_progress
 from carbon_ledger.ui.state import (
     STATE_INTAKE_BYTES,
     STATE_INTAKE_FILE_HASH,
@@ -55,6 +57,7 @@ from carbon_ledger.ui.state import (
     STATE_INTAKE_TABLE,
     STATE_INTAKE_YEAR_MONTH_CONFIRMED,
     clear_intake_state,
+    get_adapter_flags,
     get_language,
 )
 
@@ -293,14 +296,21 @@ def _default_metadata(table: Any) -> IntakeMetadata:
 
 
 render_page_header(t("intake.title", lang), t("intake.subtitle", lang))
-st.info(t("intake.demo_notice", lang))
 st.markdown(t("intake.intro", lang).replace("\n", "  \n"))
+render_upload_journey(
+    [
+        ("1", t("intake.journey.upload", lang)),
+        ("2", t("intake.journey.confirm", lang)),
+        ("3", t("intake.journey.results", lang)),
+    ]
+)
+st.caption(t("intake.demo_notice", lang))
 
 step = int(st.session_state.get(STATE_INTAKE_STEP, 1) or 1)
 _step_indicator(step)
 
 st.write("")
-render_section_header(t("intake.step1", lang))
+render_section_header(t("intake.upload_priority", lang), t("intake.upload_help", lang))
 uploaded = st.file_uploader(
     t("intake.upload_label", lang),
     type=["csv", "xlsx"],
@@ -559,13 +569,21 @@ if result is None:
     st.write("")
     render_section_header(t("intake.step2", lang))
     st.info(t("intake.no_rename", lang))
+    ready = _required_suggestions_ready(detailed)
+    if ready and not show_editor:
+        st.markdown(
+            f'<div class="cel-understood cel-reveal cel-reveal-1">'
+            f'<span class="cel-check" aria-hidden="true">✓</span>'
+            f"{t('intake.understood', lang)}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
     _render_natural_interpretation(table, detailed)
 
     ref_cols = reference_only_columns(list(table.columns))
     if ref_cols:
         st.caption(t("intake.reference_only_note", lang))
 
-    ready = _required_suggestions_ready(detailed)
     if not show_editor:
         st.markdown(f"**{t('intake.interpret.ask', lang)}**")
         if not ready:
@@ -989,4 +1007,41 @@ elif result.rejected_count > 0:
     st.markdown(f"**{t('intake.rejected_title', lang)}**")
     st.dataframe(rejected[display_cols], hide_index=True, width="stretch")
 
-st.info(t("intake.next_phase", lang))
+if result.accepted_count > 0:
+    st.write("")
+    st.markdown(f"### {t('intake.ready_title', lang)}")
+    st.markdown(t("intake.ready_body", lang, count=result.accepted_count))
+    st.markdown(t("intake.ready_next", lang))
+    cta_cols = st.columns([2, 1])
+    with cta_cols[0]:
+        if st.button(
+            t("intake.start_analysis", lang),
+            type="primary",
+            use_container_width=True,
+            key="intake_start_uploaded_analysis",
+        ):
+            flags = get_adapter_flags(st.session_state)
+            try:
+                execute_analysis_with_progress(
+                    st.session_state,
+                    lang=lang,
+                    uploaded_mode=True,
+                    include_ghg=flags["include_ghg"],
+                    include_cbam=flags["include_cbam"],
+                    include_ifrs_s2=flags["include_ifrs_s2"],
+                )
+            except Exception:
+                st.error(t("error.analysis_failed", lang))
+                st.stop()
+            st.switch_page("app_pages/dashboard.py")
+    with cta_cols[1]:
+        if st.button(
+            t("intake.back_edit", lang),
+            use_container_width=True,
+            key="intake_back_edit_data",
+        ):
+            st.session_state[STATE_INTAKE_STEP] = 3
+            st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
+            st.rerun()
+else:
+    st.info(t("intake.next_phase", lang))

@@ -45,6 +45,8 @@ This repository currently includes:
 - provenance-aware evidence ingestion
 - schema validation and safe unit normalization
 - official emission-factor and regulatory reference registry
+- official reference sync (allowlisted fetch, snapshot hashing, candidates,
+  validation/activation; no silent web-to-calculation path)
 - engineering conversion registry
 - deterministic factor matching and calculation readiness
 - limited auditable emissions calculation
@@ -114,7 +116,8 @@ Visitors land on a populated synthetic demonstration with these product areas:
   calculation and framework use
 - **待處理問題 / Issues & Actions** — operational core QA task list
 - **準則分析 / Frameworks** — separate GHG Protocol, EU CBAM, and IFRS S2 views
-- **稽核與匯出 / Audit & Export** — download-first audit bundle and issue CSV
+- **稽核與匯出 / Audit & Export** — download-first audit bundle, issue CSV,
+  and official-reference maintenance status
 
 ### Structured company-data intake
 
@@ -132,6 +135,20 @@ implemented in Phase 9A (planned for later phases).
 
 Keep all existing disclaimers: this remains a synthetic demonstration, not
 production compliance software.
+
+## Official reference sync (Phase 10A)
+
+Official government factors are maintained through an auditable sync layer.
+Normal analysis stays offline and never auto-activates newly downloaded values.
+
+```bash
+python -m carbon_ledger references check
+python -m carbon_ledger references fetch --retrieved-at 2026-08-10T00:00:00Z
+python -m carbon_ledger references validate
+python -m carbon_ledger references status
+```
+
+See `docs/official_reference_sync.md`.
 
 ## Quick Demo
 

@@ -14,11 +14,17 @@ from carbon_ledger.ui.components import (
     render_status_badge,
 )
 from carbon_ledger.ui.i18n import t
-from carbon_ledger.ui.state import get_current_result, get_focus_record, get_language
+from carbon_ledger.ui.state import (
+    get_current_result,
+    get_focus_record,
+    get_language,
+    is_uploaded_analysis,
+)
 from carbon_ledger.ui.view_models import (
     activity_detail_context,
     build_activity_overview,
     calculation_label,
+    factor_registry_row,
 )
 
 inject_design_system()
@@ -225,17 +231,62 @@ with tab_summary:
 
 with tab_calc:
     st.markdown(f"**{t('dash.col.calc', lang)}:** {detail['calculation_label']}")
-    st.markdown(f"**normalized_value:** {calc.get('normalized_value', '—')}")
-    st.markdown(f"**normalized_unit:** {calc.get('normalized_unit', '—')}")
-    st.markdown(f"**factor_id:** `{calc.get('factor_id', '—') or '—'}`")
-    if calc_status == "calculated" and calc.get("calculated_tco2e") is not None:
-        st.markdown(f"**tCO₂e:** {float(calc['calculated_tco2e']):.6g}")
+    if calc_status == "calculated":
+        amount = overview_row.get("activity_amount")
+        unit = overview_row.get("activity_unit") or ""
+        factor_value = calc.get("factor_value")
+        kg = calc.get("calculated_kgco2e")
+        tco2e = calc.get("calculated_tco2e")
+        registry = factor_registry_row(str(calc.get("factor_id") or "")) or {}
+        factor_year = registry.get("factor_year") or "—"
+        st.markdown(f"**{t('act.trace_activity', lang)}**")
+        st.write(f"{amount} {unit}" if amount is not None else "—")
+        st.markdown(f"**{t('act.trace_factor', lang)}**")
+        if factor_value is not None and str(factor_value) not in {"", "nan"}:
+            st.write(f"{float(factor_value):.6g} kgCO2e/{unit or 'unit'}")
+        else:
+            st.write("—")
+        st.markdown(f"**{t('act.trace_factor_year', lang)}**")
+        st.write(factor_year)
+        st.markdown(f"**{t('act.trace_calc', lang)}**")
+        if (
+            amount is not None
+            and factor_value is not None
+            and kg is not None
+            and tco2e is not None
+        ):
+            st.write(
+                f"{float(amount):,.6g} × {float(factor_value):.6g}\n\n"
+                f"= {float(kg):,.6g} kgCO2e\n\n"
+                f"= {float(tco2e):.6g} tCO2e"
+            )
+        else:
+            st.write(f"{float(tco2e):.6g} tCO₂e" if tco2e is not None else "—")
+        source_key = (
+            "act.trace_source_official"
+            if is_uploaded_analysis(st.session_state)
+            else "act.trace_source_demo"
+        )
+        st.caption(f"{t('act.trace_source', lang)}：{t(source_key, lang)}")
+        with st.expander(t("common.advanced", lang), expanded=False):
+            st.markdown(f"**normalized_value:** {calc.get('normalized_value', '—')}")
+            st.markdown(f"**normalized_unit:** {calc.get('normalized_unit', '—')}")
+            st.markdown(f"**factor_id:** `{calc.get('factor_id', '—') or '—'}`")
     else:
         st.markdown(t("act.no_zero", lang))
         st.warning(t("act.why_blocked", lang))
         st.write(detail["calculation_explanation"])
         st.info(t("act.what_next", lang))
         st.write(detail["calculation_next_action"])
+        st.markdown(f"**{t('dash.uncalculable_title', lang)}**")
+        st.markdown(
+            f"{t('dash.uncalculable_missing', lang)} "
+            f"{detail['calculation_explanation']}"
+        )
+        st.markdown(
+            f"{t('dash.uncalculable_next', lang)} "
+            f"{detail['calculation_next_action']}"
+        )
 
 with tab_evidence:
     st.markdown(f"**source_document_id:** `{activity.get('source_document_id', '—')}`")

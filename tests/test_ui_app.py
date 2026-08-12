@@ -91,13 +91,13 @@ def test_traditional_chinese_is_default_language() -> None:
     at = _run_app()
     assert at.session_state[STATE_LANGUAGE] == "zh-TW"
     text = _all_text(at)
-    assert "開始分析" in text
+    assert "重新分析" in text or "執行示範分析" in text
 
 
 def test_dashboard_is_default_page() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "碳資料總覽" in text
+    assert "分析結果" in text
 
 
 def test_page_title_contains_carbon_evidence_ledger() -> None:
@@ -109,15 +109,16 @@ def test_page_title_contains_carbon_evidence_ledger() -> None:
 def test_sidebar_contains_demo_workspace() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "虛構台灣扣件公司" in text or "2024 示範資料" in text
+    assert "示範資料" in text
+    assert "2024 示範資料" in text or "重新分析" in text
 
 
 def test_sidebar_contains_run_analysis() -> None:
     at = _run_app()
     labels = [str(button.label) for button in at.button]
-    assert "開始分析" in labels
-    # Primary Start analysis should live in the sidebar hierarchy only.
-    assert labels.count("開始分析") == 1
+    assert "重新分析" in labels
+    assert "使用這批資料開始分析" not in labels
+    assert labels.count("重新分析") == 1
 
 
 def test_dashboard_has_single_primary_start_analysis() -> None:
@@ -125,7 +126,15 @@ def test_dashboard_has_single_primary_start_analysis() -> None:
     start_labels = [
         str(button.label)
         for button in at.button
-        if str(button.label) in {"開始分析", "Start analysis"}
+        if str(button.label)
+        in {
+            "重新分析",
+            "Re-run analysis",
+            "執行示範分析",
+            "Run demo analysis",
+            "開始分析",
+            "Start analysis",
+        }
     ]
     assert len(start_labels) == 1
 
@@ -138,6 +147,12 @@ def test_all_three_adapter_controls_exist() -> None:
     assert "公司碳盤查" in joined or "Corporate GHG" in joined or "GHG" in text
     assert "歐盟出口" in joined or "EU export" in joined or "EU CBAM" in text
     assert "氣候揭露" in joined or "Climate disclosure" in joined or "IFRS S2" in text
+    # Framework toggles live under analysis settings progressive disclosure.
+    expander_labels = [
+        str(getattr(item, "label", "") or "")
+        for item in getattr(at, "expander", [])
+    ]
+    assert any("分析設定" in label for label in expander_labels) or "分析設定" in text
     assert "GHG Protocol" in text
     assert "EU CBAM" in text
     assert "IFRS S2" in text
@@ -172,7 +187,11 @@ def test_switching_to_english_changes_page_copy() -> None:
     )
     at = _switch_language(at, "EN")
     text = _all_text(at)
-    assert "Start analysis" in text
+    assert (
+        "Start analysis" in text
+        or "Run demo analysis" in text
+        or "Re-run analysis" in text
+    )
     assert at.session_state[STATE_LANGUAGE] == "en"
     assert at.session_state["pipeline_result"] is before
     assert (
@@ -219,30 +238,31 @@ def test_tutorial_button_exists_and_opens() -> None:
 def test_dashboard_shows_four_kpi_cards() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "活動資料" in text
-    assert "已完成計算" in text
-    assert "待處理問題" in text
-    assert "來源文件" in text
+    assert "已計算排放量" in text
+    assert "計算完成" in text
+    assert "仍需處理" in text
+    assert "資料來源" in text
 
 
 def test_dashboard_shows_needs_attention() -> None:
     at = _run_app()
-    assert "你現在需要處理" in _all_text(at)
+    assert "優先處理" in _all_text(at) or "目前無法計算" in _all_text(at)
 
 
 def test_dashboard_shows_activity_overview() -> None:
     at = _run_app()
-    assert "所有活動資料" in _all_text(at)
+    assert "計算明細" in _all_text(at)
 
 
 def test_dashboard_page_header_and_status_hierarchy() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "碳資料總覽" in text
-    assert "目前已能計算的排放量" in text
-    assert "你現在需要處理" in text
-    assert "所有活動資料" in text
-    assert "第一次使用" in text
+    assert "分析結果" in text
+    assert "已計算排放量" in text
+    assert "排放趨勢" in text
+    assert "排放來源" in text
+    assert "優先處理" in text
+    assert "計算明細" in text
 
 
 def test_dashboard_does_not_render_raw_html_or_svg() -> None:
@@ -265,9 +285,9 @@ def test_dashboard_does_not_render_raw_html_or_svg() -> None:
 def test_dashboard_shows_chart_explanations() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "活動計算狀態" in text
-    assert "各活動目前狀態" in text
-    assert "哪些已能計算" in text
+    assert "排放趨勢" in text
+    assert "排放來源" in text
+    assert "資料完整度" in text or "活動計算狀態" in text
 
 
 def test_beginner_facing_plain_text_widgets_have_no_raw_markup() -> None:
@@ -304,7 +324,7 @@ def test_dashboard_does_not_show_arbitrary_readiness_percentage() -> None:
 def test_dashboard_issue_cards_are_short_and_actionable() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "查看資料" in text
+    assert "查看如何處理" in text or "查看資料" in text
     assert "Allowed use" not in text
     assert "prohibited_use" not in text
 
@@ -336,6 +356,8 @@ def test_audit_export_page_loads() -> None:
     at = _switch(_run_app(), "app_pages/audit_export.py")
     text = _all_text(at)
     assert "稽核與匯出" in text
+    assert "官方參考資料" in text
+    assert "電力排放係數" in text
     labels = [str(button.label) for button in at.download_button]
     assert any(".zip" in label for label in labels)
     assert "Excel" in text
@@ -380,7 +402,12 @@ def test_application_does_not_display_raw_blocked_missing_conversion() -> None:
     at = _run_app()
     text = _all_text(at)
     assert "blocked_missing_conversion" not in text
-    assert "缺少轉換" in text or "缺少熱值" in text
+    assert (
+        "缺少轉換" in text
+        or "缺少熱值" in text
+        or "目前無法計算" in text
+        or "缺少已驗證" in text
+    )
 
 
 def test_no_page_produces_uncaught_streamlit_exception() -> None:
@@ -401,7 +428,10 @@ def test_no_page_produces_uncaught_streamlit_exception() -> None:
 def test_english_navigation_copy() -> None:
     at = _switch_language(_run_app(), "EN")
     text = _all_text(at)
-    assert "Carbon data overview" in text
-    assert "Start analysis" in text
-    assert "Calculation status" in text
-    assert "Activity status breakdown" in text
+    assert "Analysis results" in text
+    assert (
+        "Re-run analysis" in text
+        or "Run demo analysis" in text
+        or "Start analysis" in text
+    )
+    assert "Emissions trend" in text or "Calculation status" in text

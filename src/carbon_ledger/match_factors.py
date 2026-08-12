@@ -283,11 +283,52 @@ def _match_diesel(
     return candidates
 
 
+def _activity_year_label(activity_start: Any, activity_end: Any) -> str:
+    start = _parse_optional_timestamp(activity_start)
+    end = _parse_optional_timestamp(activity_end)
+    if start is None and end is None:
+        return ""
+    if start is not None and end is not None and start.year == end.year:
+        return str(int(start.year))
+    if start is not None:
+        return str(int(start.year))
+    if end is not None:
+        return str(int(end.year))
+    return ""
+
+
+def _registered_years_for_activity(
+    emission_factors: pd.DataFrame | None,
+    activity_type: str,
+) -> list[str]:
+    if emission_factors is None or emission_factors.empty:
+        return []
+    if "activity_type" not in emission_factors.columns:
+        return []
+    rows = emission_factors.loc[
+        emission_factors["activity_type"].astype(str) == activity_type
+    ]
+    if "factor_status" in rows.columns:
+        rows = rows.loc[rows["factor_status"].astype(str) != "inactive"]
+    if "factor_year" not in rows.columns:
+        return []
+    return sorted(
+        {
+            _text(value)
+            for value in rows["factor_year"].tolist()
+            if not _is_blank(value)
+        }
+    )
+
+
 def _build_readiness_row(
     *,
     record_id: str,
     activity_type: str,
     candidates: list[dict[str, Any]],
+    activity_start: Any = None,
+    activity_end: Any = None,
+    emission_factors: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     count = len(candidates)
 
@@ -331,16 +372,31 @@ def _build_readiness_row(
         }
 
     if count == 0:
+        activity_year = _activity_year_label(activity_start, activity_end)
+        registered_years = _registered_years_for_activity(
+            emission_factors,
+            activity_type,
+        )
+        if activity_type == "grid_electricity" and activity_year:
+            registered = ", ".join(registered_years) if registered_years else "(none)"
+            reason = (
+                "尚未找到適用於這筆活動期間的官方排放係數。"
+                f" 活動期間：{activity_year}。"
+                f" 目前已登錄：{registered}。"
+                " 系統不會自動使用不同年度的係數。"
+            )
+        else:
+            reason = (
+                f"No eligible emission-factor candidates were found for "
+                f"{activity_type!r}."
+            )
         return {
             "record_id": record_id,
             "activity_type": activity_type,
             "calculation_readiness": "no_factor_configured",
             "candidate_factor_count": 0,
             "blocking_dependency": pd.NA,
-            "readiness_reason": (
-                f"No eligible emission-factor candidates were found for "
-                f"{activity_type!r}."
-            ),
+            "readiness_reason": reason,
         }
 
     statuses = {item["match_status"] for item in candidates}
@@ -449,6 +505,9 @@ def match_activity_factors(
                 record_id=record_id,
                 activity_type=activity_type,
                 candidates=candidates,
+                activity_start=start,
+                activity_end=end,
+                emission_factors=factors,
             )
         )
 
