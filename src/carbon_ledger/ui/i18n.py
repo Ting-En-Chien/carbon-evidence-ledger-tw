@@ -686,11 +686,21 @@ MESSAGES: dict[str, dict[str, str]] = {
     "fw.title": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
     "fw.subtitle": {
         "zh-TW": "依官方核心結構整理：治理、策略、風險管理、指標與目標。",
-        "en": "Organized by the official pillars: Governance, Strategy, Risk Management, Metrics & Targets.",
+        "en": (
+            "Organized by the official pillars: Governance, Strategy, "
+            "Risk Management, Metrics & Targets."
+        ),
     },
     "fw.help": {
-        "zh-TW": "IFRS S1 提供一般揭露架構；IFRS S2 提供氣候相關要求。本頁不做合規判定。",
-        "en": "IFRS S1 provides the general disclosure architecture; IFRS S2 adds climate requirements. This page does not determine compliance.",
+        "zh-TW": (
+            "IFRS S1 提供一般揭露架構；IFRS S2 提供氣候相關要求。"
+            "本頁不做合規判定。"
+        ),
+        "en": (
+            "IFRS S1 provides the general disclosure architecture; "
+            "IFRS S2 adds climate requirements. "
+            "This page does not determine compliance."
+        ),
     },
     "fw.pillar.governance": {"zh-TW": "治理", "en": "Governance"},
     "fw.pillar.strategy": {"zh-TW": "策略", "en": "Strategy"},
@@ -701,12 +711,22 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Rule set not yet implemented",
     },
     "fw.pillar.shell_help": {
-        "zh-TW": "此區塊將於後續階段接上風險／機會紀錄與規則登錄。目前不臆測適用或合規結論。",
-        "en": "This pillar will connect to risk/opportunity records and the rule registry in a later stage. No applicability or compliance conclusions are invented here.",
+        "zh-TW": (
+            "此區塊將於後續階段接上風險／機會紀錄與規則登錄。"
+            "目前不臆測適用或合規結論。"
+        ),
+        "en": (
+            "This pillar will connect to risk/opportunity records and the "
+            "rule registry in a later stage. No applicability or compliance "
+            "conclusions are invented here."
+        ),
     },
     "fw.metrics_help": {
         "zh-TW": "目前已實作的 IFRS S2 氣候指標就緒度檢視（資料準備，非合規分數）。",
-        "en": "Currently implemented IFRS S2 climate-metrics readiness view (data prep, not a compliance score).",
+        "en": (
+            "Currently implemented IFRS S2 climate-metrics readiness view "
+            "(data prep, not a compliance score)."
+        ),
     },
     "fw.needs_information": {
         "zh-TW": "需要更多資訊",
@@ -787,21 +807,33 @@ MESSAGES: dict[str, dict[str, str]] = {
     "aud.title": {"zh-TW": "報表與匯出", "en": "Reporting & Export"},
     "aud.subtitle": {
         "zh-TW": "下載工作底稿、證據清冊與資料品質例外清單（非官方申報檔）。",
-        "en": "Download workpapers, evidence registers, and data-quality exception lists (not official filings).",
+        "en": (
+            "Download workpapers, evidence registers, and data-quality "
+            "exception lists (not official filings)."
+        ),
     },
     "aud.help": {
         "zh-TW": "輸出為佐證包／就緒度工作底稿。系統不宣稱產出完整正式申報。",
-        "en": "Outputs are supporting packages / readiness workpapers. The system does not claim to produce a complete official filing.",
+        "en": (
+            "Outputs are supporting packages / readiness workpapers. "
+            "The system does not claim to produce a complete official filing."
+        ),
     },
     "aud.workpaper_note": {
         "zh-TW": "請以工作底稿／佐證包理解下載內容，而非正式法規申報檔。",
-        "en": "Treat downloads as workpapers / supporting packages, not official regulatory filings.",
+        "en": (
+            "Treat downloads as workpapers / supporting packages, "
+            "not official regulatory filings."
+        ),
     },
     "aud.hero": {
         "zh-TW": "下載你的分析成果",
         "en": "Download your analysis results",
     },
-    "aud.zip_title": {"zh-TW": "工作底稿／佐證包", "en": "Workpaper / supporting package"},
+    "aud.zip_title": {
+        "zh-TW": "工作底稿／佐證包",
+        "en": "Workpaper / supporting package",
+    },
     "aud.zip_desc": {
         "zh-TW": (
             "包含活動資料、排放計算、待處理問題、IFRS 就緒度與證據追蹤"

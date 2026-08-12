@@ -624,22 +624,52 @@ def build_taiwan_general_and_fi() -> None:
         verification_status="VERIFIED_AUTHORITATIVE",
     )
     for rid, para, title, area in [
-        ("tw_ar_art10_1_risk_opportunity_identification", "1", "風險與機會及重大資訊", "Strategy"),
-        ("tw_ar_art10_1_materiality_definition", "1", "重大資訊定義", "Materiality"),
-        ("tw_ar_art10_1_reporting_entity_period", "2", "報導個體與期間", "Reporting entity"),
-        ("tw_ar_art10_1_comparative_information", "2", "比較資訊", "Comparative information"),
+        (
+            "tw_ar_art10_1_risk_opportunity_identification",
+            "1",
+            "風險與機會及重大資訊",
+            "Strategy",
+        ),
+        (
+            "tw_ar_art10_1_materiality_definition",
+            "1",
+            "重大資訊定義",
+            "Materiality",
+        ),
+        (
+            "tw_ar_art10_1_reporting_entity_period",
+            "2",
+            "報導個體與期間",
+            "Reporting entity",
+        ),
+        (
+            "tw_ar_art10_1_comparative_information",
+            "2",
+            "比較資訊",
+            "Comparative information",
+        ),
         (
             "tw_ar_art10_1_compliance_statement_fair_presentation",
             "3",
             "認可準則聲明與允當表達",
             "Statement of compliance",
         ),
-        ("tw_ar_art10_1_connected_information", "4", "連結資訊", "Connected information"),
+        (
+            "tw_ar_art10_1_connected_information",
+            "4",
+            "連結資訊",
+            "Connected information",
+        ),
         ("tw_ar_art10_1_governance", "5", "治理", "Governance"),
         ("tw_ar_art10_1_strategy", "5", "策略", "Strategy"),
         ("tw_ar_art10_1_risk_management", "5", "風險管理", "Risk Management"),
         ("tw_ar_art10_1_metrics_targets", "5", "指標與目標", "Metrics & Targets"),
-        ("tw_ar_art10_1_first_year_climate_only", "6", "首年得僅揭露氣候", "Transition"),
+        (
+            "tw_ar_art10_1_first_year_climate_only",
+            "6",
+            "首年得僅揭露氣候",
+            "Transition",
+        ),
         ("tw_ar_art10_1_ghg_measurement_method", "7", "GHG 衡量方法", "GHG emissions"),
         (
             "tw_ar_art10_1_scope12_assurance_hook",
@@ -749,21 +779,30 @@ def build_taiwan_general_and_fi() -> None:
             "tw_order_51756_phase1_ge_10bn",
             "二(一)",
             "Phase I >= NT$10bn: FY2026 / file 2027",
-            "entity_type in {general_listed_company,general_otc_company} AND paid_in_capital_twd >= 10000000000",
+            (
+                "entity_type in {general_listed_company,general_otc_company} "
+                "AND paid_in_capital_twd >= 10000000000"
+            ),
             "2026-01-01",
         ),
         (
             "tw_order_51756_phase2_5_to_10bn",
             "二(二)",
             "Phase II >= NT$5bn < NT$10bn: FY2027 / file 2028",
-            "entity_type in {general_listed_company,general_otc_company} AND 5000000000 <= paid_in_capital_twd < 10000000000",
+            (
+                "entity_type in {general_listed_company,general_otc_company} "
+                "AND 5000000000 <= paid_in_capital_twd < 10000000000"
+            ),
             "2027-01-01",
         ),
         (
             "tw_order_51756_phase3_lt_5bn",
             "二(三)",
             "Phase III < NT$5bn: FY2028 / file 2029",
-            "entity_type in {general_listed_company,general_otc_company} AND paid_in_capital_twd < 5000000000",
+            (
+                "entity_type in {general_listed_company,general_otc_company} "
+                "AND paid_in_capital_twd < 5000000000"
+            ),
             "2028-01-01",
         ),
     ]:
@@ -1091,7 +1130,10 @@ def build_taiwan_general_and_fi() -> None:
             "2(3)",
             "bank",
             "Non-listed non-FHC-sub banks: FY2027",
-            "entity_type==bank AND listing not in {TWSE,TPEx} AND is_fhc_subsidiary=false",
+            (
+                "entity_type==bank AND listing not in {TWSE,TPEx} "
+                "AND is_fhc_subsidiary=false"
+            ),
             "2027-01-01",
         ),
         (
@@ -1102,7 +1144,10 @@ def build_taiwan_general_and_fi() -> None:
             "2(2)",
             "bills_finance_company",
             "Listed or FHC-sub bills: FY2026",
-            "entity_type==bills_finance_company AND (listing==TWSE OR is_fhc_subsidiary=true)",
+            (
+                "entity_type==bills_finance_company "
+                "AND (listing==TWSE OR is_fhc_subsidiary=true)"
+            ),
             "2026-01-01",
         ),
         (
@@ -1113,7 +1158,11 @@ def build_taiwan_general_and_fi() -> None:
             "6",
             "financial_holding_company|bank|bills_finance_company",
             "FI Scope 3 from fourth FY",
-            "entity_type in {financial_holding_company,bank,bills_finance_company} AND years_since_first_tw_ifrs_application >= 4",
+            (
+                "entity_type in "
+                "{financial_holding_company,bank,bills_finance_company} "
+                "AND years_since_first_tw_ifrs_application >= 4"
+            ),
             "2026-01-01",
         ),
         (
@@ -1228,21 +1277,36 @@ def build_securities_and_fcm() -> None:
             "tw_sf_order_56095_phase1_ge_10bn",
             "二(一)",
             "SF Phase I >= NT$10bn: FY2026 / file 2027",
-            "entity_type==securities_firm AND paid_in_capital_twd >= 10000000000 AND (is_listed_otc_securities_firm OR is_listed_parent_integrated_sf_sub)",
+            (
+                "entity_type==securities_firm "
+                "AND paid_in_capital_twd >= 10000000000 "
+                "AND (is_listed_otc_securities_firm "
+                "OR is_listed_parent_integrated_sf_sub)"
+            ),
             "2026-01-01",
         ),
         (
             "tw_sf_order_56095_phase2_5_to_10bn",
             "二(二)",
             "SF Phase II >= NT$5bn < NT$10bn: FY2027 / file 2028",
-            "entity_type==securities_firm AND 5000000000 <= paid_in_capital_twd < 10000000000 AND (is_listed_otc_securities_firm OR is_listed_parent_integrated_sf_sub)",
+            (
+                "entity_type==securities_firm "
+                "AND 5000000000 <= paid_in_capital_twd < 10000000000 "
+                "AND (is_listed_otc_securities_firm "
+                "OR is_listed_parent_integrated_sf_sub)"
+            ),
             "2027-01-01",
         ),
         (
             "tw_sf_order_56095_phase3_lt_5bn",
             "二(三)",
             "SF Phase III < NT$5bn: FY2028 / file 2029",
-            "entity_type==securities_firm AND paid_in_capital_twd < 5000000000 AND (is_listed_otc_securities_firm OR is_listed_parent_integrated_sf_sub)",
+            (
+                "entity_type==securities_firm "
+                "AND paid_in_capital_twd < 5000000000 "
+                "AND (is_listed_otc_securities_firm "
+                "OR is_listed_parent_integrated_sf_sub)"
+            ),
             "2028-01-01",
         ),
     ]:
@@ -1297,7 +1361,10 @@ def build_securities_and_fcm() -> None:
             "SF Scope 3 from fourth FY after first application",
             "transition_relief",
             "GHG transition",
-            "entity_type==securities_firm AND years_since_first_tw_ifrs_application >= 4",
+            (
+                "entity_type==securities_firm "
+                "AND years_since_first_tw_ifrs_application >= 4"
+            ),
             "2026-01-01",
             "FUTURE",
         ),
@@ -1451,21 +1518,33 @@ def build_securities_and_fcm() -> None:
             "tw_fcm_order_56096_phase1_ge_10bn",
             "二(一)",
             "FCM Phase I >= NT$10bn: FY2026 / file 2027",
-            "entity_type==futures_commission_merchant AND paid_in_capital_twd >= 10000000000 AND (is_listed_otc_fcm OR is_listed_parent_dedicated_fcm_sub)",
+            (
+                "entity_type==futures_commission_merchant "
+                "AND paid_in_capital_twd >= 10000000000 "
+                "AND (is_listed_otc_fcm OR is_listed_parent_dedicated_fcm_sub)"
+            ),
             "2026-01-01",
         ),
         (
             "tw_fcm_order_56096_phase2_5_to_10bn",
             "二(二)",
             "FCM Phase II >= NT$5bn < NT$10bn: FY2027 / file 2028",
-            "entity_type==futures_commission_merchant AND 5000000000 <= paid_in_capital_twd < 10000000000 AND (is_listed_otc_fcm OR is_listed_parent_dedicated_fcm_sub)",
+            (
+                "entity_type==futures_commission_merchant "
+                "AND 5000000000 <= paid_in_capital_twd < 10000000000 "
+                "AND (is_listed_otc_fcm OR is_listed_parent_dedicated_fcm_sub)"
+            ),
             "2027-01-01",
         ),
         (
             "tw_fcm_order_56096_phase3_lt_5bn",
             "二(三)",
             "FCM Phase III < NT$5bn: FY2028 / file 2029",
-            "entity_type==futures_commission_merchant AND paid_in_capital_twd < 5000000000 AND (is_listed_otc_fcm OR is_listed_parent_dedicated_fcm_sub)",
+            (
+                "entity_type==futures_commission_merchant "
+                "AND paid_in_capital_twd < 5000000000 "
+                "AND (is_listed_otc_fcm OR is_listed_parent_dedicated_fcm_sub)"
+            ),
             "2028-01-01",
         ),
     ]:
@@ -1511,7 +1590,10 @@ def build_securities_and_fcm() -> None:
             "FCM Scope 3 from fourth FY after first application",
             "transition_relief",
             "GHG transition",
-            "entity_type==futures_commission_merchant AND years_since_first_tw_ifrs_application >= 4",
+            (
+                "entity_type==futures_commission_merchant "
+                "AND years_since_first_tw_ifrs_application >= 4"
+            ),
             "2026-01-01",
             "FUTURE",
         ),
@@ -1707,7 +1789,12 @@ def build_ifrs() -> None:
             "Reporting entity",
             "REQUIRES_MANUAL_IFRS_ACCESS",
         ),
-        ("ifrs_s1_materiality", "Materiality", "Materiality", "REQUIRES_MANUAL_IFRS_ACCESS"),
+        (
+            "ifrs_s1_materiality",
+            "Materiality",
+            "Materiality",
+            "REQUIRES_MANUAL_IFRS_ACCESS",
+        ),
         (
             "ifrs_s1_fair_presentation",
             "Fair presentation",
@@ -1738,7 +1825,12 @@ def build_ifrs() -> None:
             "Statement of compliance",
             "REQUIRES_MANUAL_IFRS_ACCESS",
         ),
-        ("ifrs_s1_judgements", "Judgements", "Judgements", "REQUIRES_MANUAL_IFRS_ACCESS"),
+        (
+            "ifrs_s1_judgements",
+            "Judgements",
+            "Judgements",
+            "REQUIRES_MANUAL_IFRS_ACCESS",
+        ),
         (
             "ifrs_s1_measurement_uncertainty",
             "Measurement uncertainty",
@@ -1752,7 +1844,12 @@ def build_ifrs() -> None:
             "Commercially sensitive information",
             "REQUIRES_MANUAL_IFRS_ACCESS",
         ),
-        ("ifrs_s1_transition", "Transition", "Transition provisions", "REQUIRES_MANUAL_IFRS_ACCESS"),
+        (
+            "ifrs_s1_transition",
+            "Transition",
+            "Transition provisions",
+            "REQUIRES_MANUAL_IFRS_ACCESS",
+        ),
     ]:
         add_r(
             rule_id=rid,
@@ -1787,8 +1884,18 @@ def build_ifrs() -> None:
     for rid, area, para, title in [
         ("ifrs_s2_governance", "Governance", "5–6", "Governance (S2.5–6)"),
         ("ifrs_s2_strategy", "Strategy", "8–9+", "Strategy (S2.8–9+)"),
-        ("ifrs_s2_risk_management", "Risk Management", "24–25", "Risk Management (S2.24–25)"),
-        ("ifrs_s2_metrics_targets", "Metrics & Targets", "27+", "Metrics & Targets (S2.27+)"),
+        (
+            "ifrs_s2_risk_management",
+            "Risk Management",
+            "24–25",
+            "Risk Management (S2.24–25)",
+        ),
+        (
+            "ifrs_s2_metrics_targets",
+            "Metrics & Targets",
+            "27+",
+            "Metrics & Targets (S2.27+)",
+        ),
     ]:
         add_r(
             rule_id=rid,
@@ -1825,9 +1932,24 @@ def build_ifrs() -> None:
         )
     for rid, area, title, status in [
         ("ifrs_s2_objective", "Objective", "Objective / scope", "PARTIAL"),
-        ("ifrs_s2_physical_risks", "Physical risks", "Climate-related physical risks", "PARTIAL"),
-        ("ifrs_s2_transition_risks", "Transition risks", "Climate-related transition risks", "PARTIAL"),
-        ("ifrs_s2_opportunities", "Opportunities", "Climate-related opportunities", "PARTIAL"),
+        (
+            "ifrs_s2_physical_risks",
+            "Physical risks",
+            "Climate-related physical risks",
+            "PARTIAL",
+        ),
+        (
+            "ifrs_s2_transition_risks",
+            "Transition risks",
+            "Climate-related transition risks",
+            "PARTIAL",
+        ),
+        (
+            "ifrs_s2_opportunities",
+            "Opportunities",
+            "Climate-related opportunities",
+            "PARTIAL",
+        ),
         ("ifrs_s2_scope1", "GHG emissions", "Scope 1", "PARTIAL"),
         ("ifrs_s2_scope2", "GHG emissions", "Scope 2", "PARTIAL"),
         ("ifrs_s2_scope3", "GHG emissions", "Scope 3", "PARTIAL"),
@@ -1843,7 +1965,12 @@ def build_ifrs() -> None:
             "Strategy and decision-making",
             "REQUIRES_MANUAL_IFRS_ACCESS",
         ),
-        ("ifrs_s2_transition_plan", "Strategy", "Transition plans", "REQUIRES_MANUAL_IFRS_ACCESS"),
+        (
+            "ifrs_s2_transition_plan",
+            "Strategy",
+            "Transition plans",
+            "REQUIRES_MANUAL_IFRS_ACCESS",
+        ),
         (
             "ifrs_s2_current_financial_effects",
             "Financial effects",
@@ -1880,7 +2007,12 @@ def build_ifrs() -> None:
             "Industry-based metrics",
             "REQUIRES_MANUAL_IFRS_ACCESS",
         ),
-        ("ifrs_s2_climate_targets", "Metrics & Targets", "Climate targets", "REQUIRES_MANUAL_IFRS_ACCESS"),
+        (
+            "ifrs_s2_climate_targets",
+            "Metrics & Targets",
+            "Climate targets",
+            "REQUIRES_MANUAL_IFRS_ACCESS",
+        ),
         (
             "ifrs_s2_capital_deployment",
             "Metrics & Targets",
@@ -1957,7 +2089,9 @@ def build_ifrs() -> None:
             "permitted. Consequential SASB alignment amendments also issued."
         ),
         entity_type="other",
-        applicability_condition="International IFRS S2 applicants from 2027 (or earlier if elected)",
+        applicability_condition=(
+            "International IFRS S2 applicants from 2027 (or earlier if elected)"
+        ),
         applicability_condition_machine=(
             "report_period_start >= 2027-01-01 OR early_apply_s2_ghg_amendments=true"
         ),

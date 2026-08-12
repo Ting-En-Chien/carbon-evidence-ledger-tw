@@ -1,4 +1,4 @@
-"""Evidence & Data workspace chrome (tabs across intake / activity / issues / records)."""
+"""Evidence & Data workspace chrome (tabs across intake / activity / issues / records)."""  # noqa: E501
 
 from __future__ import annotations
 

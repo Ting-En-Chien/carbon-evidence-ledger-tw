@@ -851,7 +851,11 @@ def persist_monitoring_state(
     """
     root = Path(repo_root)
     cfg = config or load_monitor_config(root / "config" / "regulatory_monitoring.yaml")
-    dest = Path(destination) if destination is not None else root / cfg.durable_state_dir
+    dest = (
+        Path(destination)
+        if destination is not None
+        else root / cfg.durable_state_dir
+    )
     src_dir = root / cfg.bundled_state_dir
     prior = read_persistence_status(root / cfg.persistence_status_path)
     prior_failures = int(prior.get("consecutive_persistence_failures") or 0)
@@ -924,7 +928,9 @@ def persist_monitoring_state(
         write_persistence_status(dest / "persistence_status.json", status)
         write_persistence_status(root / cfg.persistence_status_path, status)
         # Keep bundled copy of status for readers that only see data/regulatory.
-        if (src_dir / "persistence_status.json") != (root / cfg.persistence_status_path):
+        if (src_dir / "persistence_status.json") != (
+            root / cfg.persistence_status_path
+        ):
             write_persistence_status(src_dir / "persistence_status.json", status)
         return PersistenceResult(
             ok=True,
