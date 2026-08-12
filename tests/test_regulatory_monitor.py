@@ -414,6 +414,9 @@ def test_scheduled_workflow_exists_and_is_enabled() -> None:
     assert 'cron: "0 16 * * *"' not in text
     assert "python -m carbon_ledger.regulatory_monitor --check-all" in text
     assert "regulatory-monitor-state" in text
+    assert "data/regulatory/durable_state" in text
+    assert "--verify-persisted-summary" in text
+    assert "--health-gate" in text
     assert "regulatory-update/" in text
     assert "gh pr create" in text
     assert "permissions:" in text
@@ -439,6 +442,11 @@ def test_monitor_does_not_import_calculation_pipeline() -> None:
     assert "calculate" not in mon.__dict__
     assert "ingest" not in mon.__dict__
     assert "match_factors" not in mon.__dict__
+    source = Path(mon.__file__).read_text(encoding="utf-8")
+    assert "verify=False" not in source
+    assert "_create_unverified_context" not in source
+    assert "curl -k" not in source
+    assert "CERT_NONE" not in source
 
 
 def test_no_change_run_updates_durable_freshness_state(tmp_path: Path) -> None:
@@ -709,6 +717,16 @@ def test_freshness_state_unavailable_when_missing(tmp_path: Path) -> None:
 
 def test_persist_monitoring_state_refuses_content_files(tmp_path: Path) -> None:
     root = _seed_tmp_repo(tmp_path)
+    durable = root / "data/regulatory/durable_state"
+    durable.mkdir(parents=True, exist_ok=True)
+    shutil.copy(
+        root / "data/regulatory/source_freshness_state.csv",
+        durable / "source_freshness_state.csv",
+    )
+    (durable / "monitoring_summary.json").write_text(
+        '{"overall_regulatory_freshness":"CHECK_DUE","critical_sources_failed":0}\n',
+        encoding="utf-8",
+    )
     result = persist_monitoring_state(root)
     assert result.ok is True
     durable_rules = root / "data/regulatory/durable_state/regulatory_rules.csv"
@@ -716,3 +734,221 @@ def test_persist_monitoring_state_refuses_content_files(tmp_path: Path) -> None:
     assert (
         root / "data/regulatory/durable_state/source_freshness_state.csv"
     ).is_file()
+
+
+# --- Stage 3A.5 ---
+
+
+def test_tls_strict_context_is_default() -> None:
+    import ssl
+
+    from carbon_ledger.regulatory_monitor import build_official_source_ssl_context
+
+    ctx = build_official_source_ssl_context(relax_x509_strict=False)
+    assert ctx.verify_mode == ssl.CERT_REQUIRED
+    assert ctx.check_hostname is True
+
+
+def test_tls_x509_strict_fallback_only_for_allowlisted_hosts() -> None:
+    import ssl
+
+    from carbon_ledger.regulatory_monitor import (
+        build_official_source_ssl_context,
+        hostname_in_tls_fallback_allowlist,
+        is_x509_strict_compatibility_error,
+    )
+
+    assert is_x509_strict_compatibility_error(
+        "certificate verify failed: Missing Subject Key Identifier"
+    )
+    assert not is_x509_strict_compatibility_error("connection timed out")
+    allow = {"law.fsc.gov.tw", "www.fsc.gov.tw"}
+    assert hostname_in_tls_fallback_allowlist(
+        "https://law.fsc.gov.tw/LawContent.aspx", allow
+    )
+    assert not hostname_in_tls_fallback_allowlist(
+        "https://www.ifrs.org/standards/", allow
+    )
+    compat = build_official_source_ssl_context(relax_x509_strict=True)
+    assert compat.verify_mode == ssl.CERT_REQUIRED
+    assert compat.check_hostname is True
+    if hasattr(ssl, "VERIFY_X509_STRICT"):
+        assert not (compat.verify_flags & ssl.VERIFY_X509_STRICT)
+
+
+def test_failed_fetch_never_classified_no_change() -> None:
+    assert (
+        classify_change(
+            previous_hash="abc",
+            new_hash="",
+            previous_etag="",
+            new_etag="",
+            previous_last_modified="",
+            new_last_modified="",
+            previous_version="1",
+            new_version="1",
+            fetch_ok=False,
+        )
+        == "SOURCE_UNAVAILABLE"
+    )
+    assert (
+        classify_change(
+            previous_hash="abc",
+            new_hash="abc",
+            previous_etag="",
+            new_etag="",
+            previous_last_modified="",
+            new_last_modified="",
+            previous_version="1",
+            new_version="1",
+            fetch_ok=True,
+        )
+        == "NO_CHANGE"
+    )
+
+
+def test_critical_source_failure_makes_overall_non_current() -> None:
+    from carbon_ledger.regulatory_monitor import (
+        HEALTH_CRITICAL_SOURCE_FAILURE,
+        build_monitoring_summary,
+        evaluate_monitoring_health,
+    )
+
+    summary = build_monitoring_summary(
+        freshness_rows=[
+            {
+                "source_id": "src_tw_order_11403851756",
+                "freshness_status": "FETCH_FAILED",
+                "fetch_status": "FETCH_FAILED",
+                "monitor_criticality": "CRITICAL",
+                "last_checked_at": "2026-08-12T00:00:00Z",
+                "last_successful_fetch_at": "",
+                "consecutive_failures": "1",
+            }
+        ],
+        change_rows=[],
+        conflict_rows=[],
+        critical_source_ids=["src_tw_order_11403851756"],
+    )
+    assert summary["critical_sources_failed"] == 1
+    assert summary["overall_regulatory_freshness"] != "CURRENT"
+    assert evaluate_monitoring_health(summary) == HEALTH_CRITICAL_SOURCE_FAILURE
+
+
+def test_critical_source_failure_health_gate_nonzero(tmp_path: Path) -> None:
+    from carbon_ledger.regulatory_monitor import main
+
+    root = _seed_tmp_repo(tmp_path)
+    durable = root / "data/regulatory/durable_state"
+    durable.mkdir(parents=True, exist_ok=True)
+    summary = {
+        "overall_regulatory_freshness": "SOURCE_CHECK_FAILED",
+        "critical_sources_failed": 2,
+        "persistence_status": "OK",
+        "monitoring_health": "CRITICAL_SOURCE_FAILURE",
+    }
+    (durable / "monitoring_summary.json").write_text(
+        json.dumps(summary), encoding="utf-8"
+    )
+    code = main(["--repo-root", str(root), "--health-gate"])
+    assert code == 4
+
+
+def test_runtime_durable_state_is_persisted_source(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    body = b"<html>runtime durable soT</html>"
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        return FetchResult(ok=True, status_code=200, body=body)
+
+    result = run_monitor(
+        root,
+        source_id="src_tw_order_11403851756",
+        fetch_fn=fetch,
+        now=datetime(2026, 8, 12, 16, 0, tzinfo=timezone.utc),
+        write_pending_review=False,
+    )
+    assert "durable_state" in result["runtime_state_dir"]
+    durable_summary = json.loads(
+        Path(result["summary_path"]).read_text(encoding="utf-8")
+    )
+    assert durable_summary["sources_total"] >= 1
+    assert durable_summary["last_global_check_at"]
+    # Bundled mirror must match runtime, not remain the bootstrap template.
+    bundled = json.loads(
+        (root / "data/regulatory/monitoring_summary.json").read_text(encoding="utf-8")
+    )
+    assert bundled["last_global_check_at"] == durable_summary["last_global_check_at"]
+    assert bundled["sources_total"] == durable_summary["sources_total"]
+
+
+def test_persisted_state_must_match_runtime(tmp_path: Path) -> None:
+    from carbon_ledger.regulatory_monitor import (
+        compare_monitoring_summaries,
+        verify_persisted_state_matches_runtime,
+    )
+
+    runtime = {
+        "overall_regulatory_freshness": "PARTIAL",
+        "last_global_check_at": "2026-08-12T16:00:00Z",
+        "last_successful_check_at": "2026-08-12T16:00:00Z",
+        "sources_current": 1,
+        "sources_failed": 0,
+        "sources_total": 1,
+        "critical_sources_failed": 0,
+        "generated_at": "2026-08-12T16:00:00Z",
+        "persistence_status": "OK",
+    }
+    stale = {**runtime, "sources_total": 0, "last_global_check_at": ""}
+    assert compare_monitoring_summaries(runtime, stale)
+    bad = tmp_path / "stale.json"
+    bad.write_text(json.dumps(stale), encoding="utf-8")
+    ok, mismatches = verify_persisted_state_matches_runtime(runtime, bad)
+    assert ok is False
+    assert "sources_total" in mismatches or "last_global_check_at" in mismatches
+
+
+def test_persistence_mismatch_fails_cli(tmp_path: Path) -> None:
+    from carbon_ledger.regulatory_monitor import main
+
+    root = _seed_tmp_repo(tmp_path)
+    durable = root / "data/regulatory/durable_state"
+    durable.mkdir(parents=True, exist_ok=True)
+    runtime = {
+        "overall_regulatory_freshness": "PARTIAL",
+        "last_global_check_at": "2026-08-12T16:00:00Z",
+        "last_successful_check_at": "2026-08-12T16:00:00Z",
+        "sources_current": 1,
+        "sources_failed": 0,
+        "sources_total": 3,
+        "critical_sources_failed": 0,
+        "generated_at": "2026-08-12T16:00:00Z",
+        "persistence_status": "OK",
+    }
+    (durable / "monitoring_summary.json").write_text(
+        json.dumps(runtime), encoding="utf-8"
+    )
+    stale = tmp_path / "branch_summary.json"
+    stale.write_text(
+        json.dumps({**runtime, "sources_total": 0}), encoding="utf-8"
+    )
+    code = main(
+        [
+            "--repo-root",
+            str(root),
+            "--verify-persisted-summary",
+            str(stale),
+        ]
+    )
+    assert code == 5
+
+
+def test_config_loads_critical_sources_and_tls_allowlist() -> None:
+    cfg = load_monitor_config(REPO_ROOT / "config/regulatory_monitoring.yaml")
+    assert "src_tw_fsc_law_portal" in cfg.critical_source_ids
+    assert "src_tw_order_11403851756" in cfg.critical_source_ids
+    assert "law.fsc.gov.tw" in cfg.tls_x509_strict_fallback_hosts
+    assert "www.ifrs.org" not in cfg.tls_x509_strict_fallback_hosts
+    from carbon_ledger.regulatory_monitor import source_criticality
+
+    assert source_criticality("src_tw_fsc_law_portal", cfg) == "CRITICAL"

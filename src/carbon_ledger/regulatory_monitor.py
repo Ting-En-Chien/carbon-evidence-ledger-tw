@@ -1,4 +1,4 @@
-"""Official regulatory-source monitor (Stage 3A.4).
+"""Official regulatory-source monitor (Stage 3A.5).
 
 Fetch → record metadata → compare → detect change → create change record →
 classify → flag affected rules for review → persist durable monitoring STATE.
@@ -9,6 +9,12 @@ pipeline. Network logic is injectable for unit tests.
 REGULATORY CONTENT (rules / source definitions) is separate from MONITORING
 STATE (freshness timestamps, hashes, summaries). Automatic monitoring may
 update STATE only.
+
+TLS note (Python 3.13+): default fetch uses strict create_default_context().
+If and only if an allowlisted official Taiwan host fails with an X509 strict
+compatibility error (e.g. Missing Subject Key Identifier), retry with CA +
+hostname verification still enabled but VERIFY_X509_STRICT cleared. Never
+disable certificate verification or hostname checks.
 """
 
 from __future__ import annotations
@@ -20,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import ssl
 import sys
 import time
 from dataclasses import dataclass, field
@@ -27,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from carbon_ledger.regulatory_registry import (
@@ -49,6 +57,28 @@ REVIEWABLE_CHANGE_TYPES = frozenset(
 STATE_SOURCE_DURABLE = "durable_persisted_state"
 STATE_SOURCE_BUNDLED = "bundled_fallback"
 STATE_SOURCE_UNAVAILABLE = "unavailable"
+
+CRITICALITY_CRITICAL = "CRITICAL"
+CRITICALITY_IMPORTANT = "IMPORTANT"
+CRITICALITY_SUPPLEMENTARY = "SUPPLEMENTARY"
+
+HEALTH_MONITORING_CURRENT = "MONITORING_CURRENT"
+HEALTH_MONITORING_PARTIAL = "MONITORING_PARTIAL"
+HEALTH_CRITICAL_SOURCE_FAILURE = "CRITICAL_SOURCE_FAILURE"
+HEALTH_STATE_PERSISTENCE_FAILED = "STATE_PERSISTENCE_FAILED"
+HEALTH_STATE_PERSISTENCE_MISMATCH = "STATE_PERSISTENCE_MISMATCH"
+
+SUMMARY_INTEGRITY_KEYS = (
+    "overall_regulatory_freshness",
+    "last_global_check_at",
+    "last_successful_check_at",
+    "sources_current",
+    "sources_failed",
+    "sources_total",
+    "critical_sources_failed",
+    "generated_at",
+    "persistence_status",
+)
 
 DEFAULT_MONITORING_STATE_FILES = (
     "source_freshness_state.csv",
@@ -117,6 +147,7 @@ FRESHNESS_COLUMNS = [
     "next_check_at",
     "current_source_version",
     "previous_source_version",
+    "monitor_criticality",
 ]
 
 CONFLICT_COLUMNS = [
@@ -147,6 +178,7 @@ class FetchResult:
     last_modified: str = ""
     error: str = ""
     final_url: str = ""
+    tls_mode: str = "strict"  # strict | x509_strict_compat
 
 
 @dataclass
@@ -156,7 +188,7 @@ class MonitorConfig:
     backoff_seconds: float = 1.5
     rate_limit_seconds: float = 1.0
     user_agent: str = (
-        "CarbonEvidenceLedger-RegulatoryMonitor/3A.4 "
+        "CarbonEvidenceLedger-RegulatoryMonitor/3A.5 "
         "(+https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
     )
     freshness_windows: dict[str, timedelta] = field(default_factory=dict)
@@ -170,6 +202,9 @@ class MonitorConfig:
     persistence_status_path: str = "data/regulatory/persistence_status.json"
     high_priority_source_ids: list[str] = field(default_factory=list)
     required_authoritative_source_ids: list[str] = field(default_factory=list)
+    critical_source_ids: list[str] = field(default_factory=list)
+    important_source_ids: list[str] = field(default_factory=list)
+    tls_x509_strict_fallback_hosts: list[str] = field(default_factory=list)
     reviewable_change_types: frozenset[str] = REVIEWABLE_CHANGE_TYPES
     schedule_cron_utc: str = "17 16 * * *"
     schedule_cadence: str = "daily"
@@ -314,6 +349,11 @@ def load_monitor_config(path: Path) -> MonitorConfig:
         ),
         required_authoritative_source_ids=_as_str_list(
             data.get("required_authoritative_source_ids")
+        ),
+        critical_source_ids=_as_str_list(data.get("critical_source_ids")),
+        important_source_ids=_as_str_list(data.get("important_source_ids")),
+        tls_x509_strict_fallback_hosts=_as_str_list(
+            data.get("tls_x509_strict_fallback_hosts")
         ),
         reviewable_change_types=frozenset(reviewable or REVIEWABLE_CHANGE_TYPES),
         schedule_cron_utc=str(schedule.get("cron_utc", "17 16 * * *")),
@@ -460,7 +500,61 @@ def should_open_review_activity(changes: list[dict[str, str]]) -> bool:
     return any(is_reviewable_change(change) for change in changes)
 
 
-def default_fetch(url: str, timeout: float, user_agent: str) -> FetchResult:
+def source_criticality(source_id: str, config: MonitorConfig) -> str:
+    sid = str(source_id or "")
+    if sid in set(config.critical_source_ids):
+        return CRITICALITY_CRITICAL
+    if sid in set(config.important_source_ids):
+        return CRITICALITY_IMPORTANT
+    return CRITICALITY_SUPPLEMENTARY
+
+
+def is_x509_strict_compatibility_error(error: object) -> bool:
+    """True only for Python 3.13 VERIFY_X509_STRICT / missing SKI style failures."""
+    text = str(error or "").upper()
+    markers = (
+        "MISSING SUBJECT KEY IDENTIFIER",
+        "SUBJECT KEY IDENTIFIER",
+        "VERIFY_X509_STRICT",
+    )
+    return any(marker in text for marker in markers)
+
+
+def hostname_in_tls_fallback_allowlist(
+    url: str, allowlist: list[str] | set[str] | frozenset[str]
+) -> bool:
+    host = (urlparse(str(url)).hostname or "").lower()
+    if not host:
+        return False
+    allowed = {str(item).strip().lower() for item in allowlist if str(item).strip()}
+    return host in allowed
+
+
+def build_official_source_ssl_context(
+    *, relax_x509_strict: bool = False
+) -> ssl.SSLContext:
+    """TLS context that always keeps CA trust + hostname verification.
+
+    When relax_x509_strict=True, only clears VERIFY_X509_STRICT for known
+    official-source certificate-chain quirks. Never disables verification.
+    """
+    ctx = ssl.create_default_context()
+    # Hard invariants — never ship an unverified context.
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    ctx.check_hostname = True
+    if relax_x509_strict and hasattr(ssl, "VERIFY_X509_STRICT"):
+        ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return ctx
+
+
+def _fetch_once(
+    url: str,
+    timeout: float,
+    user_agent: str,
+    *,
+    context: ssl.SSLContext,
+    tls_mode: str,
+) -> FetchResult:
     request = Request(
         url,
         headers={
@@ -471,7 +565,9 @@ def default_fetch(url: str, timeout: float, user_agent: str) -> FetchResult:
         method="GET",
     )
     try:
-        with urlopen(request, timeout=timeout) as response:  # noqa: S310
+        with urlopen(  # noqa: S310 — official URLs only; TLS context required
+            request, timeout=timeout, context=context
+        ) as response:
             body = response.read(10 * 1024 * 1024)
             headers = {k.lower(): v for k, v in response.headers.items()}
             return FetchResult(
@@ -481,14 +577,58 @@ def default_fetch(url: str, timeout: float, user_agent: str) -> FetchResult:
                 etag=headers.get("etag", ""),
                 last_modified=headers.get("last-modified", ""),
                 final_url=str(getattr(response, "url", url)),
+                tls_mode=tls_mode,
             )
     except HTTPError as exc:
-        return FetchResult(ok=False, status_code=int(exc.code), error=str(exc))
+        return FetchResult(
+            ok=False, status_code=int(exc.code), error=str(exc), tls_mode=tls_mode
+        )
     except URLError as exc:
         reason = exc.reason if hasattr(exc, "reason") else exc
-        return FetchResult(ok=False, error=str(reason))
+        return FetchResult(ok=False, error=str(reason), tls_mode=tls_mode)
+    except ssl.SSLError as exc:
+        return FetchResult(ok=False, error=str(exc), tls_mode=tls_mode)
     except Exception as exc:  # noqa: BLE001
-        return FetchResult(ok=False, error=str(exc))
+        return FetchResult(ok=False, error=str(exc), tls_mode=tls_mode)
+
+
+def default_fetch(
+    url: str,
+    timeout: float,
+    user_agent: str,
+    *,
+    tls_fallback_hosts: list[str] | None = None,
+) -> FetchResult:
+    """Fetch with strict TLS first; optional allowlisted X509-strict compat retry."""
+    strict_ctx = build_official_source_ssl_context(relax_x509_strict=False)
+    first = _fetch_once(
+        url, timeout, user_agent, context=strict_ctx, tls_mode="strict"
+    )
+    if first.ok:
+        return first
+    if not is_x509_strict_compatibility_error(first.error):
+        return first
+    allowlist = tls_fallback_hosts or []
+    if not hostname_in_tls_fallback_allowlist(url, allowlist):
+        return first
+    compat_ctx = build_official_source_ssl_context(relax_x509_strict=True)
+    # Invariants still hold on the compatibility context.
+    if (
+        compat_ctx.verify_mode != ssl.CERT_REQUIRED
+        or not compat_ctx.check_hostname
+    ):
+        return FetchResult(
+            ok=False,
+            error="TLS compatibility context failed security invariants",
+            tls_mode="x509_strict_compat",
+        )
+    return _fetch_once(
+        url,
+        timeout,
+        user_agent,
+        context=compat_ctx,
+        tls_mode="x509_strict_compat",
+    )
 
 
 def fetch_with_retries(
@@ -499,7 +639,12 @@ def fetch_with_retries(
     last = FetchResult(ok=False, error="not attempted")
     for attempt in range(config.max_retries):
         if fetch_fn is None:
-            last = default_fetch(url, config.timeout_seconds, config.user_agent)
+            last = default_fetch(
+                url,
+                config.timeout_seconds,
+                config.user_agent,
+                tls_fallback_hosts=config.tls_x509_strict_fallback_hosts,
+            )
         else:
             last = fetch_fn(url, config.timeout_seconds)
         if last.ok:
@@ -579,12 +724,18 @@ def fail_safe_state_for_freshness(freshness_status: str) -> str | None:
         return "REGULATORY_DATA_STALE"
     if freshness_status in {"CHECK_DUE", "UPDATE_REQUIRED"}:
         return "UPDATE_REQUIRED"
-    if freshness_status in {"FETCH_FAILED", "SOURCE_CHECK_FAILED"}:
+    if freshness_status in {
+        "FETCH_FAILED",
+        "SOURCE_CHECK_FAILED",
+        "CRITICAL_SOURCE_FAILURE",
+    }:
         return "SOURCE_CHECK_FAILED"
     if freshness_status in {"FRESHNESS_STATE_UNAVAILABLE"}:
         return "FRESHNESS_STATE_UNAVAILABLE"
     if freshness_status in {"STATE_PERSISTENCE_FAILED"}:
         return "STATE_PERSISTENCE_FAILED"
+    if freshness_status in {"STATE_PERSISTENCE_MISMATCH"}:
+        return "STATE_PERSISTENCE_MISMATCH"
     return None
 
 
@@ -690,9 +841,11 @@ def build_monitoring_summary(
     state_source: str = STATE_SOURCE_BUNDLED,
     consecutive_persistence_failures: int = 0,
     persistence_status: str = "OK",
+    critical_source_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Machine-readable summary for future Compliance Overview / Stage 3B."""
     current_now = now or _utc_now()
+    critical_ids = set(critical_source_ids or [])
     statuses = [row.get("freshness_status", "CHECK_DUE") for row in freshness_rows]
     sources_current = sum(1 for status in statuses if status == "CURRENT")
     sources_stale = sum(
@@ -703,6 +856,17 @@ def build_monitoring_summary(
         for status in statuses
         if status in {"FETCH_FAILED", "SOURCE_CHECK_FAILED"}
     )
+    critical_sources_failed = 0
+    for row in freshness_rows:
+        sid = row.get("source_id", "")
+        criticality = row.get("monitor_criticality") or (
+            CRITICALITY_CRITICAL if sid in critical_ids else ""
+        )
+        failed = row.get("fetch_status") == "FETCH_FAILED" or row.get(
+            "freshness_status"
+        ) in {"FETCH_FAILED", "SOURCE_CHECK_FAILED"}
+        if criticality == CRITICALITY_CRITICAL and failed:
+            critical_sources_failed += 1
     checked_at_values = [
         row.get("last_checked_at", "")
         for row in freshness_rows
@@ -723,10 +887,16 @@ def build_monitoring_summary(
         row for row in conflict_rows if row.get("review_status") == "PENDING_REVIEW"
     ]
     consecutive_fetch_failures = _max_int_field(freshness_rows, "consecutive_failures")
-    if persistence_status == "STATE_PERSISTENCE_FAILED":
-        overall = "STATE_PERSISTENCE_FAILED"
+    if persistence_status in {
+        "STATE_PERSISTENCE_FAILED",
+        "STATE_PERSISTENCE_MISMATCH",
+    }:
+        overall = persistence_status
     elif state_source == STATE_SOURCE_UNAVAILABLE:
         overall = "FRESHNESS_STATE_UNAVAILABLE"
+    elif critical_sources_failed > 0:
+        # CRITICAL failures can never be reported as CURRENT.
+        overall = "SOURCE_CHECK_FAILED"
     elif sources_failed and not sources_current:
         overall = "SOURCE_CHECK_FAILED"
     elif sources_stale:
@@ -742,7 +912,7 @@ def build_monitoring_summary(
     else:
         overall = "CHECK_DUE"
     reviewable_new = [c for c in (new_changes or []) if is_reviewable_change(c)]
-    return {
+    summary = {
         "overall_regulatory_freshness": overall,
         "last_global_check_at": max(checked_at_values) if checked_at_values else "",
         "last_successful_check_at": (
@@ -752,6 +922,7 @@ def build_monitoring_summary(
         "sources_stale": sources_stale,
         "sources_failed": sources_failed,
         "sources_total": len(freshness_rows),
+        "critical_sources_failed": critical_sources_failed,
         "changes_pending_review": len(pending_changes),
         "regulatory_conflicts": len(open_conflicts),
         "review_required": bool(reviewable_new or open_conflicts),
@@ -763,6 +934,46 @@ def build_monitoring_summary(
         "consecutive_persistence_failures": consecutive_persistence_failures,
         "persistence_status": persistence_status,
     }
+    summary["monitoring_health"] = evaluate_monitoring_health(summary)
+    return summary
+
+
+def evaluate_monitoring_health(summary: dict[str, Any]) -> str:
+    """Workflow health independent of Python process crash status."""
+    persistence = str(summary.get("persistence_status") or "")
+    if persistence == "STATE_PERSISTENCE_MISMATCH":
+        return HEALTH_STATE_PERSISTENCE_MISMATCH
+    if persistence == "STATE_PERSISTENCE_FAILED":
+        return HEALTH_STATE_PERSISTENCE_FAILED
+    if int(summary.get("critical_sources_failed") or 0) > 0:
+        return HEALTH_CRITICAL_SOURCE_FAILURE
+    overall = str(summary.get("overall_regulatory_freshness") or "")
+    if overall in {
+        "STATE_PERSISTENCE_FAILED",
+        "STATE_PERSISTENCE_MISMATCH",
+        "FRESHNESS_STATE_UNAVAILABLE",
+    }:
+        if "MISMATCH" in overall:
+            return HEALTH_STATE_PERSISTENCE_MISMATCH
+        if "PERSISTENCE" in overall:
+            return HEALTH_STATE_PERSISTENCE_FAILED
+    if overall == "CURRENT":
+        return HEALTH_MONITORING_CURRENT
+    return HEALTH_MONITORING_PARTIAL
+
+
+def compare_monitoring_summaries(
+    runtime: dict[str, Any],
+    persisted: dict[str, Any],
+) -> list[str]:
+    """Return mismatched integrity keys between runtime and persisted summaries."""
+    mismatches: list[str] = []
+    for key in SUMMARY_INTEGRITY_KEYS:
+        left = runtime.get(key)
+        right = persisted.get(key)
+        if str(left) != str(right):
+            mismatches.append(key)
+    return mismatches
 
 
 def write_monitoring_summary(path: Path, summary: dict[str, Any]) -> None:
@@ -844,98 +1055,76 @@ def persist_monitoring_state(
     config: MonitorConfig | None = None,
     now: datetime | None = None,
 ) -> PersistenceResult:
-    """Persist allowlisted MONITORING STATE to a durable directory.
+    """Finalize runtime durable STATE and mirror to bundled fallback.
 
-    Copies only operational state files. Never writes regulatory CONTENT
-    (rules / source definitions) or carbon calculation pipeline files.
+    Runtime source of truth is durable_dir (data/regulatory/durable_state/).
+    The regulatory-monitor-state branch must be populated from that directory,
+    never from a stale bundled template.
     """
     root = Path(repo_root)
     cfg = config or load_monitor_config(root / "config" / "regulatory_monitoring.yaml")
-    dest = (
+    durable = (
         Path(destination)
         if destination is not None
         else root / cfg.durable_state_dir
     )
-    src_dir = root / cfg.bundled_state_dir
-    prior = read_persistence_status(root / cfg.persistence_status_path)
+    bundled = root / cfg.bundled_state_dir
+    prior = read_persistence_status(durable / "persistence_status.json")
+    if not prior:
+        prior = read_persistence_status(root / cfg.persistence_status_path)
     prior_failures = int(prior.get("consecutive_persistence_failures") or 0)
     stamp = _iso(now or _utc_now())
     written: list[str] = []
     try:
-        dest.mkdir(parents=True, exist_ok=True)
-        # Ensure a machine-readable summary exists before the durable copy.
-        summary_src = src_dir / "monitoring_summary.json"
-        freshness_src = src_dir / "source_freshness_state.csv"
-        if freshness_src.is_file() and not summary_src.is_file():
-            freshness_rows = _read_csv_dict(freshness_src, FRESHNESS_COLUMNS)
-            change_rows = _read_csv_dict(
-                src_dir / "regulatory_change_log.csv", CHANGE_LOG_COLUMNS
-            )
-            conflict_rows = _read_csv_dict(
-                src_dir / "regulatory_conflict_log.csv", CONFLICT_COLUMNS
-            )
-            write_monitoring_summary(
-                summary_src,
-                build_monitoring_summary(
-                    freshness_rows=freshness_rows,
-                    change_rows=change_rows,
-                    conflict_rows=conflict_rows,
-                    state_source=STATE_SOURCE_BUNDLED,
-                    persistence_status="PENDING",
-                ),
-            )
+        durable.mkdir(parents=True, exist_ok=True)
         for name in cfg.monitoring_state_files:
             if not is_allowed_monitoring_state_file(name):
                 raise RuntimeError(
                     f"Refusing to persist non-monitoring file as state: {name}"
                 )
-            src = src_dir / name
+            src = durable / name
             if not src.is_file():
                 continue
-            # Guard against path traversal / CONTENT files.
             resolved = src.resolve()
-            if not str(resolved).startswith(str(src_dir.resolve())):
-                raise RuntimeError(f"State source escaped bundled dir: {name}")
+            if not str(resolved).startswith(str(durable.resolve())):
+                raise RuntimeError(f"State source escaped durable dir: {name}")
             for fragment in FORBIDDEN_STATE_PATH_FRAGMENTS:
                 if fragment in str(resolved).replace("\\", "/"):
                     raise RuntimeError(
                         f"Refusing forbidden CONTENT path in state persist: {fragment}"
                     )
-            target = dest / name
-            shutil.copy2(resolved, target)
             written.append(name)
-        if "source_freshness_state.csv" not in written and not (
-            dest / "source_freshness_state.csv"
-        ).is_file():
+        if not (durable / "source_freshness_state.csv").is_file():
             raise RuntimeError(
-                "source_freshness_state.csv missing; cannot claim durable freshness"
+                "source_freshness_state.csv missing in durable runtime state"
             )
-        if "monitoring_summary.json" not in written and not (
-            dest / "monitoring_summary.json"
-        ).is_file():
+        if not (durable / "monitoring_summary.json").is_file():
             raise RuntimeError(
-                "monitoring_summary.json missing; cannot claim durable freshness"
+                "monitoring_summary.json missing in durable runtime state"
             )
+        # Mirror durable → bundled fallback (never the reverse for SoT).
+        bundled.mkdir(parents=True, exist_ok=True)
+        for name in written:
+            shutil.copy2(durable / name, bundled / name)
         status = {
             "status": "OK",
             "persisted_at": stamp,
-            "destination": str(dest),
+            "destination": str(durable),
             "files": written,
             "consecutive_persistence_failures": 0,
             "monitoring_state_branch": cfg.monitoring_state_branch,
+            "runtime_state_dir": str(durable),
             "error": "",
         }
-        write_persistence_status(dest / "persistence_status.json", status)
+        write_persistence_status(durable / "persistence_status.json", status)
+        write_persistence_status(bundled / "persistence_status.json", status)
         write_persistence_status(root / cfg.persistence_status_path, status)
-        # Keep bundled copy of status for readers that only see data/regulatory.
-        if (src_dir / "persistence_status.json") != (
-            root / cfg.persistence_status_path
-        ):
-            write_persistence_status(src_dir / "persistence_status.json", status)
+        if "persistence_status.json" not in written:
+            written.append("persistence_status.json")
         return PersistenceResult(
             ok=True,
             status="OK",
-            destination=str(dest),
+            destination=str(durable),
             consecutive_persistence_failures=0,
             files_written=written,
         )
@@ -944,10 +1133,11 @@ def persist_monitoring_state(
         status = {
             "status": "STATE_PERSISTENCE_FAILED",
             "persisted_at": "",
-            "destination": str(dest),
+            "destination": str(durable),
             "files": written,
             "consecutive_persistence_failures": failures,
             "monitoring_state_branch": cfg.monitoring_state_branch,
+            "runtime_state_dir": str(durable),
             "error": str(exc),
             "failed_at": stamp,
         }
@@ -958,11 +1148,30 @@ def persist_monitoring_state(
         return PersistenceResult(
             ok=False,
             status="STATE_PERSISTENCE_FAILED",
-            destination=str(dest),
+            destination=str(durable),
             error=str(exc),
             consecutive_persistence_failures=failures,
             files_written=written,
         )
+
+
+def verify_persisted_state_matches_runtime(
+    runtime_summary: dict[str, Any],
+    persisted_summary_path: Path,
+) -> tuple[bool, list[str]]:
+    """Compare persisted monitoring_summary.json to the runtime summary."""
+    if not persisted_summary_path.is_file():
+        return False, ["monitoring_summary.json_missing"]
+    try:
+        persisted = json.loads(
+            persisted_summary_path.read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return False, ["monitoring_summary.json_unreadable"]
+    if not isinstance(persisted, dict):
+        return False, ["monitoring_summary.json_invalid"]
+    mismatches = compare_monitoring_summaries(runtime_summary, persisted)
+    return (not mismatches), mismatches
 
 
 def write_change_report(
@@ -1103,6 +1312,7 @@ def get_regulatory_freshness(
         state_source=state_source,
         consecutive_persistence_failures=consecutive_persistence_failures,
         persistence_status=persistence_status,
+        critical_source_ids=list(config.critical_source_ids),
     )
     on_disk = state_dir / "monitoring_summary.json"
     if on_disk.is_file():
@@ -1216,6 +1426,9 @@ def check_source(
 
     updated = dict(prior)
     updated["source_id"] = source_row["source_id"]
+    updated["monitor_criticality"] = source_criticality(
+        source_row["source_id"], config
+    )
     updated["last_checked_at"] = checked_at
     updated["next_check_at"] = next_check
 
@@ -1355,15 +1568,81 @@ def run_monitor(
     now: datetime | None = None,
     write_pending_review: bool = True,
 ) -> dict[str, Any]:
-    """Run on-demand / scheduler-ready official-source monitoring."""
+    """Run on-demand / scheduler-ready official-source monitoring.
+
+    Runtime STATE is written to durable_state first, then mirrored to bundled
+    fallback. Workflow persistence must copy from durable_state.
+    """
     root = Path(repo_root)
     cfg_path = config_path or (root / "config" / "regulatory_monitoring.yaml")
     config = load_monitor_config(cfg_path)
     sources = load_regulatory_sources(root / "data/reference/regulatory_sources.csv")
     rules = load_regulatory_rules(root / "config/regulatory_rules.csv")
-    freshness_path = root / config.freshness_state_path
-    change_path = root / config.change_log_path
-    conflict_path = root / config.conflict_log_path
+    durable_dir = root / config.durable_state_dir
+    try:
+        durable_dir.mkdir(parents=True, exist_ok=True)
+        if not durable_dir.is_dir():
+            raise OSError(f"durable_state path is not a directory: {durable_dir}")
+    except OSError as exc:
+        failed_summary = build_monitoring_summary(
+            freshness_rows=[],
+            change_rows=[],
+            conflict_rows=[],
+            now=now,
+            state_source=STATE_SOURCE_BUNDLED,
+            persistence_status="STATE_PERSISTENCE_FAILED",
+            critical_source_ids=list(config.critical_source_ids),
+        )
+        return {
+            "checked": 0,
+            "changes": [],
+            "reviewable_changes": [],
+            "review_required": False,
+            "pending_review_rules_marked": 0,
+            "auto_activate_rules": config.auto_activate_rules,
+            "freshness_path": str(durable_dir / "source_freshness_state.csv"),
+            "change_log_path": str(durable_dir / "regulatory_change_log.csv"),
+            "summary_path": str(durable_dir / "monitoring_summary.json"),
+            "change_report_path": str(durable_dir / "regulatory_change_report.md"),
+            "runtime_state_dir": str(durable_dir),
+            "summary": failed_summary,
+            "monitoring_health": HEALTH_STATE_PERSISTENCE_FAILED,
+            "fail_safe_states": sorted(FAIL_SAFE_STATES),
+            "operable_rule_count": int(len(operable_rules(rules))),
+            "active_non_pending_count": int(len(active_rules(rules))),
+            "high_priority_source_ids": list(config.high_priority_source_ids),
+            "critical_source_ids": list(config.critical_source_ids),
+            "persistence": {
+                "ok": False,
+                "status": "STATE_PERSISTENCE_FAILED",
+                "destination": str(durable_dir),
+                "error": str(exc),
+                "consecutive_persistence_failures": 1,
+                "files_written": [],
+                "monitoring_state_branch": config.monitoring_state_branch,
+            },
+            "monitoring_complete": False,
+            "state_source": STATE_SOURCE_BUNDLED,
+        }
+    # Primary runtime paths (source of truth for regulatory-monitor-state).
+    freshness_path = durable_dir / "source_freshness_state.csv"
+    change_path = durable_dir / "regulatory_change_log.csv"
+    conflict_path = durable_dir / "regulatory_conflict_log.csv"
+    summary_path = durable_dir / "monitoring_summary.json"
+    report_path = durable_dir / "regulatory_change_report.md"
+    # Seed from prior durable state, else bundled bootstrap.
+    if not freshness_path.is_file():
+        bundled_fresh = root / config.freshness_state_path
+        if bundled_fresh.is_file():
+            shutil.copy2(bundled_fresh, freshness_path)
+    if not change_path.is_file():
+        bundled_change = root / config.change_log_path
+        if bundled_change.is_file():
+            shutil.copy2(bundled_change, change_path)
+    if not conflict_path.is_file():
+        bundled_conflict = root / config.conflict_log_path
+        if bundled_conflict.is_file():
+            shutil.copy2(bundled_conflict, conflict_path)
 
     prior_rows = {
         row["source_id"]: row
@@ -1396,7 +1675,6 @@ def run_monitor(
             fetch_fn=fetch_fn,
             now=now,
         )
-        # Keep rows for sources not selected this run.
         prior_rows[source_dict["source_id"]] = updated
         if change is not None:
             affected = rules.loc[
@@ -1415,14 +1693,23 @@ def run_monitor(
         if config.rate_limit_seconds > 0 and fetch_fn is None:
             time.sleep(config.rate_limit_seconds)
 
-    # Preserve freshness rows for sources not checked this run.
     for sid, row in prior_rows.items():
         if row.get("source_id"):
+            if not row.get("monitor_criticality"):
+                row = {
+                    **row,
+                    "monitor_criticality": source_criticality(sid, config),
+                }
             updated_freshness.append(row)
         else:
-            updated_freshness.append({**row, "source_id": sid})
+            updated_freshness.append(
+                {
+                    **row,
+                    "source_id": sid,
+                    "monitor_criticality": source_criticality(sid, config),
+                }
+            )
 
-    # Deduplicate by source_id, prefer latest write.
     dedup: dict[str, dict[str, str]] = {}
     for row in updated_freshness:
         dedup[row["source_id"]] = row
@@ -1437,12 +1724,10 @@ def run_monitor(
             sorted(set(pending_rule_ids)),
         )
 
-    # Ensure conflict log file exists.
     if not conflict_path.exists():
         _write_csv_dict(conflict_path, CONFLICT_COLUMNS, [])
     conflict_rows = _read_csv_dict(conflict_path, CONFLICT_COLUMNS)
 
-    # Write bundled monitoring STATE first, then persist to durable store.
     review_needed = should_open_review_activity(new_changes)
     interim_summary = build_monitoring_summary(
         freshness_rows=freshness_list,
@@ -1450,16 +1735,17 @@ def run_monitor(
         conflict_rows=conflict_rows,
         new_changes=new_changes,
         now=now,
-        state_source=STATE_SOURCE_BUNDLED,
+        state_source=STATE_SOURCE_DURABLE,
         persistence_status="PENDING",
+        critical_source_ids=list(config.critical_source_ids),
     )
     review_needed = review_needed or bool(
         interim_summary.get("regulatory_conflicts")
     )
-    write_monitoring_summary(root / config.summary_path, interim_summary)
+    write_monitoring_summary(summary_path, interim_summary)
     if review_needed:
         write_change_report(
-            root / config.change_report_path,
+            report_path,
             summary=interim_summary,
             changes=new_changes,
         )
@@ -1476,10 +1762,10 @@ def run_monitor(
         ),
         consecutive_persistence_failures=persistence.consecutive_persistence_failures,
         persistence_status=persistence.status,
+        critical_source_ids=list(config.critical_source_ids),
     )
-    write_monitoring_summary(root / config.summary_path, summary)
+    write_monitoring_summary(summary_path, summary)
     if persistence.ok:
-        # Refresh durable copy so summary/persistence_status match final values.
         persistence = persist_monitoring_state(root, config=config, now=now)
         if not persistence.ok:
             summary = build_monitoring_summary(
@@ -1493,10 +1779,15 @@ def run_monitor(
                     persistence.consecutive_persistence_failures
                 ),
                 persistence_status=persistence.status,
+                critical_source_ids=list(config.critical_source_ids),
             )
-            write_monitoring_summary(root / config.summary_path, summary)
+            write_monitoring_summary(summary_path, summary)
 
-    monitoring_complete = bool(persistence.ok)
+    health = evaluate_monitoring_health(summary)
+    monitoring_complete = bool(persistence.ok) and health not in {
+        HEALTH_STATE_PERSISTENCE_FAILED,
+        HEALTH_STATE_PERSISTENCE_MISMATCH,
+    }
     return {
         "checked": int(len(selected)),
         "changes": new_changes,
@@ -1508,13 +1799,16 @@ def run_monitor(
         "auto_activate_rules": config.auto_activate_rules,
         "freshness_path": str(freshness_path),
         "change_log_path": str(change_path),
-        "summary_path": str(root / config.summary_path),
-        "change_report_path": str(root / config.change_report_path),
+        "summary_path": str(summary_path),
+        "change_report_path": str(report_path),
+        "runtime_state_dir": str(durable_dir),
         "summary": summary,
+        "monitoring_health": health,
         "fail_safe_states": sorted(FAIL_SAFE_STATES),
         "operable_rule_count": int(len(operable_rules(rules))),
         "active_non_pending_count": int(len(active_rules(rules))),
         "high_priority_source_ids": list(config.high_priority_source_ids),
+        "critical_source_ids": list(config.critical_source_ids),
         "persistence": {
             "ok": persistence.ok,
             "status": persistence.status,
@@ -1597,6 +1891,22 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print last-checked / freshness summary and exit.",
     )
+    parser.add_argument(
+        "--health-gate",
+        action="store_true",
+        help=(
+            "Evaluate durable monitoring health and exit non-zero on "
+            "CRITICAL_SOURCE_FAILURE or persistence failures."
+        ),
+    )
+    parser.add_argument(
+        "--verify-persisted-summary",
+        default=None,
+        help=(
+            "Path to persisted monitoring_summary.json to compare against "
+            "runtime durable summary (STATE_PERSISTENCE_MISMATCH on diff)."
+        ),
+    )
     return parser
 
 
@@ -1604,6 +1914,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     root = Path(args.repo_root).resolve()
+    config = load_monitor_config(root / "config" / "regulatory_monitoring.yaml")
+    durable_summary_path = (
+        root / config.durable_state_dir / "monitoring_summary.json"
+    )
     if args.status:
         freshness = get_regulatory_freshness(root)
         print("Regulatory data last checked:", freshness["last_global_check_at"])
@@ -1613,12 +1927,64 @@ def main(argv: list[str] | None = None) -> int:
         print("State:", freshness["state"])
         print("State source:", freshness.get("state_source"))
         print("Persistence status:", freshness.get("persistence_status"))
+        print(
+            "Critical sources failed:",
+            freshness.get("summary", {}).get("critical_sources_failed"),
+        )
+        print(
+            "Monitoring health:",
+            freshness.get("summary", {}).get("monitoring_health"),
+        )
         print("Sources current/stale/failed:",
               freshness["sources_current"],
               freshness["sources_stale"],
               freshness["sources_failed"])
         print("Changes pending review:", freshness["changes_pending_review"])
         print("Regulatory conflicts:", freshness["regulatory_conflicts"])
+        return 0
+    if args.verify_persisted_summary:
+        if not durable_summary_path.is_file():
+            print(
+                "ERROR: runtime durable monitoring_summary.json missing",
+                file=sys.stderr,
+            )
+            return 5
+        runtime = json.loads(durable_summary_path.read_text(encoding="utf-8"))
+        ok, mismatches = verify_persisted_state_matches_runtime(
+            runtime, Path(args.verify_persisted_summary)
+        )
+        if not ok:
+            print(
+                "ERROR: STATE_PERSISTENCE_MISMATCH — "
+                f"keys={mismatches}",
+                file=sys.stderr,
+            )
+            return 5
+        print("Persisted summary matches runtime durable summary.")
+        return 0
+    if args.health_gate:
+        if not durable_summary_path.is_file():
+            print(
+                "ERROR: FRESHNESS_STATE_UNAVAILABLE — durable summary missing",
+                file=sys.stderr,
+            )
+            return 4
+        summary = json.loads(durable_summary_path.read_text(encoding="utf-8"))
+        health = evaluate_monitoring_health(summary)
+        print("Monitoring health:", health)
+        print("Overall freshness:", summary.get("overall_regulatory_freshness"))
+        print("Critical sources failed:", summary.get("critical_sources_failed"))
+        print("Persistence status:", summary.get("persistence_status"))
+        if health == HEALTH_STATE_PERSISTENCE_MISMATCH:
+            return 5
+        if health == HEALTH_STATE_PERSISTENCE_FAILED:
+            return 3
+        if health == HEALTH_CRITICAL_SOURCE_FAILURE:
+            print(
+                "ERROR: CRITICAL_SOURCE_FAILURE — not a successful monitoring run.",
+                file=sys.stderr,
+            )
+            return 4
         return 0
     if not (args.check_all or args.authority or args.source):
         parser.print_help()
@@ -1643,17 +2009,29 @@ def main(argv: list[str] | None = None) -> int:
     )
     print("Auto-activate rules:", result["auto_activate_rules"])
     print("Summary:", result["summary_path"])
+    print("Runtime state dir:", result.get("runtime_state_dir"))
     persistence = result.get("persistence") or {}
     print("Persistence status:", persistence.get("status"))
     print("Durable state destination:", persistence.get("destination"))
+    print("Monitoring health:", result.get("monitoring_health"))
     print("Monitoring complete:", result.get("monitoring_complete"))
-    # Successful fetch alone is not enough: durable state must be persisted.
+    print(
+        "Critical sources failed:",
+        (result.get("summary") or {}).get("critical_sources_failed"),
+    )
     if not result.get("monitoring_complete", False):
         print(
             "ERROR: STATE_PERSISTENCE_FAILED — run is not fully successful.",
             file=sys.stderr,
         )
         return 3
+    health = str(result.get("monitoring_health") or "")
+    if health == HEALTH_CRITICAL_SOURCE_FAILURE:
+        print(
+            "ERROR: CRITICAL_SOURCE_FAILURE — workflow must not report green success.",
+            file=sys.stderr,
+        )
+        return 4
     return 0
 
 
@@ -1668,18 +2046,29 @@ __all__ = [
     "STATE_SOURCE_BUNDLED",
     "STATE_SOURCE_DURABLE",
     "STATE_SOURCE_UNAVAILABLE",
+    "HEALTH_CRITICAL_SOURCE_FAILURE",
+    "HEALTH_MONITORING_CURRENT",
+    "HEALTH_MONITORING_PARTIAL",
+    "HEALTH_STATE_PERSISTENCE_FAILED",
+    "HEALTH_STATE_PERSISTENCE_MISMATCH",
     "FetchResult",
     "MonitorConfig",
     "PersistenceResult",
     "assert_sources_fresh_for_analysis",
     "build_monitoring_summary",
+    "build_official_source_ssl_context",
     "classify_change",
+    "compare_monitoring_summaries",
     "content_hash",
+    "default_fetch",
     "evaluate_freshness",
+    "evaluate_monitoring_health",
     "fail_safe_state_for_freshness",
     "get_regulatory_freshness",
+    "hostname_in_tls_fallback_allowlist",
     "is_allowed_monitoring_state_file",
     "is_reviewable_change",
+    "is_x509_strict_compatibility_error",
     "last_checked_summary",
     "load_monitor_config",
     "main",
@@ -1692,6 +2081,8 @@ __all__ = [
     "resolve_monitoring_state_dir",
     "run_monitor",
     "should_open_review_activity",
+    "source_criticality",
+    "verify_persisted_state_matches_runtime",
     "write_change_report",
     "write_monitoring_summary",
     "write_persistence_status",
