@@ -568,6 +568,11 @@ def customer_copy_violations(
         "已驗證規則不足",
         "不是合規百分比",
         "需要人工 review",
+        "CASE C",
+        "NEEDS_REVIEW",
+        "dirty state",
+        "identity confirmation",
+        "開啟編輯不會自動",
     )
     hits: list[str] = []
     for key, entry in messages.items():

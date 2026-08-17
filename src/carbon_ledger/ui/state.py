@@ -106,6 +106,8 @@ STATE_CAPITAL_PLAY_UBN = "capital_play_ubn"
 STATE_CAPITAL_RUNTIME_READY = "capital_countup_runtime_ready"
 STATE_FACILITY_EXCEPTION_MODE = "facility_exception_mode"
 STATE_FACILITY_EXCEPTION_DIRTY = "facility_exception_draft_dirty"
+STATE_IFRS_TIMELINE_LAST_RUN = "ifrs_timeline_last_run"
+STATE_IFRS_TIMELINE_RUNTIME_READY = "ifrs_timeline_runtime_ready"
 STATE_WIZARD_MAX_STEP = 4
 
 
@@ -326,6 +328,10 @@ def initialize_ui_state(session_state: Any, *, force: bool = False) -> None:
         session_state[STATE_FACILITY_EXCEPTION_MODE] = False
     if STATE_FACILITY_EXCEPTION_DIRTY not in session_state:
         session_state[STATE_FACILITY_EXCEPTION_DIRTY] = False
+    if STATE_IFRS_TIMELINE_LAST_RUN not in session_state:
+        session_state[STATE_IFRS_TIMELINE_LAST_RUN] = ""
+    if STATE_IFRS_TIMELINE_RUNTIME_READY not in session_state:
+        session_state[STATE_IFRS_TIMELINE_RUNTIME_READY] = False
     if STATE_TUTORIAL_OPEN_COUNT not in session_state:
         session_state[STATE_TUTORIAL_OPEN_COUNT] = 0
     if STATE_ANALYSIS_RUNNING not in session_state:

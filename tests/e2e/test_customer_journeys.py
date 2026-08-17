@@ -155,18 +155,55 @@ def test_journey1_new_customer_applicability_results(page) -> None:
     assert "2026" in text5
     assert "2027" in text5
 
-    years = page.locator(".cel-meta-year")
-    assert years.count() >= 1
-    for index in range(min(years.count(), 4)):
-        box = years.nth(index).bounding_box()
+    timeline = page.locator(".cel-ifrs-timeline").first
+    timeline.wait_for(state="visible", timeout=15_000)
+    assert timeline.is_visible()
+    markers = page.locator(
+        '[data-cel-timeline-scope="desktop"] [data-cel-timeline-marker]'
+    )
+    assert markers.count() == 6
+    visible_markers = 0
+    for index in range(markers.count()):
+        node = markers.nth(index)
+        if not node.is_visible():
+            continue
+        visible_markers += 1
+        box = node.bounding_box()
         assert box is not None
-        assert box["width"] >= 36, f"year width too narrow: {box}"
-        assert box["height"] <= 48, f"year appears vertically stacked: {box}"
+        assert box["width"] > 0 and box["height"] > 0
+    assert visible_markers == 6
+    timeline_text = timeline.inner_text()
+    assert "2026 年度開始適用" in timeline_text
+    assert "2027 年首次申報" in timeline_text
+    periods = page.locator(
+        '[data-cel-timeline-scope="desktop"] .cel-timeline-period'
+    )
+    actions = page.locator(
+        '[data-cel-timeline-scope="desktop"] .cel-timeline-action'
+    )
+    assert periods.count() == 6
+    assert actions.count() == 6
+    for index in range(6):
+        for loc in (periods.nth(index), actions.nth(index)):
+            assert loc.is_visible()
+            box = loc.bounding_box()
+            assert box is not None, f"timeline label missing box index={index}"
+            assert box["width"] >= 24, (
+                f"timeline label width too narrow (vertical stack): {box}"
+            )
+            assert box["height"] <= 96, (
+                f"timeline label appears vertically corrupted: {box}"
+            )
 
     overflow = page.evaluate(
         """() => {
-          const el = document.querySelector('section.main') || document.body;
-          return el.scrollWidth <= el.clientWidth + 2;
+          const main = document.querySelector('section.main') || document.body;
+          const timeline = document.querySelector('.cel-ifrs-timeline');
+          const mainOk = main.scrollWidth <= main.clientWidth + 2;
+          const timelineOk = !timeline || (
+            timeline.scrollWidth <= timeline.clientWidth + 2
+          );
+          return mainOk && timelineOk;
         }"""
     )
     assert overflow

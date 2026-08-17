@@ -37,6 +37,8 @@ from carbon_ledger.ui.state import (
     STATE_CAPITAL_RUNTIME_READY,
     STATE_COUNTUP_RUNTIME_READY,
     STATE_HERO_EMISSIONS_PLAY,
+    STATE_IFRS_TIMELINE_LAST_RUN,
+    STATE_IFRS_TIMELINE_RUNTIME_READY,
     STATE_LAST_ANIMATED_RESULT,
     STATE_NAVIGATE_TO_RESULTS,
     STATE_RESULT,
@@ -53,6 +55,7 @@ ProgressCallback = Callable[[str, float], None]
 _SCROLL_JS_PATH = Path(__file__).with_name("scroll_reveal.js")
 _HERO_COUNT_JS_PATH = Path(__file__).with_name("hero_emissions_countup.js")
 _KPI_COUNT_JS_PATH = Path(__file__).with_name("animated_kpi.js")
+_IFRS_TIMELINE_JS_PATH = Path(__file__).with_name("ifrs_timeline.js")
 
 
 def analysis_stage_keys() -> list[tuple[str, str]]:
@@ -165,6 +168,52 @@ def inject_animated_kpi_runtime() -> None:
     except Exception:  # noqa: BLE001
         pass
     components.html(html_body, height=0)
+
+
+def inject_ifrs_timeline_runtime() -> None:
+    """Inject IFRS timeline track animation. Presentation only."""
+    script = _IFRS_TIMELINE_JS_PATH.read_text(encoding="utf-8")
+    stamp = hex(abs(hash(script)) & 0xFFFFFFFF)
+    html_body = (
+        f"<!-- cel-ifrs-timeline {stamp} -->\n"
+        f"<script>\n{script}\n</script>"
+    )
+    try:
+        st.html(html_body, unsafe_allow_javascript=True)
+        return
+    except TypeError:
+        pass
+    except Exception:  # noqa: BLE001
+        pass
+    components.html(html_body, height=0)
+
+
+def schedule_ifrs_timeline_runtime(session_state: Any, *, play: bool) -> None:
+    """Hold the track at 0 so first reveal can be observed from the left edge."""
+    if not play or bool(_ss_get(session_state, STATE_IFRS_TIMELINE_RUNTIME_READY)):
+        return
+    if not float(_ss_get(session_state, "_cel_timeline_visible_at") or 0):
+        session_state["_cel_timeline_visible_at"] = time.monotonic()
+
+    @st.fragment(run_every=0.4)
+    def _arm_timeline_runtime() -> None:
+        started = float(_ss_get(session_state, "_cel_timeline_visible_at") or 0)
+        if started <= 0 or (time.monotonic() - started) < 0.55:
+            return
+        session_state[STATE_IFRS_TIMELINE_RUNTIME_READY] = True
+        st.rerun()
+
+    _arm_timeline_runtime()
+
+
+def mark_ifrs_timeline_consumed(session_state: Any, run_id: str) -> None:
+    session_state[STATE_IFRS_TIMELINE_LAST_RUN] = str(run_id or "")
+    session_state[STATE_IFRS_TIMELINE_RUNTIME_READY] = True
+
+
+def ifrs_timeline_should_play(session_state: Any, run_id: str) -> bool:
+    last = str(_ss_get(session_state, STATE_IFRS_TIMELINE_LAST_RUN) or "")
+    return bool(run_id) and last != str(run_id)
 
 
 def schedule_countup_runtime(session_state: Any, *, play: bool) -> None:

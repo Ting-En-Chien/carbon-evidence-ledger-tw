@@ -3898,11 +3898,11 @@ MESSAGES: dict[str, dict[str, str]] = {
     "setup.facilities.confirm_include": {
         "zh-TW": (
             "我們找到以下可能的廠場，請確認這次是否需要納入。"
-            "這會用來建立本次盤查範圍（報導邊界）。"
+            "這會用來確認這次排放資料要包含哪些據點。"
         ),
         "en": (
             "Please confirm which discovered sites belong in this year's data. "
-            "This builds the inventory boundary."
+            "This decides which sites the emissions data should cover."
         ),
     },
     "setup.facilities.title": {"zh-TW": "確認台灣廠場", "en": "Confirm Taiwan sites"},
@@ -3958,14 +3958,303 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "確認這些廠場狀態",
         "en": "Confirm these site statuses",
     },
-    "setup.facilities.exception_need_confirm": {
+    "setup.facilities.exception_need_confirm_title": {
+        "zh-TW": "請先確認廠場狀態",
+        "en": "Please confirm site statuses first",
+    },
+    "setup.facilities.exception_need_confirm_body": {
+        "zh-TW": "請確認每個廠場的最新狀態，再按『確認這些廠場狀態』。",
+        "en": (
+            "Confirm each site's latest status, then select "
+            "‘Confirm these site statuses’."
+        ),
+    },
+    "ifrs.timeline.heading": {
+        "zh-TW": "你的 IFRS 永續揭露時程",
+        "en": "Your IFRS sustainability disclosure timeline",
+    },
+    "ifrs.timeline.rows_heading": {
+        "zh-TW": "適用結果",
+        "en": "Applicability results",
+    },
+    "ifrs.timeline.evidence": {
+        "zh-TW": "查看官方時程依據",
+        "en": "View official timeline sources",
+    },
+    "ifrs.timeline.past": {
+        "zh-TW": "時程已經過",
+        "en": "This scheduled window has passed",
+    },
+    "ifrs.timeline.conditional": {
+        "zh-TW": "條件期限",
+        "en": "Conditional deadline",
+    },
+    "ifrs.timeline.derived": {
+        "zh-TW": "推導時程",
+        "en": "Derived timeline",
+    },
+    "ifrs.timeline.source.authority": {
+        "zh-TW": "主管機關",
+        "en": "Authority",
+    },
+    "ifrs.timeline.source.document": {
+        "zh-TW": "文件名稱",
+        "en": "Document title",
+    },
+    "ifrs.timeline.source.url": {
+        "zh-TW": "官方網址",
+        "en": "Official URL",
+    },
+    "ifrs.timeline.source.published": {
+        "zh-TW": "發布／生效日",
+        "en": "Publication / effective date",
+    },
+    "ifrs.timeline.source.retrieved": {
+        "zh-TW": "擷取日期",
+        "en": "Retrieved date",
+    },
+    "ifrs.timeline.source.phase_rule": {
+        "zh-TW": "公司階段判定依據",
+        "en": "How this company phase was selected",
+    },
+    "ifrs.timeline.source.october": {
+        "zh-TW": "10 月確信條件期限說明",
+        "en": "October assurance conditional deadline",
+    },
+    "ifrs.timeline.source.scope3": {
+        "zh-TW": "2029 Scope 3 時點如何推導",
+        "en": "How the 2029 Scope 3 year is derived",
+    },
+    "ifrs.timeline.now": {
+        "zh-TW": "目前應進行：{task}",
+        "en": "Currently scheduled: {task}",
+    },
+    "ifrs.timeline.next": {
+        "zh-TW": "下一官方時程：{period} — {task}",
+        "en": "Next official window: {period} — {task}",
+    },
+    "ifrs.timeline.after": {
+        "zh-TW": "官方建議時程窗口均已結束。最後一項為：{task}",
+        "en": (
+            "The official recommended windows have ended. "
+            "The last item was: {task}"
+        ),
+    },
+    "ifrs.timeline.note": {
+        "zh-TW": "此進度依官方時程與今天日期推估，不代表公司已完成前述工作。",
+        "en": (
+            "This progress is estimated from the official schedule and "
+            "today's date. It does not mean the company has completed "
+            "the work."
+        ),
+    },
+    "ifrs.timeline.phase_first": {
+        "zh-TW": "第一階段適用",
+        "en": "First-stage companies",
+    },
+    "ifrs.timeline.capital_100": {
+        "zh-TW": "實收資本額達 100 億元以上",
+        "en": "Paid-in capital of NT$10 billion or more",
+    },
+    "ifrs.timeline.start_2026": {
+        "zh-TW": "2026 年度開始適用",
+        "en": "Applies from reporting year 2026",
+    },
+    "ifrs.timeline.file_2027": {
+        "zh-TW": "2027 年首次申報",
+        "en": "First filing in 2027",
+    },
+    "ifrs.timeline.phase_rule": {
         "zh-TW": (
-            "請先確認各廠場狀態後再繼續。"
-            "開啟編輯不會自動把未改的廠場當成已確認。"
+            "依金管證審字第11403851756號令第二點第（一）款，"
+            "上市上櫃且實收資本額達新臺幣 100 億元以上之公司，"
+            "應自 115 會計年度（2026）起適用永續揭露準則，並自 116 年（2027）起申報。"
         ),
         "en": (
-            "Confirm the site statuses before continuing. "
-            "Opening edit does not confirm untouched rows."
+            "Under FSC Order Chin-Kuan-Cheng-Shen-Tzu No. 11403851756, "
+            "point 2(1), listed and TPEx companies with paid-in capital of "
+            "NT$10 billion or more must apply the sustainability disclosure "
+            "standards from accounting year 115 (2026) and file from 116 "
+            "(2027)."
+        ),
+    },
+    "ifrs.timeline.october": {
+        "zh-TW": (
+            "令第四點要求合併個體 Scope 1/2 溫室氣體排放取得獨立第三方確信。"
+            "若年報申報時尚未取得確信，應於年報註明，並於同年 10 月底前"
+            "於公開資訊觀測站補充經確信資訊並上傳確信報告。"
+            "這是條件式最晚期限，不是自動產生的第二次申報義務。"
+        ),
+        "en": (
+            "Point 4 of the order requires independent third-party assurance "
+            "of consolidated Scope 1/2 greenhouse-gas emissions. If assurance "
+            "is not ready when the annual report is filed, note that in the "
+            "report and, by the end of October in the same year, publish the "
+            "assured information on the Market Observation Post System and "
+            "upload the assurance report. This is a conditional latest "
+            "deadline, not an automatic second filing obligation."
+        ),
+    },
+    "ifrs.timeline.scope3": {
+        "zh-TW": (
+            "令第六點規定應自首次適用後第四個會計年度起適用 Scope 3。"
+            "第一階段公司首次適用年度為 2026，因此第四個會計年度為 2029。"
+            "此 2029 時點由該公式推導，不是另一次獨立法令生效日。"
+        ),
+        "en": (
+            "Point 6 of the order applies Scope 3 from the fourth accounting "
+            "year after first application. First-stage companies first apply "
+            "in 2026, so the fourth accounting year is 2029. That 2029 date "
+            "is derived from the formula; it is not a separate statutory "
+            "effective date."
+        ),
+    },
+    "ifrs.timeline.source.official_title": {
+        "zh-TW": "官方文件名稱（原文）",
+        "en": "Official title (original language)",
+    },
+    "ifrs.timeline.source.fsc.authority": {
+        "zh-TW": "金融監督管理委員會",
+        "en": "Financial Supervisory Commission",
+    },
+    "ifrs.timeline.source.twse.authority": {
+        "zh-TW": "臺灣證券交易所",
+        "en": "Taiwan Stock Exchange",
+    },
+    "ifrs.timeline.source.cgc.authority": {
+        "zh-TW": "臺灣證券交易所公司治理中心",
+        "en": "TWSE Corporate Governance Center",
+    },
+    "ifrs.timeline.m.analysis_planning.period": {
+        "zh-TW": "2024 Q4–2025 Q1",
+        "en": "2024 Q4–2025 Q1",
+    },
+    "ifrs.timeline.m.analysis_planning.label": {
+        "zh-TW": "分析與規劃",
+        "en": "Analyse and plan",
+    },
+    "ifrs.timeline.m.analysis_planning.short": {
+        "zh-TW": "成立專案小組、完成初步盤點",
+        "en": "Form a project team and finish the initial review",
+    },
+    "ifrs.timeline.m.analysis_planning.detail": {
+        "zh-TW": "成立專案小組、盤點準則差距、確認報導個體並擬定導入計畫",
+        "en": (
+            "Form a project team, review standard gaps, confirm the "
+            "reporting entity, and draft the adoption plan"
+        ),
+    },
+    "ifrs.timeline.m.design_execute.period": {
+        "zh-TW": "2025 Q2–2026 Q2",
+        "en": "2025 Q2–2026 Q2",
+    },
+    "ifrs.timeline.m.design_execute.label": {
+        "zh-TW": "設計與執行",
+        "en": "Design and execute",
+    },
+    "ifrs.timeline.m.design_execute.short": {
+        "zh-TW": "盤點資料並調整流程",
+        "en": "Map data needs and adjust processes",
+    },
+    "ifrs.timeline.m.design_execute.detail": {
+        "zh-TW": "辨認重大風險與機會、盤點資料需求，並調整流程與系統",
+        "en": (
+            "Identify material risks and opportunities, map data needs, "
+            "and adjust processes and systems"
+        ),
+    },
+    "ifrs.timeline.m.trial_prepare.period": {
+        "zh-TW": "2026 Q3–Q4",
+        "en": "2026 Q3–Q4",
+    },
+    "ifrs.timeline.m.trial_prepare.label": {
+        "zh-TW": "試行編製",
+        "en": "Trial preparation",
+    },
+    "ifrs.timeline.m.trial_prepare.short": {
+        "zh-TW": "試編永續資訊專章",
+        "en": "Draft the sustainability information chapter",
+    },
+    "ifrs.timeline.m.trial_prepare.detail": {
+        "zh-TW": "試編 2026 年年報永續資訊專章，檢查資料與內控制度",
+        "en": (
+            "Draft the 2026 annual-report sustainability chapter and "
+            "check data and internal controls"
+        ),
+    },
+    "ifrs.timeline.m.first_filing.period": {
+        "zh-TW": "2027 Q1 · 3/16 前",
+        "en": "2027 Q1 · before 16 Mar",
+    },
+    "ifrs.timeline.m.first_filing.label": {
+        "zh-TW": "首次申報",
+        "en": "First filing",
+    },
+    "ifrs.timeline.m.first_filing.short": {
+        "zh-TW": "完成首次申報",
+        "en": "Complete the first filing",
+    },
+    "ifrs.timeline.m.first_filing.detail": {
+        "zh-TW": "完成 2026 年度永續資訊專章並依規定申報",
+        "en": (
+            "Complete the 2026 sustainability information chapter and "
+            "file it as required"
+        ),
+    },
+    "ifrs.timeline.m.scope12_assurance.period": {
+        "zh-TW": "2027 Q4 · 10/31 前",
+        "en": "2027 Q4 · before 31 Oct",
+    },
+    "ifrs.timeline.m.scope12_assurance.label": {
+        "zh-TW": "完成 Scope 1/2 確信",
+        "en": "Complete Scope 1/2 assurance",
+    },
+    "ifrs.timeline.m.scope12_assurance.short": {
+        "zh-TW": "視情況補交確信報告",
+        "en": "File the assurance report if still outstanding",
+    },
+    "ifrs.timeline.m.scope12_assurance.detail": {
+        "zh-TW": (
+            "若年報申報時尚未取得確信，最晚於 10 月底前補充"
+            "經確信資訊及確信報告"
+        ),
+        "en": (
+            "If assurance is not ready when the annual report is filed, "
+            "supplement the assured information and assurance report by "
+            "the end of October"
+        ),
+    },
+    "ifrs.timeline.m.scope3_start.period": {
+        "zh-TW": "2029 年度",
+        "en": "2029 reporting year",
+    },
+    "ifrs.timeline.m.scope3_start.label": {
+        "zh-TW": "開始納入 Scope 3",
+        "en": "Begin including Scope 3",
+    },
+    "ifrs.timeline.m.scope3_start.short": {
+        "zh-TW": "納入 Scope 3 揭露",
+        "en": "Include Scope 3 disclosures",
+    },
+    "ifrs.timeline.m.scope3_start.detail": {
+        "zh-TW": "第一階段公司自首次適用後第四個會計年度起適用 Scope 3 規定",
+        "en": (
+            "First-stage companies apply the Scope 3 requirements from "
+            "the fourth accounting year after first application"
+        ),
+    },
+    "ifrs.timeline.m.scope3_start.derived_note": {
+        "zh-TW": (
+            "依金管會令第 6 點「自首次適用後第四個會計年度起」推導："
+            "第一階段公司首次適用年度為 2026，第四個會計年度為 2029。"
+            "此為時程推導，不是另一次獨立法令公布日期。"
+        ),
+        "en": (
+            "Derived from point 6 of the FSC order, which applies from "
+            "the fourth accounting year after first application: "
+            "first-stage companies first apply in 2026, so the fourth "
+            "accounting year is 2029. This is a derived schedule date, "
+            "not a separate statutory publication date."
         ),
     },
     "setup.identity.operating": {"zh-TW": "營運中", "en": "Operating"},

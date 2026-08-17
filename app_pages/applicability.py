@@ -37,6 +37,7 @@ from carbon_ledger.company_master import (
     taiwan_facility_existence,
     utc_now_iso,
 )
+from carbon_ledger.ifrs_timeline import first_stage_timeline_from_assessment
 from carbon_ledger.ui.company_setup import (
     GROUP_SELF_ONLY,
     GROUP_UNKNOWN,
@@ -63,6 +64,9 @@ from carbon_ledger.ui.enterprise import (
     inject_enterprise_styles,
     render_compact_outcome_row,
     render_customer_action_summary,
+    render_customer_notice,
+    render_ifrs_timeline_evidence,
+    render_ifrs_timeline_section,
     render_money_field,
     render_stepper,
 )
@@ -70,9 +74,13 @@ from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.learning import render_micro_help
 from carbon_ledger.ui.money_input import format_twd_display
 from carbon_ledger.ui.motion import (
+    ifrs_timeline_should_play,
     inject_animated_kpi_runtime,
+    inject_ifrs_timeline_runtime,
+    mark_ifrs_timeline_consumed,
     render_capital_countup,
     schedule_capital_countup,
+    schedule_ifrs_timeline_runtime,
 )
 from carbon_ledger.ui.state import (
     REPO_ROOT,
@@ -84,6 +92,7 @@ from carbon_ledger.ui.state import (
     STATE_COMPANY_LOOKUP_NOT_FOUND,
     STATE_COMPANY_PROFILE_EDITING,
     STATE_FACILITY_EXCEPTION_MODE,
+    STATE_IFRS_TIMELINE_RUNTIME_READY,
     STATE_WIZARD_MAX_STEP,
     get_applicability_assessment,
     get_company_master_mapping,
@@ -214,14 +223,78 @@ def _render_results(assessment) -> None:
         and not summary.answer_controls
     ):
         pass
-    if presented.presentations:
-        st.markdown(f"**{t('cust.results.outcomes', lang)}**")
-    for card in presented.presentations:
-        render_compact_outcome_row(
-            card,
-            lang,
-            show_actions=not presented.action_summary.customer_action_required,
+    snapshot = assessment.company_profile_snapshot or {}
+    company = _load_company()
+    timeline = first_stage_timeline_from_assessment(
+        assessment,
+        ubn=str(
+            company.unified_business_number
+            or snapshot.get("unified_business_number")
+            or ""
+        ),
+        lang=lang,
+    )
+    ifrs_cards = [
+        card
+        for card in presented.presentations
+        if card.domain in {"ifrs", "ifrs_assurance"}
+    ]
+    other_cards = [
+        card
+        for card in presented.presentations
+        if card.domain not in {"ifrs", "ifrs_assurance"}
+    ]
+    if timeline is not None:
+        play_identity = ifrs_timeline_should_play(
+            st.session_state, timeline.run_identity
         )
+        if play_identity:
+            schedule_ifrs_timeline_runtime(st.session_state, play=True)
+        runtime_ready = bool(
+            st.session_state.get(STATE_IFRS_TIMELINE_RUNTIME_READY)
+        )
+        animate = play_identity and runtime_ready
+        if play_identity:
+            initial_pct = 0.0
+        else:
+            initial_pct = timeline.progress_pct
+        if animate:
+            inject_ifrs_timeline_runtime()
+        render_ifrs_timeline_section(
+            timeline,
+            lang,
+            play=animate,
+            initial_pct=initial_pct,
+        )
+        if animate:
+            mark_ifrs_timeline_consumed(st.session_state, timeline.run_identity)
+        if ifrs_cards:
+            st.markdown(f"**{t('ifrs.timeline.rows_heading', lang)}**")
+        for card in ifrs_cards:
+            render_compact_outcome_row(
+                card,
+                lang,
+                show_actions=not presented.action_summary.customer_action_required,
+                omit_timing=True,
+                show_basis=False,
+            )
+        render_ifrs_timeline_evidence(timeline, lang)
+    elif ifrs_cards:
+        st.markdown(f"**{t('cust.results.outcomes', lang)}**")
+        for card in ifrs_cards:
+            render_compact_outcome_row(
+                card,
+                lang,
+                show_actions=not presented.action_summary.customer_action_required,
+            )
+    if other_cards:
+        st.markdown(f"**{t('cust.results.outcomes', lang)}**")
+        for card in other_cards:
+            render_compact_outcome_row(
+                card,
+                lang,
+                show_actions=not presented.action_summary.customer_action_required,
+            )
 
 
 def _wizard_nav(draft: dict, *, finish_label: str | None = None) -> None:
@@ -809,7 +882,10 @@ def _render_step_facilities(
 
     if exception_mode:
         if st.session_state.get("_cel_facility_exception_need_confirm"):
-            st.warning(t("setup.facilities.exception_need_confirm", lang))
+            render_customer_notice(
+                title=t("setup.facilities.exception_need_confirm_title", lang),
+                body=t("setup.facilities.exception_need_confirm_body", lang),
+            )
         for record in facilities.records:
             with st.container():
                 _render_facility_exception_row(record)

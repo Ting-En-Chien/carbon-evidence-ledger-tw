@@ -8,6 +8,11 @@ from typing import Any
 
 import streamlit as st
 
+from carbon_ledger.ifrs_timeline import (
+    MILESTONE_CURRENT,
+    MILESTONE_PAST,
+    IfrsTimelineView,
+)
 from carbon_ledger.ui.app_mode import is_admin_mode
 from carbon_ledger.ui.customer_presenters import (
     CustomerActionSummary,
@@ -267,15 +272,19 @@ def render_compact_outcome_row(
     lang: str,
     *,
     show_actions: bool = True,
+    omit_timing: bool = False,
+    show_basis: bool = True,
 ) -> None:
     """Compact question + answer. No giant empty card. No duplicated status chip."""
     answer = compact_outcome_answer(pres, lang)
     reason = pres.explanation.strip()
-    timing_html = "".join(
-        f"<p class='cel-outcome-why cel-meta-year'>{html.escape(label)}</p>"
-        for label, _value in pres.timing_items
-        if label
-    )
+    timing_html = ""
+    if not omit_timing:
+        timing_html = "".join(
+            f"<p class='cel-outcome-why cel-meta-year'>{html.escape(label)}</p>"
+            for label, _value in pres.timing_items
+            if label
+        )
     emit_html(
         "<div class='cel-outcome-row'>"
         f"<p class='cel-outcome-q'>{html.escape(pres.title)}</p>"
@@ -301,7 +310,185 @@ def render_compact_outcome_row(
                     st.session_state[STATE_COMPANY_PROFILE_EDITING] = True
                 if pres.primary_action_target:
                     st.switch_page(pres.primary_action_target)
-    _render_official_basis(pres, lang)
+    if show_basis:
+        _render_official_basis(pres, lang)
+
+
+def render_customer_notice(*, title: str, body: str) -> None:
+    emit_html(
+        "<div class='cel-notice-warn' data-cel-facility-notice='1'>"
+        f"<p class='cel-notice-warn-title'>{html.escape(title)}</p>"
+        f"<p class='cel-notice-warn-body'>{html.escape(body)}</p>"
+        "</div>"
+    )
+
+
+def ifrs_timeline_markup(
+    view: IfrsTimelineView,
+    lang: str,
+    *,
+    play: bool,
+    initial_pct: float,
+) -> str:
+    """Build the consolidated IFRS timeline HTML. No Streamlit side effects."""
+    count = len(view.milestones)
+    chips = "".join(
+        f"<span class='cel-ifrs-chip'>{html.escape(item)}</span>"
+        for item in view.summary_items
+    )
+    markers: list[str] = []
+    captions: list[str] = []
+    mobile_items: list[str] = []
+    for index, item in enumerate(view.milestones):
+        state_cls = {
+            MILESTONE_PAST: "is-past",
+            MILESTONE_CURRENT: "is-current",
+        }.get(item.state, "is-upcoming")
+        live_cls = " is-live" if play and item.state == MILESTONE_CURRENT else ""
+        revealed = (not play) and index <= view.reveal_through
+        visible = "1" if revealed else "0"
+        rail_reached = "1" if (not play) and item.state == MILESTONE_PAST else "0"
+        past_label = (
+            t("ifrs.timeline.past", lang) if item.state == MILESTONE_PAST else ""
+        )
+        badge = ""
+        if item.conditional:
+            badge = (
+                "<span class='cel-timeline-badge'>"
+                f"{html.escape(t('ifrs.timeline.conditional', lang))}</span>"
+            )
+        elif item.derived:
+            badge = (
+                "<span class='cel-timeline-badge'>"
+                f"{html.escape(t('ifrs.timeline.derived', lang))}</span>"
+            )
+        aria = html.escape(
+            f"{item.period_label} {item.short_action} {item.detail} "
+            f"{past_label}".strip()
+        )
+        markers.append(
+            "<div class='cel-timeline-marker "
+            f"{state_cls}{live_cls}' "
+            f"data-cel-timeline-marker='{index}' "
+            f"data-cel-timeline-state='{html.escape(item.state)}' "
+            f"title='{html.escape(item.detail, quote=True)}' "
+            f"aria-label='{aria}'>"
+            "<div class='cel-timeline-dot' data-cel-timeline-dot='desktop' "
+            f"data-cel-timeline-visible='{visible}'></div>"
+            "</div>"
+        )
+        captions.append(
+            "<div class='cel-timeline-caption "
+            f"{state_cls}' data-cel-timeline-caption='{index}' "
+            f"title='{html.escape(item.detail, quote=True)}'>"
+            "<p class='cel-timeline-period'>"
+            f"{html.escape(item.period_label)}</p>"
+            "<p class='cel-timeline-action'>"
+            f"{html.escape(item.short_action)}{badge}</p>"
+            "<p class='cel-timeline-caption-detail'>"
+            f"{html.escape(item.detail)}</p>"
+            "</div>"
+        )
+        mobile_items.append(
+            "<div class='cel-timeline-mobile-item "
+            f"{state_cls}{live_cls}' "
+            f"data-cel-timeline-mobile-item='{index}' "
+            f"data-cel-timeline-state='{html.escape(item.state)}' "
+            f"data-cel-rail-reached='{rail_reached}'>"
+            "<div class='cel-timeline-mobile-rail'>"
+            "<div class='cel-timeline-dot' data-cel-timeline-dot='mobile' "
+            f"data-cel-timeline-visible='{visible}'></div>"
+            "</div>"
+            "<div class='cel-timeline-mobile-copy'>"
+            f"<p class='period'>{html.escape(item.period_label)}{badge}</p>"
+            f"<p class='action'>{html.escape(item.short_action)}</p>"
+            f"<p class='detail'>{html.escape(item.detail)}</p>"
+            + (
+                f"<p class='detail'>{html.escape(past_label)}</p>"
+                if past_label
+                else ""
+            )
+            + "</div></div>"
+        )
+    play_flag = "1" if play else "0"
+    heading = html.escape(t("ifrs.timeline.heading", lang))
+    return (
+        "<div class='cel-ifrs-timeline' data-cel-timeline='1' "
+        f"data-cel-timeline-run='{html.escape(view.run_identity, quote=True)}' "
+        f"data-cel-timeline-play='{play_flag}' "
+        f"data-cel-timeline-progress='{view.progress_pct}' "
+        f"data-cel-timeline-current='{view.current_index}' "
+        f"data-cel-timeline-reveal='{view.reveal_through}' "
+        f"data-cel-timeline-count='{count}'>"
+        f"<p class='cel-ifrs-timeline-title'>{heading}</p>"
+        f"<div class='cel-ifrs-summary'>{chips}</div>"
+        "<div class='cel-timeline-desktop' data-cel-timeline-scope='desktop'>"
+        "<div class='cel-timeline-lane'>"
+        "<div class='cel-timeline-track'>"
+        "<span class='cel-timeline-progress' data-cel-timeline-bar='1' "
+        f"style='width:{initial_pct:.4f}%;' "
+        f"data-cel-timeline-width='{initial_pct}'></span>"
+        "</div>"
+        f"<div class='cel-timeline-markers'>{''.join(markers)}</div>"
+        "</div>"
+        f"<div class='cel-timeline-captions'>{''.join(captions)}</div>"
+        "</div>"
+        "<div class='cel-timeline-mobile' data-cel-timeline-scope='mobile'>"
+        f"{''.join(mobile_items)}</div>"
+        "<p class='cel-timeline-current-copy'>"
+        f"{html.escape(view.current_action)}</p>"
+        f"<p class='cel-timeline-note'>{html.escape(view.schedule_note)}</p>"
+        "</div>"
+    )
+
+
+def render_ifrs_timeline_section(
+    view: IfrsTimelineView,
+    lang: str,
+    *,
+    play: bool,
+    initial_pct: float,
+) -> None:
+    emit_html(
+        ifrs_timeline_markup(view, lang, play=play, initial_pct=initial_pct)
+    )
+
+
+def render_ifrs_timeline_evidence(view: IfrsTimelineView, lang: str) -> None:
+    with st.expander(t("ifrs.timeline.evidence", lang), expanded=False):
+        st.markdown(
+            f"**{t('ifrs.timeline.source.phase_rule', lang)}**  \n"
+            f"{view.phase_rule_explanation}"
+        )
+        st.markdown(
+            f"**{t('ifrs.timeline.source.october', lang)}**  \n"
+            f"{view.october_explanation}"
+        )
+        st.markdown(
+            f"**{t('ifrs.timeline.source.scope3', lang)}**  \n"
+            f"{view.scope3_explanation}"
+        )
+        for source in view.sources:
+            st.markdown(
+                f"**{t('ifrs.timeline.source.authority', lang)}**  \n"
+                f"{source.authority}"
+            )
+            st.markdown(
+                f"**{t('ifrs.timeline.source.document', lang)}**  \n"
+                f"{t('ifrs.timeline.source.official_title', lang)}：{source.title}"
+            )
+            st.markdown(
+                f"**{t('ifrs.timeline.source.url', lang)}**  \n{source.url}"
+            )
+            if source.published_or_effective:
+                st.markdown(
+                    f"**{t('ifrs.timeline.source.published', lang)}**  \n"
+                    f"{source.published_or_effective}"
+                )
+            st.markdown(
+                f"**{t('ifrs.timeline.source.retrieved', lang)}**  \n"
+                f"{source.retrieved}"
+            )
 
 
 def render_customer_action_summary(

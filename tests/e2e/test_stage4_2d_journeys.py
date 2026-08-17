@@ -129,7 +129,7 @@ def test_journey_facility_exception_requires_explicit_confirm(page) -> None:
     wait_streamlit_idle(page)
     blocked = visible_text(page)
     assert "確認台灣廠場" in blocked
-    assert "請先確認各廠場狀態後再繼續" in blocked
+    assert "請先確認廠場狀態" in blocked
     assert "還差 1 項資料" not in blocked
     assert "你的結果" not in blocked or "步驟 3" in blocked
     _set_nth_facility_status(page, 1, "已出售")
@@ -160,7 +160,7 @@ def test_journey_confirmed_then_exception_edit_blocks_continue(page) -> None:
     wait_streamlit_idle(page)
     blocked = visible_text(page)
     assert "確認台灣廠場" in blocked
-    assert "請先確認各廠場狀態後再繼續" in blocked
+    assert "請先確認廠場狀態" in blocked
     assert "還差 1 項資料" not in blocked
     assert_no_app_errors(page)
 
@@ -178,7 +178,7 @@ def test_journey_exception_dirty_after_confirm_uses_latest_commit(page) -> None:
     click_button(page, "繼續")
     wait_streamlit_idle(page)
     blocked = visible_text(page)
-    assert "請先確認各廠場狀態後再繼續" in blocked
+    assert "請先確認廠場狀態" in blocked
     assert "還差 1 項資料" not in blocked
     click_button(page, "確認這些廠場狀態")
     wait_streamlit_idle(page)
