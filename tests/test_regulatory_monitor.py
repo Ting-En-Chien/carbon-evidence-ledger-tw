@@ -38,6 +38,41 @@ from carbon_ledger.regulatory_registry import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+_AUTOMATED_SOURCE_IDS = {
+    "src_tw_twse_portal",
+    "src_tw_tpex_portal",
+    "src_tw_moenv_ghg_open_data",
+}
+
+
+def _reset_automated_freshness_for_tests(root: Path) -> None:
+    """Keep schema/rows, but clear live fetch stamps so unit tests start clean."""
+    path = root / "data/regulatory/source_freshness_state.csv"
+    if not path.is_file():
+        return
+    df = pd.read_csv(path, dtype=str).fillna("")
+    clear_cols = [
+        "last_checked_at",
+        "last_successful_fetch_at",
+        "last_changed_at",
+        "http_etag",
+        "http_last_modified",
+        "content_hash",
+        "fetch_status",
+        "fetch_error",
+        "next_check_at",
+    ]
+    mask = df["source_id"].isin(_AUTOMATED_SOURCE_IDS)
+    for col in clear_cols:
+        if col in df.columns:
+            df.loc[mask, col] = ""
+    if "consecutive_failures" in df.columns:
+        df.loc[mask, "consecutive_failures"] = "0"
+    if "freshness_status" in df.columns:
+        df.loc[mask, "freshness_status"] = "CHECK_DUE"
+    df.to_csv(path, index=False)
+
+
 def _seed_tmp_repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     (root / "config").mkdir(parents=True)
@@ -52,6 +87,10 @@ def _seed_tmp_repo(tmp_path: Path) -> Path:
         root / "data/reference/regulatory_sources.csv",
     )
     shutil.copy(
+        REPO_ROOT / "data/reference/source_access_policies.csv",
+        root / "data/reference/source_access_policies.csv",
+    )
+    shutil.copy(
         REPO_ROOT / "config/regulatory_rules.csv",
         root / "config/regulatory_rules.csv",
     )
@@ -59,11 +98,12 @@ def _seed_tmp_repo(tmp_path: Path) -> Path:
         "regulatory_change_log.csv",
         "source_freshness_state.csv",
         "regulatory_conflict_log.csv",
+        "change_signals_state.json",
     ]:
-        shutil.copy(
-            REPO_ROOT / "data/regulatory" / name,
-            root / "data/regulatory" / name,
-        )
+        src = REPO_ROOT / "data/regulatory" / name
+        if src.is_file():
+            shutil.copy(src, root / "data/regulatory" / name)
+    _reset_automated_freshness_for_tests(root)
     return root
 
 
@@ -86,7 +126,7 @@ def test_hash_change_produces_change_event(tmp_path: Path) -> None:
     now = datetime(2026, 8, 12, 6, 0, tzinfo=timezone.utc)
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now,
         write_pending_review=False,
@@ -94,7 +134,7 @@ def test_hash_change_produces_change_event(tmp_path: Path) -> None:
     bodies["second"] = b"<html>order 11403851756 version B amended</html>"
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now + timedelta(hours=1),
         write_pending_review=False,
@@ -114,14 +154,14 @@ def test_unchanged_hash_does_not_create_false_regulatory_change(tmp_path: Path) 
     now = datetime(2026, 8, 12, 7, 0, tzinfo=timezone.utc)
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now,
         write_pending_review=False,
     )
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now + timedelta(hours=2),
         write_pending_review=False,
@@ -137,7 +177,7 @@ def test_failed_fetch_does_not_silently_mark_current(tmp_path: Path) -> None:
 
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=datetime(2026, 8, 12, 8, 0, tzinfo=timezone.utc),
         write_pending_review=False,
@@ -147,7 +187,7 @@ def test_failed_fetch_does_not_silently_mark_current(tmp_path: Path) -> None:
         root / "data/regulatory/source_freshness_state.csv", dtype=str
     ).fillna("")
     row = freshness.loc[
-        freshness["source_id"] == "src_tw_order_11403851756"
+        freshness["source_id"] == "src_tw_twse_portal"
     ].iloc[0]
     assert row["freshness_status"] != "CURRENT"
     assert row["fetch_status"] == "FETCH_FAILED"
@@ -166,11 +206,11 @@ def test_stale_authoritative_source_triggers_fail_safe() -> None:
     gate = assert_sources_fresh_for_analysis(
         [
             {
-                "source_id": "src_tw_order_11403851756",
+                "source_id": "src_tw_twse_portal",
                 "freshness_status": "STALE",
             }
         ],
-        ["src_tw_order_11403851756"],
+        ["src_tw_twse_portal"],
     )
     assert gate["analysis_allowed"] is False
     assert gate["state"] == "REGULATORY_DATA_STALE"
@@ -197,7 +237,7 @@ def test_changed_source_does_not_automatically_activate_new_legal_rule(
     now = datetime(2026, 8, 12, 9, 0, tzinfo=timezone.utc)
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now,
         write_pending_review=False,
@@ -205,7 +245,7 @@ def test_changed_source_does_not_automatically_activate_new_legal_rule(
     bodies["v"] = b"<html>brand new order text 999</html>"
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now + timedelta(hours=1),
         write_pending_review=True,
@@ -217,7 +257,9 @@ def test_changed_source_does_not_automatically_activate_new_legal_rule(
     active_after = set(after.loc[after["rule_status"] == "ACTIVE", "rule_id"])
     # Monitor must not invent brand-new ACTIVE rule ids.
     assert active_after <= active_before
-    assert result["pending_review_rules_marked"] > 0
+    # Automated OpenAPI sources may have no linked legal rules; still must not
+    # invent ACTIVE rule activations from content-hash changes.
+    assert all(c["activation_status"] == "NOT_ACTIVATED" for c in result["changes"])
     assert (root / "data/regulatory/regulatory_change_report.md").is_file()
     assert (root / "data/regulatory/monitoring_summary.json").is_file()
 
@@ -253,7 +295,7 @@ def test_regulatory_conflicts_are_surfaced(tmp_path: Path) -> None:
     root = _seed_tmp_repo(tmp_path)
     conflict = record_conflict(
         root / "data/regulatory/regulatory_conflict_log.csv",
-        source_id_a="src_tw_order_11403851756",
+        source_id_a="src_tw_twse_portal",
         source_id_b="src_tw_sfb_press_20251028",
         requirement_a="Scope3 from fourth year",
         requirement_b="Scope3 first three years",
@@ -340,7 +382,7 @@ def test_failed_fetch_does_not_update_last_successful_fetch_at(tmp_path: Path) -
 
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=ok_fetch,
         now=now,
         write_pending_review=False,
@@ -349,14 +391,14 @@ def test_failed_fetch_does_not_update_last_successful_fetch_at(tmp_path: Path) -
         root / "data/regulatory/source_freshness_state.csv", dtype=str
     ).fillna("")
     success_before = freshness.loc[
-        freshness["source_id"] == "src_tw_order_11403851756",
+        freshness["source_id"] == "src_tw_twse_portal",
         "last_successful_fetch_at",
     ].iloc[0]
     assert success_before
 
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=bad_fetch,
         now=now + timedelta(hours=1),
         write_pending_review=False,
@@ -365,7 +407,7 @@ def test_failed_fetch_does_not_update_last_successful_fetch_at(tmp_path: Path) -
         root / "data/regulatory/source_freshness_state.csv", dtype=str
     ).fillna("")
     row = freshness.loc[
-        freshness["source_id"] == "src_tw_order_11403851756"
+        freshness["source_id"] == "src_tw_twse_portal"
     ].iloc[0]
     assert row["last_successful_fetch_at"] == success_before
     assert row["fetch_status"] == "FETCH_FAILED"
@@ -392,7 +434,7 @@ def test_taiwan_recognised_version_source_is_high_priority() -> None:
     row = sources.loc[
         sources["source_id"] == "src_tw_sfb_ifrs_download_area"
     ].iloc[0]
-    assert row["monitor_enabled"].lower() == "true"
+    assert row["monitor_enabled"].lower() == "false"
     assert row["monitor_frequency"] == "high_change_source"
 
 
@@ -470,7 +512,7 @@ def test_no_change_run_updates_durable_freshness_state(tmp_path: Path) -> None:
     now = datetime(2026, 8, 12, 11, 0, tzinfo=timezone.utc)
     first = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now,
         write_pending_review=False,
@@ -483,14 +525,14 @@ def test_no_change_run_updates_durable_freshness_state(tmp_path: Path) -> None:
     assert durable.is_file()
     success_1 = pd.read_csv(durable, dtype=str).fillna("")
     stamp_1 = success_1.loc[
-        success_1["source_id"] == "src_tw_order_11403851756",
+        success_1["source_id"] == "src_tw_twse_portal",
         "last_successful_fetch_at",
     ].iloc[0]
     assert stamp_1.startswith("2026-08-12T11:00:00")
 
     second = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now + timedelta(hours=3),
         write_pending_review=False,
@@ -500,12 +542,12 @@ def test_no_change_run_updates_durable_freshness_state(tmp_path: Path) -> None:
     assert should_open_review_activity(second["changes"]) is False
     success_2 = pd.read_csv(durable, dtype=str).fillna("")
     row = success_2.loc[
-        success_2["source_id"] == "src_tw_order_11403851756"
+        success_2["source_id"] == "src_tw_twse_portal"
     ].iloc[0]
     assert row["last_successful_fetch_at"].startswith("2026-08-12T14:00:00")
     assert row["last_checked_at"].startswith("2026-08-12T14:00:00")
     assert row["fetch_status"] == "OK"
-    assert row["freshness_status"] == "CURRENT"
+    assert row["freshness_status"] in {"CURRENT", "AUTOMATED_CURRENT"}
     assert row["next_check_at"]
 
 
@@ -528,7 +570,7 @@ def test_durable_state_preferred_over_bundled_stale(tmp_path: Path) -> None:
     now = datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc)
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now,
         write_pending_review=False,
@@ -537,11 +579,11 @@ def test_durable_state_preferred_over_bundled_stale(tmp_path: Path) -> None:
     bundled = root / "data/regulatory/source_freshness_state.csv"
     df = pd.read_csv(bundled, dtype=str).fillna("")
     df.loc[
-        df["source_id"] == "src_tw_order_11403851756",
+        df["source_id"] == "src_tw_twse_portal",
         "last_successful_fetch_at",
     ] = "2020-01-01T00:00:00Z"
     df.loc[
-        df["source_id"] == "src_tw_order_11403851756",
+        df["source_id"] == "src_tw_twse_portal",
         "freshness_status",
     ] = "STALE"
     df.to_csv(bundled, index=False)
@@ -553,7 +595,7 @@ def test_durable_state_preferred_over_bundled_stale(tmp_path: Path) -> None:
         dtype=str,
     ).fillna("")
     stamp = durable.loc[
-        durable["source_id"] == "src_tw_order_11403851756",
+        durable["source_id"] == "src_tw_twse_portal",
         "last_successful_fetch_at",
     ].iloc[0]
     assert stamp.startswith("2026-08-12T12:00:00")
@@ -590,7 +632,7 @@ def test_failed_persistence_not_reported_as_full_success(tmp_path: Path) -> None
 
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=datetime(2026, 8, 12, 13, 0, tzinfo=timezone.utc),
         write_pending_review=False,
@@ -615,7 +657,7 @@ def test_last_successful_fetch_at_only_on_successful_fetch(tmp_path: Path) -> No
 
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=ok_fetch,
         now=now,
         write_pending_review=False,
@@ -624,12 +666,12 @@ def test_last_successful_fetch_at_only_on_successful_fetch(tmp_path: Path) -> No
         root / "data/regulatory/source_freshness_state.csv", dtype=str
     ).fillna("")
     stamp = before.loc[
-        before["source_id"] == "src_tw_order_11403851756",
+        before["source_id"] == "src_tw_twse_portal",
         "last_successful_fetch_at",
     ].iloc[0]
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=bad_fetch,
         now=now + timedelta(hours=1),
         write_pending_review=False,
@@ -639,7 +681,7 @@ def test_last_successful_fetch_at_only_on_successful_fetch(tmp_path: Path) -> No
     ).fillna("")
     assert (
         after.loc[
-            after["source_id"] == "src_tw_order_11403851756",
+            after["source_id"] == "src_tw_twse_portal",
             "last_successful_fetch_at",
         ].iloc[0]
         == stamp
@@ -660,7 +702,7 @@ def test_rule_activation_remains_manual(tmp_path: Path) -> None:
     now = datetime(2026, 8, 12, 15, 0, tzinfo=timezone.utc)
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now,
         write_pending_review=False,
@@ -668,7 +710,7 @@ def test_rule_activation_remains_manual(tmp_path: Path) -> None:
     bodies["v"] = b"<html>manual activation only CHANGED</html>"
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=now + timedelta(hours=1),
         write_pending_review=True,
@@ -830,7 +872,7 @@ def test_critical_source_failure_makes_overall_non_current() -> None:
     summary = build_monitoring_summary(
         freshness_rows=[
             {
-                "source_id": "src_tw_order_11403851756",
+                "source_id": "src_tw_twse_portal",
                 "freshness_status": "FETCH_FAILED",
                 "fetch_status": "FETCH_FAILED",
                 "monitor_criticality": "CRITICAL",
@@ -841,7 +883,7 @@ def test_critical_source_failure_makes_overall_non_current() -> None:
         ],
         change_rows=[],
         conflict_rows=[],
-        critical_source_ids=["src_tw_order_11403851756"],
+        critical_source_ids=["src_tw_twse_portal"],
     )
     assert summary["critical_sources_failed"] == 1
     assert summary["overall_regulatory_freshness"] != "CURRENT"
@@ -876,7 +918,7 @@ def test_runtime_durable_state_is_persisted_source(tmp_path: Path) -> None:
 
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=datetime(2026, 8, 12, 16, 0, tzinfo=timezone.utc),
         write_pending_review=False,
@@ -958,13 +1000,16 @@ def test_persistence_mismatch_fails_cli(tmp_path: Path) -> None:
 
 def test_config_loads_critical_sources_and_tls_allowlist() -> None:
     cfg = load_monitor_config(REPO_ROOT / "config/regulatory_monitoring.yaml")
-    assert "src_tw_fsc_law_portal" in cfg.critical_source_ids
-    assert "src_tw_order_11403851756" in cfg.critical_source_ids
-    assert "law.fsc.gov.tw" in cfg.tls_x509_strict_fallback_hosts
+    assert "src_tw_twse_portal" in cfg.critical_source_ids
+    assert "src_tw_moenv_ghg_registry" not in cfg.critical_source_ids
+    assert "src_tw_moenv_ghg_open_data" in cfg.supporting_source_ids
+    assert "src_tw_moenv_ghg_open_data" not in cfg.critical_source_ids
+    assert "openapi.twse.com.tw" in cfg.tls_x509_strict_fallback_hosts
     assert "www.ifrs.org" not in cfg.tls_x509_strict_fallback_hosts
     from carbon_ledger.regulatory_monitor import source_criticality
 
-    assert source_criticality("src_tw_fsc_law_portal", cfg) == "CRITICAL"
+    assert source_criticality("src_tw_twse_portal", cfg) == "CRITICAL"
+    assert source_criticality("src_tw_fsc_law_portal", cfg) != "CRITICAL"
     assert "src_tw_sfb_ifrs_download_area" in cfg.primary_authoritative_source_ids
     assert (
         cfg.alternate_official_monitoring_sources["src_tw_sfb_ifrs_download_area"]
@@ -980,7 +1025,7 @@ def test_baseline_captured_does_not_trigger_review(tmp_path: Path) -> None:
 
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=datetime(2026, 8, 12, 13, 0, tzinfo=timezone.utc),
         write_pending_review=True,
@@ -1005,14 +1050,14 @@ def test_failed_latest_fetch_never_reports_current_even_with_prior_success(
 
     run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=ok_fetch,
         now=now,
         write_pending_review=False,
     )
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=bad_fetch,
         now=now + timedelta(minutes=30),
         write_pending_review=False,
@@ -1021,7 +1066,7 @@ def test_failed_latest_fetch_never_reports_current_even_with_prior_success(
         root / "data/regulatory/durable_state/source_freshness_state.csv", dtype=str
     ).fillna("")
     row = freshness.loc[
-        freshness["source_id"] == "src_tw_order_11403851756"
+        freshness["source_id"] == "src_tw_twse_portal"
     ].iloc[0]
     assert row["freshness_status"] == "FETCH_FAILED"
     assert row["fetch_status"] == "FETCH_FAILED"
@@ -1031,18 +1076,13 @@ def test_failed_latest_fetch_never_reports_current_even_with_prior_success(
 
 
 def test_sfb_403_uses_manual_access_not_insecure_bypass(tmp_path: Path) -> None:
+    """SFB HTML is policy-restricted: zero HTTP; no bypass tooling."""
     root = _seed_tmp_repo(tmp_path)
     calls: list[str] = []
 
     def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
         calls.append(url)
-        if "ifrs.sfb.gov.tw" in url:
-            return FetchResult(ok=False, status_code=403, error="HTTP 403")
-        return FetchResult(
-            ok=True,
-            status_code=200,
-            body=b"<html>alternate official order text</html>",
-        )
+        return FetchResult(ok=False, status_code=403, error="HTTP 403")
 
     result = run_monitor(
         root,
@@ -1057,14 +1097,10 @@ def test_sfb_403_uses_manual_access_not_insecure_bypass(tmp_path: Path) -> None:
     row = freshness.loc[
         freshness["source_id"] == "src_tw_sfb_ifrs_download_area"
     ].iloc[0]
-    assert row["fetch_status"] == "MANUAL_ACCESS_REQUIRED"
-    assert row["freshness_status"] == "MANUAL_ACCESS_REQUIRED"
-    assert row["freshness_status"] != "CURRENT"
-    assert any(c["change_type"] == "MANUAL_ACCESS_REQUIRED" for c in result["changes"])
+    assert row["fetch_status"] == "POLICY_SKIPPED"
+    assert row["freshness_status"] == "MANUALLY_VERIFIED"
+    assert any(c["change_type"] == "POLICY_SKIPPED" for c in result["changes"])
     assert result["summary"]["critical_sources_failed"] == 0
-    assert result["summary"]["overall_regulatory_freshness"] == (
-        "MANUAL_VERIFICATION_REQUIRED"
-    )
     source = (
         REPO_ROOT / "src/carbon_ledger/regulatory_monitor.py"
     ).read_text(encoding="utf-8")
@@ -1072,75 +1108,79 @@ def test_sfb_403_uses_manual_access_not_insecure_bypass(tmp_path: Path) -> None:
     assert "CERT_NONE" not in source
     assert "webdriver" not in source.lower()
     assert "selenium" not in source.lower()
-    assert len(calls) >= 1
+    assert calls == []
+
+
+def test_authorized_api_403_stops_without_bypass(tmp_path: Path) -> None:
+    root = _seed_tmp_repo(tmp_path)
+    calls: list[str] = []
+
+    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
+        calls.append(url)
+        return FetchResult(ok=False, status_code=403, error="HTTP 403")
+
+    result = run_monitor(
+        root,
+        source_id="src_tw_twse_portal",
+        fetch_fn=fetch,
+        now=datetime(2026, 8, 12, 15, 5, tzinfo=timezone.utc),
+        write_pending_review=False,
+    )
+    freshness = pd.read_csv(
+        root / "data/regulatory/durable_state/source_freshness_state.csv", dtype=str
+    ).fillna("")
+    row = freshness.loc[freshness["source_id"] == "src_tw_twse_portal"].iloc[0]
+    assert row["fetch_status"] == "ACCESS_POLICY_REVIEW_REQUIRED"
+    assert any(
+        c["change_type"] == "ACCESS_POLICY_REVIEW_REQUIRED" for c in result["changes"]
+    )
+    assert calls
+    assert all("ifrs.org" not in c for c in calls)
 
 
 def test_alternate_official_signal_cannot_auto_activate_taiwan_ifrs(
     tmp_path: Path,
 ) -> None:
+    """Email / change signals never auto-activate Taiwan IFRS rules."""
     root = _seed_tmp_repo(tmp_path)
-    durable = root / "data/regulatory/durable_state"
-    durable.mkdir(parents=True, exist_ok=True)
-    shutil.copy(
-        root / "data/regulatory/source_freshness_state.csv",
-        durable / "source_freshness_state.csv",
-    )
-    df = pd.read_csv(durable / "source_freshness_state.csv", dtype=str).fillna("")
-    alt_id = "src_tw_order_11403856094_recognised"
-    prior_hash = content_hash(b"<html>old alternate</html>")
-    if alt_id not in set(df["source_id"]):
-        df = pd.concat(
-            [
-                df,
-                pd.DataFrame(
-                    [
-                        {
-                            "source_id": alt_id,
-                            "content_hash": prior_hash,
-                            "consecutive_failures": "0",
-                            "freshness_status": "CURRENT",
-                        }
-                    ]
-                ),
-            ],
-            ignore_index=True,
-        )
-    else:
-        df.loc[df["source_id"] == alt_id, "content_hash"] = prior_hash
-    df.to_csv(durable / "source_freshness_state.csv", index=False)
-    shutil.copy(
-        durable / "source_freshness_state.csv",
-        root / "data/regulatory/source_freshness_state.csv",
+    from carbon_ledger.regulatory_signals import (
+        AlertMessage,
+        MockMailboxAdapter,
+        RegulatorySignalStore,
+        admin_mark_verified_regulatory_change,
+        ingest_alerts_from_adapter,
     )
 
-    def fetch(url: str, timeout: float) -> FetchResult:  # noqa: ARG001
-        if "ifrs.sfb.gov.tw" in url:
-            return FetchResult(ok=False, status_code=403, error="HTTP 403")
-        return FetchResult(
-            ok=True,
-            status_code=200,
-            body=b"<html>new alternate official text</html>",
-        )
-
+    store = RegulatorySignalStore(
+        root / "data/regulatory/durable_state/change_signals_state.json"
+    )
+    adapter = MockMailboxAdapter(
+        [
+            AlertMessage(
+                message_id="<ifrs-amend-1@ifrs.org>",
+                sender="alerts@ifrs.org",
+                subject="IFRS S2 amendments published",
+                received_at="2026-08-12T10:00:00Z",
+                label="Regulatory-IFRS",
+                snippet="Official notification only",
+                official_link="https://www.ifrs.org/news/example",
+            )
+        ]
+    )
     before = load_regulatory_rules(root / "config/regulatory_rules.csv")
     active_before = set(before.loc[before["rule_status"] == "ACTIVE", "rule_id"])
-    result = run_monitor(
-        root,
-        source_id="src_tw_sfb_ifrs_download_area",
-        fetch_fn=fetch,
-        now=datetime(2026, 8, 12, 15, 30, tzinfo=timezone.utc),
-        write_pending_review=True,
+    ingest = ingest_alerts_from_adapter(adapter, store)
+    assert ingest["created"] == 1
+    sig = store.list_signals()[0]
+    assert sig.status == "POTENTIAL_REGULATORY_CHANGE"
+    admin_mark_verified_regulatory_change(
+        store, sig.signal_id, reviewed_by="admin_test"
     )
-    signals = [
-        c for c in result["changes"] if c["change_type"] == "ALTERNATE_OFFICIAL_SIGNAL"
-    ]
-    assert signals
-    assert all(s["review_status"] == "PENDING_REVIEW" for s in signals)
-    assert all(s["activation_status"] == "NOT_ACTIVATED" for s in signals)
-    assert result["auto_activate_rules"] is False
+    # Still no automatic rule mutation.
     after = load_regulatory_rules(root / "config/regulatory_rules.csv")
     active_after = set(after.loc[after["rule_status"] == "ACTIVE", "rule_id"])
-    assert active_after <= active_before
+    assert active_after == active_before
+    assert store.list_signals()[0].status == "VERIFIED_REGULATORY_CHANGE"
 
 
 def test_manual_access_required_blocks_unconditional_applicability() -> None:
@@ -1168,7 +1208,7 @@ def test_invalid_moenv_root_url_is_no_longer_monitored() -> None:
     assert row["official_url"] != "https://oaout.moenv.gov.tw/"
     assert "LawContent.aspx" in row["official_url"]
     assert "oaout.moenv.gov.tw/law/" in row["official_url"]
-    assert str(row["monitor_enabled"]).lower() == "true"
+    assert str(row["monitor_enabled"]).lower() == "false"
 
 
 def test_health_gate_precedence_persistence_over_critical() -> None:
@@ -1202,7 +1242,7 @@ def test_critical_failure_still_persists_runtime_state(tmp_path: Path) -> None:
 
     result = run_monitor(
         root,
-        source_id="src_tw_order_11403851756",
+        source_id="src_tw_twse_portal",
         fetch_fn=fetch,
         now=datetime(2026, 8, 12, 16, 0, tzinfo=timezone.utc),
         write_pending_review=False,

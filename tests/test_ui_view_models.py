@@ -9,7 +9,6 @@ import pandas as pd
 from carbon_ledger.pipeline import run_demo_pipeline
 from carbon_ledger.ui import view_models as vm
 from carbon_ledger.ui.glossary import glossary_contains
-from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.tutorial import tutorial_step_texts
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -55,8 +54,8 @@ def test_activity_names_are_human_readable() -> None:
     overview = vm.build_activity_overview(_full_result(), EN)
     names = set(overview["activity_name"])
     assert "Purchased electricity" in names
-    assert "Heat-treatment natural gas" in names
-    assert "Company-vehicle diesel" in names
+    assert "Natural gas" in names
+    assert "Diesel" in names
     assert "Purchased steel wire rod" in names
     assert "Finished-goods output" in names
 
@@ -237,9 +236,12 @@ def test_glossary_core_terms() -> None:
     assert not glossary_contains("CBAM")
 
 
-def test_tutorial_has_four_beginner_steps() -> None:
+def test_tutorial_has_three_beginner_steps() -> None:
     steps = tutorial_step_texts(ZH)
-    assert len(steps) == 4
+    assert len(steps) == 3
     joined = "\n".join(steps)
-    assert "猜測" in joined
-    assert "示範" in t("tut.footer", ZH)
+    assert "填公司資料" in joined
+    assert "上傳電力、燃料等營運資料" in joined
+    assert "查看分析結果" in joined
+    assert "GHG Protocol" not in joined
+    assert "IFRS" not in joined

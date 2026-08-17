@@ -1,0 +1,18 @@
+{
+  "source_name": "登記工廠名錄（生產中工廠清冊）",
+  "source_authority": "經濟部產業發展署",
+  "source_id": "src_tw_factory_open_data",
+  "dataset_page": "https://data.gov.tw/dataset/6569",
+    "record_count": 4,
+  "source_data_date": "2026-06-01",
+  "snapshot_version": "test-fixture",
+  "coverage_statement_zh": "目前本地工廠資料庫涵蓋政府公開資料中的生產中登記工廠。",
+  "note_zh": "登記工廠僅為發現候選，不會自動納入盤查邊界。",
+  "quality": {
+    "total_records": 4,
+    "unique_ubn_count": 3,
+    "records_with_name": 3,
+    "records_with_address": 3,
+    "records_with_registration_number": 3
+  }
+}

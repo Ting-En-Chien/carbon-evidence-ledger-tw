@@ -35,15 +35,16 @@ html, body, [class*="css"],
   --color-danger: #B42318;
   --color-success: #047857;
   --color-neutral: #64748B;
-  --cel-primary: var(--color-primary);
-  --cel-primary-hover: var(--color-primary-hover);
-  --cel-navy: #172A46;
+  --cel-primary: #0F8A83;
+  --cel-primary-hover: #0C726C;
+  --cel-navy: #0D2238;
+  --cel-navy-950: #081A2B;
   --cel-text: #0F172A;
   --cel-slate: var(--color-neutral);
-  --cel-page: #F5F7FA;
+  --cel-page: #F4F7FA;
   --cel-surface: #FFFFFF;
   --cel-soft: #F1F5F9;
-  --cel-border: #E2E8F0;
+  --cel-border: #E3E9EF;
   --cel-warning: var(--color-warning);
   --cel-critical: var(--color-danger);
   --cel-success: var(--color-success);
@@ -92,40 +93,41 @@ section[data-testid="stMain"] .block-container,
   padding-right: var(--space-5) !important;
 }
 
-/* Sidebar width target ~220–240px */
+/* Sidebar: dark navy rail (visual_system.css refines further) */
 section[data-testid="stSidebar"] {
-  min-width: 228px !important;
-  max-width: 240px !important;
+  min-width: 240px !important;
+  max-width: 250px !important;
+  background: linear-gradient(180deg, #081A2B 0%, #0D2238 100%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 section[data-testid="stSidebar"] > div {
-  width: 228px !important;
-}
-section[data-testid="stSidebar"] {
-  background: var(--cel-surface);
-  border-right: 1px solid var(--cel-border);
+  width: 240px !important;
+  background: transparent !important;
 }
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] span {
   font-size: 0.875rem !important;
+  color: rgba(226, 232, 240, 0.88) !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarNavLink"] {
-  border-radius: 8px !important;
-  margin: 2px 0 !important;
-  padding: 0.45rem 0.65rem !important;
+  border-radius: 10px !important;
+  margin: 3px 8px !important;
+  padding: 0.55rem 0.7rem !important;
+  background: transparent !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarNavLink"] span {
-  color: var(--cel-slate) !important;
+  color: rgba(203, 213, 225, 0.9) !important;
   font-weight: 500 !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-current="page"] {
-  background: #ECFDF8 !important;
-  color: var(--cel-navy) !important;
-  border-left: 3px solid var(--cel-primary);
+  background: rgba(20, 163, 154, 0.18) !important;
+  box-shadow: inset 3px 0 0 #14A39A;
+  border-left: none !important;
 }
 section[data-testid="stSidebar"]
   [data-testid="stSidebarNavLink"][aria-current="page"] span {
-  color: var(--cel-navy) !important;
+  color: #F0FDFA !important;
   font-weight: 650 !important;
 }
 
@@ -331,6 +333,15 @@ button[aria-selected="true"][data-baseweb="tab"] {
 }
 .cel-kpi-grid-hero {
   grid-template-columns: 1.35fr 1fr 1fr 1fr;
+}
+.cel-kpi-grid-hero-1 {
+  grid-template-columns: minmax(16rem, 28rem);
+}
+.cel-kpi-grid-hero-2 {
+  grid-template-columns: 1.6fr 1fr;
+}
+.cel-kpi-grid-hero-3 {
+  grid-template-columns: 1.4fr 1fr 1fr;
 }
 .cel-kpi-grid-compact {
   grid-template-columns: repeat(4, minmax(140px, 1fr));
@@ -1028,63 +1039,77 @@ html.motion-ready
 def inject_design_system() -> None:
     """Inject application-owned CSS and scroll-reveal runtime once per page."""
     st.markdown(DESIGN_CSS, unsafe_allow_html=True)
+    from carbon_ledger.ui.enterprise import inject_enterprise_styles
     from carbon_ledger.ui.motion import inject_scroll_reveal_runtime
 
+    inject_enterprise_styles()
     inject_scroll_reveal_runtime()
 
 
 def render_global_header(lang: str) -> None:
-    """Render top toolbar: brand left, tutorial + language right."""
-    brand, utilities = st.columns(
-        [2.8, 1.2],
-        gap="medium",
+    """Compact single-baseline top bar: context left, controls right."""
+    from carbon_ledger.ui.glossary import render_glossary_popover
+    from carbon_ledger.ui.state import REPO_ROOT, get_company_profile_mapping
+    from carbon_ledger.ui.view_models_compliance import regulatory_freshness_banner
+
+    profile = get_company_profile_mapping(st.session_state)
+    company = html.escape(
+        str(profile.get("company_name") or t("sidebar.company_unset", lang))
+    )
+    year = html.escape(str(profile.get("reporting_year") or "—"))
+    freshness = regulatory_freshness_banner(REPO_ROOT, lang=lang)
+    state = html.escape(str(freshness.get("state_label") or ""))
+    checked = html.escape(str(freshness.get("last_successful_check_at") or "—"))
+
+    ctx, meta, help_col, gloss_col, lang_col = st.columns(
+        [1.7, 1.5, 0.65, 0.9, 1.05],
+        gap="small",
         vertical_alignment="center",
     )
-    with brand:
-        toolbar_style = (
-            "border:none;margin:0;padding:0;min-height:48px;"
-        )
+    with ctx:
         st.markdown(
-            (
-                f'<div class="cel-toolbar" style="{toolbar_style}">'
-                '<div class="cel-brand-row">'
-                '<div class="cel-mark" aria-hidden="true"></div>'
-                f'<p class="cel-brand-name">{t("brand.name", lang)}</p>'
-                "</div>"
-                "</div>"
-            ),
+            f"""
+            <div class="cel-topbar-marker" aria-hidden="true"></div>
+            <p class="cel-appbar-title">{company}</p>
+            <p class="cel-appbar-sub">FY{year}</p>
+            """,
             unsafe_allow_html=True,
         )
-    with utilities:
-        tut_col, lang_col = st.columns(
-            [1.1, 0.95],
-            gap="small",
-            vertical_alignment="center",
+    with meta:
+        st.markdown(
+            f"""
+            <div class="cel-appbar-meta">
+              <span class="cel-freshness-chip">
+                <span class="cel-freshness-dot" aria-hidden="true"></span>
+                {state}
+              </span>
+              <span style="font-size:0.75rem;white-space:nowrap;">{checked}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        with tut_col:
-            if st.button(
-                t("header.tutorial", lang),
-                key="header_tutorial_btn",
-                type="tertiary",
-            ):
-                request_tutorial(st.session_state)
-                st.rerun()
-        with lang_col:
-            current = LANG_CODE_TO_OPTION.get(lang, "繁中")
-            selected = st.segmented_control(
-                t("header.language_aria", lang),
-                options=list(LANG_OPTIONS),
-                default=current,
-                key="ui_language_control",
-                label_visibility="collapsed",
-            )
-            if selected and selected != current:
-                set_language(st.session_state, LANG_OPTION_TO_CODE[selected])
-                st.rerun()
-    st.markdown(
-        '<div style="border-bottom:1px solid #E5EAF0;margin:4px 0 12px 0;"></div>',
-        unsafe_allow_html=True,
-    )
+    with help_col:
+        if st.button(
+            t("header.help", lang),
+            key="header_tutorial_btn",
+            type="tertiary",
+        ):
+            request_tutorial(st.session_state)
+            st.rerun()
+    with gloss_col:
+        render_glossary_popover(lang)
+    with lang_col:
+        current = LANG_CODE_TO_OPTION.get(lang, "繁中")
+        selected = st.segmented_control(
+            t("header.language_aria", lang),
+            options=list(LANG_OPTIONS),
+            default=current,
+            key="ui_language_control",
+            label_visibility="collapsed",
+        )
+        if selected and selected != current:
+            set_language(st.session_state, LANG_OPTION_TO_CODE[selected])
+            st.rerun()
 
 
 def render_page_header(
@@ -1162,6 +1187,13 @@ def render_result_meta_strip(
     )
 
 
+def _zero_count_text(decimals: int) -> str:
+    """Visible start value for a playing count-up (before rAF)."""
+    if int(decimals) > 0:
+        return f"{0:.{int(decimals)}f}"
+    return "0"
+
+
 def _count_span(
     display: str,
     *,
@@ -1173,20 +1205,47 @@ def _count_span(
     hero_emissions: bool = False,
     hero_play: bool = False,
     hero_run: str = "",
+    kpi_metric: bool = False,
+    kpi_play: bool = False,
+    kpi_run: str = "",
+    kpi_key: str = "",
 ) -> str:
-    """Build a fail-open count-up span (final value is always in DOM text)."""
+    """Build a count-up span. Playing nodes start at 0; final is in data-cel-final."""
     final = html.escape(str(display))
+    playing = (hero_emissions and hero_play) or (kpi_metric and kpi_play)
+    hold_zero = playing
+    try:
+        from carbon_ledger.ui.state import STATE_COUNTUP_RUNTIME_READY
+
+        if playing and bool(st.session_state.get(STATE_COUNTUP_RUNTIME_READY)):
+            hold_zero = False
+    except Exception:  # noqa: BLE001 - AppTest session proxies vary
+        pass
+    visible = _zero_count_text(int(decimals)) if hold_zero else final
     cls = f' class="{html.escape(css_class)}"' if css_class else ""
     if hero_emissions:
         # Dedicated primary emissions KPI — not driven by scroll-reveal.
         play = "1" if hero_play else "0"
         run = html.escape(str(hero_run))
+        node_id = html.escape(f"cel-hero-emissions-{hero_run or 'idle'}")
         return (
-            f"<span{cls} id=\"cel-hero-emissions\" "
+            f"<span{cls} id=\"{node_id}\" "
             f'data-cel-hero-emissions="1" data-cel-hero-play="{play}" '
             f'data-cel-hero-run="{run}" data-cel-final="{final}" '
             f'data-cel-target="{float(target)}" '
-            f'data-cel-decimals="{int(decimals)}">{final}</span>'
+            f'data-cel-decimals="{int(decimals)}">{visible}</span>'
+        )
+    if kpi_metric:
+        play = "1" if kpi_play else "0"
+        run = html.escape(str(kpi_run))
+        key = html.escape(str(kpi_key or "metric"))
+        node_id = html.escape(f"cel-kpi-{kpi_key or 'metric'}-{kpi_run or 'idle'}")
+        return (
+            f"<span{cls} id=\"{node_id}\" data-cel-kpi-metric=\"1\" "
+            f'data-cel-kpi-key="{key}" data-cel-kpi-play="{play}" '
+            f'data-cel-kpi-run="{run}" data-cel-final="{final}" '
+            f'data-cel-target="{float(target)}" '
+            f'data-cel-decimals="{int(decimals)}">{visible}</span>'
         )
     attrs = (
         f'data-cel-count="1" data-cel-final="{final}" '
@@ -1216,6 +1275,12 @@ def render_saas_kpi_row(
     grid_class = "cel-kpi-grid"
     if variant == "hero":
         grid_class = "cel-kpi-grid cel-kpi-grid-hero"
+        if len(cards) == 1:
+            grid_class += " cel-kpi-grid-hero-1"
+        elif len(cards) == 2:
+            grid_class += " cel-kpi-grid-hero-2"
+        elif len(cards) == 3:
+            grid_class += " cel-kpi-grid-hero-3"
     elif variant == "compact":
         grid_class = "cel-kpi-grid cel-kpi-grid-compact"
 
@@ -1262,6 +1327,10 @@ def render_saas_kpi_row(
                 hero_emissions=bool(count.get("hero_emissions")),
                 hero_play=bool(count.get("hero_play")),
                 hero_run=str(count.get("hero_run") or ""),
+                kpi_metric=bool(count.get("kpi_metric")),
+                kpi_play=bool(count.get("kpi_play")),
+                kpi_run=str(count.get("kpi_run") or ""),
+                kpi_key=str(count.get("kpi_key") or ""),
             )
         else:
             value_html = (
@@ -1534,8 +1603,10 @@ def render_completeness_stats(
     needs_work_label: str,
     needs_work_value: int,
     scroll_key: str = "completeness-metrics",
+    play: bool = False,
+    run: str = "",
 ) -> None:
-    """Side-stack metrics for data completeness (viewport count-up)."""
+    """Side-stack metrics for data completeness (analysis-result count-up)."""
     from carbon_ledger.ui.formatting import format_int
 
     calc_display = format_int(calculated_value)
@@ -1544,11 +1615,19 @@ def render_completeness_stats(
         calc_display,
         target=float(calculated_value),
         delay_ms=60,
+        kpi_metric=True,
+        kpi_play=play,
+        kpi_run=run,
+        kpi_key="completeness-calculated",
     )
     need_span = _count_span(
         need_display,
         target=float(needs_work_value),
         delay_ms=140,
+        kpi_metric=True,
+        kpi_play=play,
+        kpi_run=run,
+        kpi_key="completeness-unresolved",
     )
     st.markdown(
         f"""

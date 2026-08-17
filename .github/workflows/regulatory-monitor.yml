@@ -55,11 +55,24 @@ jobs:
 
       - name: Run live official-source monitor
         id: monitor
+        # Stage 3B.1 sequence (enforced in regulatory_monitor.run_monitor):
+        # 1) load access policies  2) poll authorised API/open-data
+        # 3) poll authorised web (none currently)  4) ingest official email signals
+        # 5–8) record/persist state  9) health on authorised automation coverage
+        # 10) legal activation remains human/admin only — never auto-activate.
         # Exit codes: 0 OK/partial non-critical, 3 persistence, 4 CRITICAL failure.
         # continue-on-error so persistence/integrity still run; final health gate fails.
         # Do NOT abort before durable state is written and persisted.
         continue-on-error: true
         run: python -m carbon_ledger.regulatory_monitor --check-all
+        env:
+          # Optional Gmail alert ingestion (never required for unit tests):
+          REGULATORY_GMAIL_CLIENT_ID: ${{ secrets.REGULATORY_GMAIL_CLIENT_ID }}
+          REGULATORY_GMAIL_CLIENT_SECRET: ${{ secrets.REGULATORY_GMAIL_CLIENT_SECRET }}
+          REGULATORY_GMAIL_REFRESH_TOKEN: ${{ secrets.REGULATORY_GMAIL_REFRESH_TOKEN }}
+          REGULATORY_GMAIL_LABEL: Regulatory-IFRS
+          # Optional MOENV Open Data API key for GHG_P_01 supporting dataset only:
+          MOENV_API_KEY: ${{ secrets.MOENV_API_KEY }}
 
       # Persist evidence before unit tests / final gate. Unit-test failure must not
       # skip STATE persistence (avoids misleading STATE_PERSISTENCE_FAILED).

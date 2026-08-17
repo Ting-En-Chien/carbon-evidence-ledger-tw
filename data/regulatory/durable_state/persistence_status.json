@@ -1,0 +1,17 @@
+{
+  "status": "OK",
+  "persisted_at": "2026-08-12T15:19:54Z",
+  "destination": "/Users/justin/Downloads/carbon-evidence-ledger-tw/data/regulatory/durable_state",
+  "files": [
+    "source_freshness_state.csv",
+    "monitoring_summary.json",
+    "regulatory_change_log.csv",
+    "regulatory_conflict_log.csv",
+    "persistence_status.json",
+    "change_signals_state.json"
+  ],
+  "consecutive_persistence_failures": 0,
+  "monitoring_state_branch": "regulatory-monitor-state",
+  "runtime_state_dir": "/Users/justin/Downloads/carbon-evidence-ledger-tw/data/regulatory/durable_state",
+  "error": ""
+}

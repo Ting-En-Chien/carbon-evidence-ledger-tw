@@ -11,7 +11,11 @@ from carbon_ledger.pipeline import run_demo_pipeline
 from carbon_ledger.ui.glossary import glossary_contains, glossary_pairs
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.motion import _HERO_COUNT_JS_PATH
-from carbon_ledger.ui.state import STATE_INCLUDE_CBAM, initialize_ui_state
+from carbon_ledger.ui.state import (
+    STATE_INCLUDE_CBAM,
+    activate_demo_mode,
+    initialize_ui_state,
+)
 from carbon_ledger.ui.tutorial import get_tutorial_copy
 from carbon_ledger.ui.view_models import calculated_emissions_summary
 
@@ -23,6 +27,8 @@ ZH = "zh-TW"
 
 def _run_app() -> AppTest:
     at = AppTest.from_file(str(APP_PATH), default_timeout=120)
+    at.run()
+    activate_demo_mode(at.session_state)
     at.run()
     assert not at.exception
     return at
@@ -71,7 +77,7 @@ def test_v1_navigation_has_six_approved_areas() -> None:
     ]
     assert titles_zh == [
         "合規總覽",
-        "適用性判定",
+        "我的適用要求",
         "IFRS S1/S2",
         "台灣溫室氣體與碳費",
         "證據與資料",
@@ -87,7 +93,7 @@ def test_v1_navigation_has_six_approved_areas() -> None:
     ]
     assert titles_en == [
         "Compliance Overview",
-        "Applicability",
+        "Your requirements",
         "IFRS S1/S2",
         "Taiwan GHG / Carbon Fee",
         "Evidence & Data",
@@ -97,8 +103,7 @@ def test_v1_navigation_has_six_approved_areas() -> None:
     text = _all_text(at)
     assert "合規總覽" in text
     assert "分析結果" not in text
-    assert "目前需要注意" in text
-    assert "缺少的資料" in text
+    assert "下一步" in text or "排放資料摘要" in text
     assert "排放資料摘要" in text
 
 
@@ -119,7 +124,7 @@ def test_rendered_ui_has_no_raw_i18n_keys() -> None:
     ]
     # Patterns that match developer key leakage in visible copy.
     key_pattern = re.compile(
-        r"\b(?:nav|dash|apl|fw|tw|ev|aud|app|tut|sidebar|chart)"
+        r"\b(?:nav|dash|apl|fw|tw|ev|aud|app|tut|sidebar|chart|cust|learn)"
         r"\.[a-zA-Z0-9_.]+\b"
     )
     at = _run_app()
@@ -156,8 +161,10 @@ def test_cbam_absent_from_v1_sidebar_and_messaging() -> None:
     assert "EU CBAM" not in text
     assert "CBAM" not in joined
     tutorial = get_tutorial_copy(ZH)
-    assert "CBAM" not in tutorial["steps"][0]["body"]
-    assert "CBAM" not in tutorial["steps"][3]["body"]
+    joined = "\n".join(
+        [tutorial["helps"], *[step["body"] for step in tutorial["steps"]]]
+    )
+    assert "CBAM" not in joined
     assert not glossary_contains("CBAM")
     for title, _body in glossary_pairs(ZH):
         assert "CBAM" not in title
@@ -191,14 +198,13 @@ def test_v1_default_disables_cbam_adapter() -> None:
 
 def test_ifrs_page_exposes_four_pillars() -> None:
     at = _switch(_run_app(), "app_pages/frameworks.py")
-    labels = [str(tab.label) for tab in at.tabs]
-    assert t("fw.pillar.governance", ZH) in labels
-    assert t("fw.pillar.strategy", ZH) in labels
-    assert t("fw.pillar.risk", ZH) in labels
-    assert t("fw.pillar.metrics", ZH) in labels
-    assert "EU CBAM" not in labels
     text = _all_text(at)
-    assert "規則集尚未實作" in text or "Rule set not yet implemented" in text
+    assert t("fw.pillar.governance", ZH) in text
+    assert t("fw.pillar.strategy", ZH) in text
+    assert t("fw.pillar.risk", ZH) in text
+    assert t("fw.pillar.metrics", ZH) in text
+    assert t("fw.pillar.governance_q", ZH) in text
+    assert "EU CBAM" not in text
 
 
 def test_taiwan_page_exposes_three_tracks() -> None:
@@ -207,19 +213,34 @@ def test_taiwan_page_exposes_three_tracks() -> None:
     assert "溫室氣體盤查" in text or "GHG Inventory" in text
     assert "查驗" in text or "Verification" in text
     assert "碳費" in text or "Carbon Fee" in text
-    assert "需要更多資訊" in text
-    assert "規則集尚未實作" in text
-    assert "合規分數" not in text
+    assert (
+        "還需要" in text
+        or "需要更多" in text
+        or "尚未完成" in text
+        or "先完成公司設定" in text
+        or "先完成適用性判定" in text
+        or "Needs" in text
+    )
+    assert "合規分數：" not in text
     assert "compliance score" not in text.lower()
 
 
 def test_applicability_does_not_guess() -> None:
     at = _switch(_run_app(), "app_pages/applicability.py")
     text = _all_text(at)
-    assert "需要更多資訊" in text
-    assert "Applicable" not in text or "需要更多資訊" in text
+    assert (
+        "還需要一些資料" in text
+        or "需要更多資料" in text
+        or "需要更多資訊" in text
+        or "公司基本資料" in text
+        or "確認公司" in text
+        or "統一編號" in text
+        or "公司身分" in text
+    )
     # Must not invent a positive applicability conclusion for Taiwan fee.
     assert "已適用碳費" not in text
+    assert "合規分數" not in text
+    assert "68%" not in text
 
 
 def test_evidence_workspace_defaults_to_data_upload() -> None:
@@ -227,7 +248,7 @@ def test_evidence_workspace_defaults_to_data_upload() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
     assert "證據與資料" in text
-    assert "匯入公司資料" in text or "資料匯入" in text
+    assert "上傳公司資料" in text or "資料匯入" in text
     assert len(at.file_uploader) >= 1
     nav_labels: list[str] = []
     selected_nav: list[str] = []

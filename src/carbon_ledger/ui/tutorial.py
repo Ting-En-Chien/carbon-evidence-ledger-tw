@@ -6,7 +6,6 @@ from typing import Any
 
 import streamlit as st
 
-from carbon_ledger.ui.glossary import render_glossary_inline
 from carbon_ledger.ui.i18n import t
 
 STATE_TUTORIAL_SEEN = "tutorial_seen"
@@ -15,7 +14,7 @@ STATE_TUTORIAL_OPEN_COUNT = "tutorial_open_count"
 
 
 def get_tutorial_copy(lang: str) -> dict[str, Any]:
-    """Return tutorial copy for the given language (pure, testable)."""
+    """Return simplified first-run tutorial copy (pure, testable)."""
     return {
         "title": t("tut.title", lang),
         "subtitle": t("tut.subtitle", lang),
@@ -32,33 +31,49 @@ def get_tutorial_copy(lang: str) -> dict[str, Any]:
                 "title": t("tut.step3_title", lang),
                 "body": t("tut.step3_body", lang),
             },
-            {
-                "title": t("tut.step4_title", lang),
-                "body": t("tut.step4_body", lang),
-            },
         ],
-        "footer": t("tut.footer", lang),
+        "helps": t("tut.helps", lang),
+        "glossary_hint": "",
         "start_label": t("tut.start", lang),
+        "later_label": t("tut.later", lang),
     }
 
 
+def _close_tutorial() -> None:
+    st.session_state[STATE_TUTORIAL_SEEN] = True
+    st.session_state[STATE_OPEN_TUTORIAL] = False
+    st.rerun()
+
+
 def _render_tutorial_body(lang: str) -> None:
-    """Shared tutorial content."""
+    """Shared tutorial content — three steps, no framework lecture."""
     copy = get_tutorial_copy(lang)
+    st.markdown(
+        '<div class="cel-tutorial-dialog" data-cel-tutorial-dialog="1"></div>',
+        unsafe_allow_html=True,
+    )
     st.write(copy["subtitle"])
-
     for index, step in enumerate(copy["steps"], start=1):
-        st.markdown(f"**STEP {index} — {step['title']}**")
-        st.write(step["body"])
-
-    st.info(copy["footer"])
-    with st.expander(t("common.glossary", lang), expanded=False):
-        render_glossary_inline(lang)
-
-    if st.button(copy["start_label"], type="primary", use_container_width=True):
-        st.session_state[STATE_TUTORIAL_SEEN] = True
-        st.session_state[STATE_OPEN_TUTORIAL] = False
-        st.rerun()
+        st.markdown(f"**{index}. {step['title']}**")
+    st.write(copy["helps"])
+    if copy["glossary_hint"]:
+        st.caption(copy["glossary_hint"])
+    primary, secondary = st.columns(2)
+    with primary:
+        if st.button(
+            copy["start_label"],
+            type="primary",
+            use_container_width=True,
+            key="tutorial_start",
+        ):
+            _close_tutorial()
+    with secondary:
+        if st.button(
+            copy["later_label"],
+            use_container_width=True,
+            key="tutorial_later",
+        ):
+            _close_tutorial()
 
 
 def ensure_tutorial_state(session_state: Any) -> None:
@@ -92,7 +107,7 @@ def maybe_show_tutorial(session_state: Any, lang: str) -> None:
         int(session_state.get(STATE_TUTORIAL_OPEN_COUNT, 0)) + 1
     )
 
-    @st.dialog(t("tut.title", lang), width="large")
+    @st.dialog(t("tut.title", lang), width="medium")
     def _dialog() -> None:
         _render_tutorial_body(lang)
 
@@ -100,5 +115,5 @@ def maybe_show_tutorial(session_state: Any, lang: str) -> None:
 
 
 def tutorial_step_texts(lang: str) -> list[str]:
-    """Return the four beginner step bodies (for tests)."""
-    return [step["body"] for step in get_tutorial_copy(lang)["steps"]]
+    """Return beginner step titles (for tests)."""
+    return [step["title"] for step in get_tutorial_copy(lang)["steps"]]

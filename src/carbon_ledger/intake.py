@@ -28,12 +28,14 @@ from carbon_ledger.domain import (
     ACTIVITY_TYPES,
     SUPPORTED_UNITS,
 )
+from carbon_ledger.potential_duplicates import find_potential_duplicate_groups
 from carbon_ledger.schemas import (
     validate_activity_records,
     validate_source_documents,
 )
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_UPLOAD_MB = 10
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 SUPPORTED_EXTENSIONS = frozenset({".csv", ".xlsx"})
 BLANK_TEMPLATE_COLUMNS = (
     "activity_type",
@@ -61,6 +63,23 @@ ISSUE_UNSUPPORTED_FILE_TYPE = "UNSUPPORTED_FILE_TYPE"
 ISSUE_FILE_TOO_LARGE = "FILE_TOO_LARGE"
 ISSUE_INVALID_ENCODING = "INVALID_ENCODING"
 ISSUE_YEAR_MONTH_NOT_CONFIRMED = "YEAR_MONTH_NOT_CONFIRMED"
+
+# V1 electricity enterprise-inventory uses. Do not guess when unknown.
+_ENTERPRISE_ELECTRICITY_USES = frozenset(
+    {"general_factory", "heat_treatment", "forging"}
+)
+_NG_SUBTYPE_RE = re.compile(r"NG\s*([12])", re.IGNORECASE)
+_DIESEL_VEHICLE_HINTS = (
+    "公司車輛",
+    "公務車",
+    "company vehicle",
+    "company-vehicle",
+    "fleet diesel",
+)
+READINESS_READY = "ready"
+READINESS_NEEDS_CONFIRM = "needs_confirm"
+READINESS_UNSUPPORTED = "unsupported"
+HEATING_VALUE_READY_YEAR = 2025
 
 # High-confidence aliases are specific business labels.
 # Medium-confidence aliases are usable but ambiguous and need confirmation.
@@ -124,6 +143,8 @@ COLUMN_ALIAS_RULES: dict[str, dict[str, tuple[str, ...]]] = {
             "據點",
             "工廠",
             "廠別",
+            "廠場",
+            "營運據點",
             "location",
             "plant",
             "facility",
@@ -173,6 +194,19 @@ COLUMN_ALIAS_RULES: dict[str, dict[str, tuple[str, ...]]] = {
         ),
         CONFIDENCE_MEDIUM: (),
     },
+    "fuel_subtype": {
+        CONFIDENCE_HIGH: (
+            "fuel_subtype",
+            "natural_gas_type",
+            "ng_type",
+            "ng type",
+            "天然氣類型",
+            "天然氣種類",
+            "NG類型",
+            "NG 類型",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
 }
 
 # Backward-compatible flat alias map used by older call sites / docs.
@@ -207,8 +241,13 @@ ACTIVITY_VALUE_ALIASES: dict[str, str] = {
     "natural gas": "natural_gas",
     "natural_gas": "natural_gas",
     "天然氣": "natural_gas",
+    "ng1": "natural_gas",
+    "ng2": "natural_gas",
     "diesel": "diesel",
     "柴油": "diesel",
+    "公司車輛柴油": "diesel",
+    "公務車柴油": "diesel",
+    "company vehicle diesel": "diesel",
     "steel": "purchased_steel",
     "purchased steel": "purchased_steel",
     "purchased_steel": "purchased_steel",
@@ -354,6 +393,10 @@ class ColumnMapping:
     end_date_column: str = ""
     period_start: date | None = None
     period_end: date | None = None
+    natural_gas_subtype: str = "unknown"
+    natural_gas_subtype_column: str = ""
+    diesel_context: str = "unknown"
+    electricity_context: str = "unknown"
     activity_type_value_map: dict[str, str] = field(default_factory=dict)
     unit_value_map: dict[str, str] = field(default_factory=dict)
 
@@ -399,7 +442,7 @@ class IntakeMetadata:
 
     source_name: str
     site_id: str
-    document_date: date
+    document_date: date | None
     data_quality_tier: str
     intake_run_id: str
     ingested_at: pd.Timestamp
@@ -417,6 +460,7 @@ class IntakeValidationResult:
     total_count: int
     file_hash: str
     file_name: str
+    potential_duplicate_groups: tuple[Any, ...] = ()
 
 
 class IntakeError(ValueError):
@@ -516,6 +560,87 @@ def example_preview_rows() -> pd.DataFrame:
             },
         ]
     )
+
+
+CUSTOMER_TEMPLATE_HEADERS = (
+    "活動類型",
+    "用量",
+    "單位",
+    "開始日期",
+    "結束日期",
+)
+
+
+def example_preview_customer_rows() -> pd.DataFrame:
+    """Example rows with customer-facing column names (never imported)."""
+    frame = example_preview_rows()
+    return frame.rename(
+        columns={
+            "activity_type": CUSTOMER_TEMPLATE_HEADERS[0],
+            "activity_value": CUSTOMER_TEMPLATE_HEADERS[1],
+            "unit": CUSTOMER_TEMPLATE_HEADERS[2],
+            "activity_start_date": CUSTOMER_TEMPLATE_HEADERS[3],
+            "activity_end_date": CUSTOMER_TEMPLATE_HEADERS[4],
+        }
+    )
+
+
+_BLANK_TEMPLATE_XLSX_CACHE: bytes | None = None
+
+
+def blank_template_xlsx_bytes() -> bytes:
+    """Workbook: fill sheet, example sheet, field guide. Never auto-imported."""
+    global _BLANK_TEMPLATE_XLSX_CACHE
+    if _BLANK_TEMPLATE_XLSX_CACHE is None:
+        _BLANK_TEMPLATE_XLSX_CACHE = _build_blank_template_xlsx_bytes()
+    return _BLANK_TEMPLATE_XLSX_CACHE
+
+
+def _build_blank_template_xlsx_bytes() -> bytes:
+    from datetime import datetime, timezone
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    # Stable timestamps so Streamlit download_button data hashes stay constant.
+    workbook.properties.created = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    workbook.properties.modified = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+    fill_sheet = workbook.active
+    fill_sheet.title = "資料填寫"
+    fill_sheet.append(list(CUSTOMER_TEMPLATE_HEADERS))
+
+    example_sheet = workbook.create_sheet("填寫範例")
+    example_sheet.append(list(CUSTOMER_TEMPLATE_HEADERS))
+    for row in example_preview_customer_rows().itertuples(index=False):
+        example_sheet.append(
+            [
+                str(row[0]),
+                int(row[1]),
+                str(row[2]),
+                str(row[3]),
+                str(row[4]),
+            ]
+        )
+
+    guide = workbook.create_sheet("欄位說明")
+    guide.append(["欄位", "說明", "English", "系統欄位名稱"])
+    guide.append(
+        ["活動類型", "這筆資料是哪一種活動", "Activity type", "activity_type"]
+    )
+    guide.append(["用量", "實際使用或採購數量", "Quantity", "activity_value"])
+    guide.append(["單位", "例如 kWh、m3、L、t", "Unit", "unit"])
+    guide.append(
+        ["開始日期", "資料期間的第一天", "Start date", "activity_start_date"]
+    )
+    guide.append(
+        ["結束日期", "資料期間的最後一天", "End date", "activity_end_date"]
+    )
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
 
 
 def _normalize_header(value: str) -> str:
@@ -646,6 +771,28 @@ def suggest_column_mapping(columns: list[str] | tuple[str, ...]) -> dict[str, st
     }
 
 
+def extract_natural_gas_subtype_from_text(value: Any) -> str:
+    """Return NG1/NG2 when the source cell explicitly names the type."""
+    text = str(value if value is not None else "").strip()
+    if not text:
+        return ""
+    match = _NG_SUBTYPE_RE.search(text.replace("　", " "))
+    if match:
+        return f"NG{match.group(1)}"
+    compact = re.sub(r"\s+", "", text).upper()
+    if compact in {"NG1", "NG2"}:
+        return compact
+    return ""
+
+
+def extract_diesel_vehicle_context_from_text(value: Any) -> bool:
+    """True when source text explicitly indicates company-vehicle diesel."""
+    text = str(value if value is not None else "").strip().lower()
+    if not text:
+        return False
+    return any(hint in text for hint in _DIESEL_VEHICLE_HINTS)
+
+
 def suggest_activity_type(value: Any) -> str:
     """Suggest a canonical activity type; empty string when unmatched."""
     text = str(value if value is not None else "").strip()
@@ -654,7 +801,21 @@ def suggest_activity_type(value: Any) -> str:
     direct = ACTIVITY_VALUE_ALIASES.get(text.lower())
     if direct:
         return direct
-    return ACTIVITY_VALUE_ALIASES.get(text, UNMAPPED_SENTINEL)
+    zh = ACTIVITY_VALUE_ALIASES.get(text)
+    if zh:
+        return zh
+    if extract_natural_gas_subtype_from_text(text) or "天然氣" in text:
+        return "natural_gas"
+    lowered = text.lower()
+    if "natural gas" in lowered:
+        return "natural_gas"
+    if "電力" in text or "electricity" in lowered:
+        return "grid_electricity"
+    if "柴油" in text or "diesel" in lowered:
+        return "diesel"
+    if "鋼" in text or "steel" in lowered:
+        return "purchased_steel"
+    return UNMAPPED_SENTINEL
 
 
 def suggest_unit(value: Any) -> str:
@@ -1331,6 +1492,192 @@ def _ownership_for_activity(activity_type: str) -> str:
     return "unknown"
 
 
+def _activity_year_from_dates(start_dt: Any, end_dt: Any) -> int | None:
+    for value in (start_dt, end_dt):
+        if value is None:
+            continue
+        year = getattr(value, "year", None)
+        if year is not None:
+            try:
+                return int(year)
+            except (TypeError, ValueError):
+                continue
+        parsed = pd.to_datetime(value, errors="coerce")
+        if pd.notna(parsed):
+            return int(parsed.year)
+    return None
+
+
+def _resolve_natural_gas_subtype(
+    *,
+    row: pd.Series,
+    mapping: ColumnMapping,
+    activity_source: Any,
+) -> str:
+    column = str(mapping.natural_gas_subtype_column or "").strip()
+    if column and column in row.index:
+        extracted = extract_natural_gas_subtype_from_text(row.get(column))
+        if extracted:
+            return extracted
+    extracted = extract_natural_gas_subtype_from_text(activity_source)
+    if extracted:
+        return extracted
+    ng_type = str(mapping.natural_gas_subtype or "").strip()
+    if ng_type in {"NG1", "NG2"}:
+        return ng_type
+    return "unknown"
+
+
+def _resolve_process_use(
+    *,
+    mapped_activity: str,
+    mapping: ColumnMapping,
+    activity_source: Any,
+) -> str:
+    if mapped_activity == "natural_gas":
+        # V1 company NG activity uses the existing stationary-combustion path.
+        # NG1/NG2 is never inferred here.
+        return "heat_treatment"
+    if mapped_activity == "diesel":
+        if extract_diesel_vehicle_context_from_text(activity_source):
+            return "company_vehicle"
+        if str(mapping.diesel_context or "").strip() == "company_vehicle":
+            return "company_vehicle"
+        return "unknown"
+    if mapped_activity == "grid_electricity":
+        if str(mapping.electricity_context or "").strip() == "enterprise":
+            return "general_factory"
+        return "unknown"
+    if mapped_activity in {"purchased_steel", "finished_goods_output", "scrap_output"}:
+        return "not_applicable"
+    return "unknown"
+
+
+def _inventory_ownership(mapped_activity: str, process_use: str) -> str:
+    if mapped_activity == "purchased_steel":
+        return "not_applicable"
+    if mapped_activity == "natural_gas":
+        return "owned"
+    if mapped_activity == "diesel" and process_use == "company_vehicle":
+        return "owned"
+    if (
+        mapped_activity == "grid_electricity"
+        and process_use in _ENTERPRISE_ELECTRICITY_USES
+    ):
+        return "owned"
+    return _ownership_for_activity(mapped_activity)
+
+
+def _inventory_org_boundary(mapped_activity: str, process_use: str) -> str:
+    if mapped_activity == "natural_gas":
+        return "inside"
+    if mapped_activity == "diesel" and process_use == "company_vehicle":
+        return "inside"
+    if (
+        mapped_activity == "grid_electricity"
+        and process_use in _ENTERPRISE_ELECTRICITY_USES
+    ):
+        return "inside"
+    return "unknown"
+
+
+def classify_activity_analysis_readiness(
+    *,
+    activity_type: str,
+    fuel_subtype: str,
+    process_use: str,
+    activity_start: Any,
+    activity_end: Any,
+) -> str:
+    """Classify one accepted row for the pre-analysis business summary."""
+    year = _activity_year_from_dates(activity_start, activity_end)
+    if activity_type == "purchased_steel":
+        return READINESS_UNSUPPORTED
+    if activity_type == "natural_gas":
+        if year is not None and year < HEATING_VALUE_READY_YEAR:
+            return READINESS_UNSUPPORTED
+        if str(fuel_subtype or "").strip() not in {"NG1", "NG2"}:
+            return READINESS_NEEDS_CONFIRM
+        return READINESS_READY
+    if activity_type == "diesel":
+        if year is not None and year < HEATING_VALUE_READY_YEAR:
+            return READINESS_UNSUPPORTED
+        if str(process_use or "").strip() != "company_vehicle":
+            return READINESS_NEEDS_CONFIRM
+        return READINESS_READY
+    if activity_type == "grid_electricity":
+        if (
+            year is not None
+            and year >= HEATING_VALUE_READY_YEAR
+            and str(process_use or "").strip() not in _ENTERPRISE_ELECTRICITY_USES
+        ):
+            return READINESS_NEEDS_CONFIRM
+        return READINESS_READY
+    return READINESS_UNSUPPORTED
+
+
+def summarize_pre_analysis_readiness(accepted: pd.DataFrame) -> dict[str, int]:
+    """Count ready / needs-confirm / unsupported accepted activities."""
+    summary = {
+        READINESS_READY: 0,
+        READINESS_NEEDS_CONFIRM: 0,
+        READINESS_UNSUPPORTED: 0,
+    }
+    if accepted is None or getattr(accepted, "empty", True):
+        return summary
+    for _, row in accepted.iterrows():
+        bucket = classify_activity_analysis_readiness(
+            activity_type=str(row.get("activity_type") or ""),
+            fuel_subtype=str(row.get("fuel_subtype") or ""),
+            process_use=str(row.get("process_use") or ""),
+            activity_start=row.get("activity_start_date"),
+            activity_end=row.get("activity_end_date"),
+        )
+        summary[bucket] = int(summary.get(bucket, 0)) + 1
+    return summary
+
+
+def context_confirmations_needed(
+    uploaded: UploadedTable,
+    mapping: ColumnMapping,
+) -> dict[str, bool]:
+    """Which mapping confirmations are still required for this upload."""
+    needed = {"natural_gas": False, "diesel": False, "electricity": False}
+    frame = uploaded.frame
+    activity_col = mapping.activity_type_column
+    if not activity_col or activity_col not in frame.columns:
+        return needed
+    value_map = mapping.activity_type_value_map or {}
+    subtype_col = str(mapping.natural_gas_subtype_column or "").strip()
+    file_ng = str(mapping.natural_gas_subtype or "").strip()
+    file_diesel = str(mapping.diesel_context or "").strip()
+    file_electricity = str(mapping.electricity_context or "").strip()
+    for _, row in frame.iterrows():
+        source = row.get(activity_col)
+        source_text = str(source).strip() if source is not None else ""
+        mapped = value_map.get(source_text) or suggest_activity_type(source_text)
+        if mapped == "natural_gas":
+            subtype = extract_natural_gas_subtype_from_text(source_text)
+            if (
+                not subtype
+                and subtype_col
+                and subtype_col in frame.columns
+            ):
+                subtype = extract_natural_gas_subtype_from_text(row.get(subtype_col))
+            if not subtype and file_ng not in {"NG1", "NG2"}:
+                needed["natural_gas"] = True
+        elif mapped == "diesel":
+            if (
+                not extract_diesel_vehicle_context_from_text(source_text)
+                and file_diesel != "company_vehicle"
+            ):
+                needed["diesel"] = True
+        elif mapped == "grid_electricity":
+            if file_electricity != "enterprise":
+                needed["electricity"] = True
+    return needed
+
+
 def _transport_payer_for_record_type(record_type: str) -> str:
     if record_type == "transport_activity":
         return "unknown"
@@ -1373,6 +1720,12 @@ def build_source_document_row(
     metadata: IntakeMetadata,
 ) -> dict[str, Any]:
     """Build one canonical source-document row for the uploaded file."""
+    if metadata.document_date is None:
+        raise IntakeError(
+            "DOCUMENT_DATE_REQUIRED",
+            "Document date is required and must be confirmed; "
+            "unknown must not become today's date.",
+        )
     return {
         "source_document_id": source_document_id_from_hash(uploaded.sha256),
         "file_name": uploaded.file_name,
@@ -1601,19 +1954,33 @@ def build_and_validate_intake(
             site_id = (
                 str(site_raw).strip()
                 if site_raw is not None and str(site_raw).strip()
-                else (metadata.site_id.strip() or "site_main")
+                else (metadata.site_id.strip() or "UNKNOWN")
             )
         else:
-            site_id = metadata.site_id.strip() or "site_main"
+            site_id = metadata.site_id.strip() or "UNKNOWN"
 
         record_type = record_type_for_activity(mapped_activity)
-        ownership = _ownership_for_activity(mapped_activity)
+        process_use = _resolve_process_use(
+            mapped_activity=mapped_activity,
+            mapping=mapping,
+            activity_source=activity_key,
+        )
+        ownership = _inventory_ownership(mapped_activity, process_use)
+        org_boundary = _inventory_org_boundary(mapped_activity, process_use)
         transport_payer = _transport_payer_for_record_type(record_type)
         needs_review = True  # conservative unknowns remain
 
         notes: Any = pd.NA
         if mapped_activity == "other" or record_type == "other":
             notes = "User-mapped activity classified as other."
+
+        fuel_subtype = "not_applicable"
+        if mapped_activity == "natural_gas":
+            fuel_subtype = _resolve_natural_gas_subtype(
+                row=row,
+                mapping=mapping,
+                activity_source=activity_key,
+            )
 
         # Intentionally ignore uploaded emission-factor / emission-result columns.
         # Those remain source/reference only; calculation uses the controlled registry.
@@ -1631,12 +1998,13 @@ def build_and_validate_intake(
             "production_process_id": pd.NA,
             "product_id": pd.NA,
             "activity_type": mapped_activity,
-            "process_use": "unknown",
+            "process_use": process_use,
+            "fuel_subtype": fuel_subtype,
             "activity_value": float(activity_value),
             "unit": mapped_unit,
             "transport_payer": transport_payer,
             "ownership_control": ownership,
-            "organizational_boundary_status": "unknown",
+            "organizational_boundary_status": org_boundary,
             "cbam_process_boundary_status": "unknown",
             "measurement_method": "unknown",
             "data_quality_tier": metadata.data_quality_tier,
@@ -1666,6 +2034,12 @@ def build_and_validate_intake(
     rejected_df = pd.DataFrame(rejected, columns=list(REJECTION_COLUMNS))
     source_docs_df = pd.DataFrame([source_doc])
     total = int(len(accepted) + len(rejected))
+    duplicate_groups = tuple(
+        find_potential_duplicate_groups(
+            accepted_df,
+            file_hash=uploaded.sha256,
+        )
+    )
     return IntakeValidationResult(
         source_documents=source_docs_df,
         accepted_activities=accepted_df,
@@ -1675,6 +2049,7 @@ def build_and_validate_intake(
         total_count=total,
         file_hash=uploaded.sha256,
         file_name=uploaded.file_name,
+        potential_duplicate_groups=duplicate_groups,
     )
 
 

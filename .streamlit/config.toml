@@ -12,3 +12,7 @@ showErrorDetails = "none"
 
 [browser]
 gatherUsageStats = false
+
+[server]
+# Must match carbon_ledger.intake.MAX_UPLOAD_MB (backend validation).
+maxUploadSize = 10

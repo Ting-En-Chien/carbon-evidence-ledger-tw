@@ -1,8 +1,11 @@
-# Stage 3A.5 continuous official regulatory-source monitoring policy.
+# Stage 3B.1a compliant regulatory automation + official change signals.
 # Frequencies are centralised here — do not hard-code in application logic.
 # Parsed by carbon_ledger.regulatory_monitor (minimal YAML subset loader).
+#
+# Access policy is enforced BEFORE any network request.
+# Default: automated_access_allowed = false unless an approved basis exists.
 
-version: "3A.6"
+version: "3B.1a"
 
 defaults:
   timeout_seconds: 30
@@ -10,17 +13,20 @@ defaults:
   backoff_seconds: 1.5
   rate_limit_seconds: 1.0
   # Transparent monitoring client identity (not an anti-bot bypass).
-  user_agent: "Mozilla/5.0 (compatible; CarbonEvidenceLedger-RegulatoryMonitor/3A.6; +https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
+  user_agent: "CarbonEvidenceLedger-RegulatoryMonitor/0.1 (+educational portfolio regulatory-monitoring project; https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
 
 freshness_windows:
   high_change_source: 1d
   normal_regulatory_source: 7d
   stable_standard_reference: 30d
+  # Supporting open datasets that update data annually (e.g. GHG_P_01).
+  annual_supporting_dataset: 365d
 
 frequency_profiles:
   high_change_source: daily
   normal_regulatory_source: weekly
   stable_standard_reference: monthly
+  annual_supporting_dataset: annually
 
 # Scheduled GitHub Actions cadence (documentation + tests).
 # Non-zero minute reduces Actions schedule congestion; not a legal clock time.
@@ -37,8 +43,18 @@ monitoring_state:
   # Env override for production readers:
   # CARBON_LEDGER_REGULATORY_STATE_DIR=/path/to/latest/state
 
-# CRITICAL Taiwan applicability / recognition sources (must fetch OK for green health).
+# CRITICAL = authorised automated sources that must succeed for green health.
+# Supporting open datasets (e.g. GHG_P_01) are NEVER critical for legal applicability.
 critical_source_ids:
+  - src_tw_twse_portal
+  - src_tw_tpex_portal
+
+# Supporting automated datasets — failures are non-critical for legal monitoring health.
+supporting_source_ids:
+  - src_tw_moenv_ghg_open_data
+
+# IMPORTANT legal references (manual verification / admin workflow).
+important_source_ids:
   - src_tw_fsc_law_portal
   - src_tw_annual_report_rules_fl007032
   - src_tw_order_11403851756
@@ -48,16 +64,15 @@ critical_source_ids:
   - src_tw_securities_fin_report_fl007040
   - src_tw_order_11403856095_securities
   - src_tw_order_11402739247_fi
-
-# IMPORTANT but non-blocking for MONITORING_CURRENT health gate when CRITICAL are OK.
-important_source_ids:
   - src_tw_fcm_fin_report_fl021990
   - src_tw_order_11403856096_fcm
   - src_tw_sfb_press_20251028
   - src_issb_ifrs_s1_2023
   - src_issb_ifrs_s2_2023
+  - src_tw_moenv_ghg_registry
+  - src_tw_moenv_oaout
 
-# High-priority sources checked on the daily schedule with a 1d freshness window.
+# High-priority legal references (admin review cadence; not crawl targets).
 high_priority_source_ids:
   - src_tw_sfb_ifrs_download_area
   - src_tw_order_11403851755
@@ -69,8 +84,13 @@ high_priority_source_ids:
   - src_tw_order_11403856095_securities
   - src_tw_fcm_fin_report_fl021990
   - src_tw_order_11403856096_fcm
+  - src_tw_twse_portal
+  - src_tw_tpex_portal
+  - src_tw_moenv_ghg_registry
 
-# Required authoritative sources for future Stage 3B freshness gates.
+# Required authoritative sources for applicability freshness gates.
+# These remain legal dependencies; automated crawl is not required when
+# access policy is MANUAL_REFERENCE / OFFICIAL_EMAIL_ALERT.
 required_authoritative_source_ids:
   - src_tw_sfb_ifrs_download_area
   - src_tw_order_11403851755
@@ -79,16 +99,15 @@ required_authoritative_source_ids:
   - src_tw_fsc_law_portal
 
 # PRIMARY_AUTHORITATIVE_SOURCE remains the legal recognition locus.
-# If automated access is blocked (e.g. HTTP 403), use an alternate official
-# early-warning source. Alternate hits never auto-activate Taiwan recognition.
+# Automated HTTP to these hosts is policy-denied unless access policy allows.
 primary_authoritative_source_ids:
   - src_tw_sfb_ifrs_download_area
 
 alternate_official_monitoring_sources:
   src_tw_sfb_ifrs_download_area: src_tw_order_11403856094_recognised
 
-# HTTP statuses that may escalate primary sources to MANUAL_ACCESS_REQUIRED
-# (after limited retries), not endless SOURCE_UNAVAILABLE.
+# HTTP statuses that stop authorised automation and require access-policy review.
+# Never retry with browser impersonation / CAPTCHA bypass.
 manual_access_http_statuses:
   - 401
   - 403
@@ -96,19 +115,11 @@ manual_access_http_statuses:
 
 # Official Taiwan domains allowed for VERIFY_X509_STRICT compatibility retry ONLY.
 # Still requires CA trust + hostname verification. Never includes arbitrary internet.
-# IFRS Foundation (www.ifrs.org) stays on full strict TLS — not listed here.
+# IFRS Foundation (www.ifrs.org) is NEVER listed — no scheduled IFRS HTTP.
 tls_x509_strict_fallback_hosts:
-  - law.fsc.gov.tw
-  - www.fsc.gov.tw
-  - www.sfb.gov.tw
-  - ifrs.sfb.gov.tw
-  - www.banking.gov.tw
-  - www.twse.com.tw
-  - twse-regulation.twse.com.tw
+  - openapi.twse.com.tw
   - www.tpex.org.tw
-  - isds.tpex.org.tw
-  - ghgregistry.moenv.gov.tw
-  - oaout.moenv.gov.tw
+  - data.moenv.gov.tw
 
 # Only authoritative/official sources may affect regulatory status.
 allowed_auto_status_authority_levels:
@@ -129,6 +140,8 @@ fail_safe_states:
   - STATE_PERSISTENCE_MISMATCH
   - CRITICAL_SOURCE_FAILURE
   - MANUAL_VERIFICATION_REQUIRED
+  - SIGNAL_PENDING_REVIEW
+  - ACCESS_POLICY_REVIEW_REQUIRED
 
 # Reviewable change types that may open a PR/Issue (never NO_CHANGE/COSMETIC).
 reviewable_change_types:
@@ -147,6 +160,8 @@ conflict_log_path: data/regulatory/regulatory_conflict_log.csv
 summary_path: data/regulatory/monitoring_summary.json
 change_report_path: data/regulatory/regulatory_change_report.md
 persistence_status_path: data/regulatory/persistence_status.json
+change_signals_path: data/regulatory/change_signals_state.json
+access_policies_path: data/reference/source_access_policies.csv
 
 # Files allowed in monitoring-state persistence (never legal rule activation).
 monitoring_state_files:
@@ -156,3 +171,4 @@ monitoring_state_files:
   - regulatory_conflict_log.csv
   - persistence_status.json
   - regulatory_change_report.md
+  - change_signals_state.json

@@ -20,7 +20,7 @@ STATE_LANGUAGE = "ui_language"
 MESSAGES: dict[str, dict[str, str]] = {
     # Navigation — six V1 primary destinations
     "nav.dashboard": {"zh-TW": "合規總覽", "en": "Compliance Overview"},
-    "nav.applicability": {"zh-TW": "適用性判定", "en": "Applicability"},
+    "nav.applicability": {"zh-TW": "我的適用要求", "en": "Your requirements"},
     "nav.ifrs": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
     "nav.taiwan": {
         "zh-TW": "台灣溫室氣體與碳費",
@@ -119,28 +119,163 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Pipeline complete.",
     },
     "analysis.stage.reading": {
-        "zh-TW": "正在讀取活動資料…",
-        "en": "Reading activity data…",
+        "zh-TW": "讀取資料",
+        "en": "Reading data",
+    },
+    "analysis.stage.normalize": {
+        "zh-TW": "標準化欄位與單位",
+        "en": "Normalizing fields and units",
     },
     "analysis.stage.quality": {
-        "zh-TW": "正在檢查資料品質…",
-        "en": "Checking data quality…",
+        "zh-TW": "檢查資料品質",
+        "en": "Checking data quality",
     },
     "analysis.stage.factors": {
-        "zh-TW": "正在配對官方排放係數…",
-        "en": "Matching official emission factors…",
+        "zh-TW": "配對排放係數與熱值",
+        "en": "Matching emission factors and heating values",
     },
     "analysis.stage.calculate": {
-        "zh-TW": "正在計算可計算的排放量…",
-        "en": "Calculating eligible emissions…",
+        "zh-TW": "正在計算排放量",
+        "en": "Calculating emissions",
     },
     "analysis.stage.issues": {
-        "zh-TW": "正在整理待處理問題…",
-        "en": "Organizing unresolved issues…",
+        "zh-TW": "整理規則與待處理問題",
+        "en": "Organizing rules and unresolved issues",
+    },
+    "analysis.running_title": {
+        "zh-TW": "正在分析你的資料",
+        "en": "Analyzing your data",
+    },
+    "analysis.processing_count": {
+        "zh-TW": "正在處理 {count} 筆活動資料",
+        "en": "Processing {count} activity records",
+    },
+    "analysis.failed_reason": {"zh-TW": "原因：", "en": "Reason:"},
+    "analysis.failed_next": {"zh-TW": "下一步：", "en": "Next step:"},
+    "analysis.failed_next_body": {
+        "zh-TW": "請回到證據與資料，確認欄位與活動類型後再分析。",
+        "en": (
+            "Return to Evidence & Data, confirm fields and activity types, "
+            "then analyze again."
+        ),
+    },
+    "analysis.return_to_data": {
+        "zh-TW": "返回修改資料",
+        "en": "Return to edit data",
+    },
+    "analysis.percent_label": {
+        "zh-TW": "{percent}%",
+        "en": "{percent}%",
+    },
+    "analysis.stage.classify": {
+        "zh-TW": "正在建立分類與準則檢查…",
+        "en": "Building classifications…",
     },
     "analysis.complete_banner": {
         "zh-TW": "分析完成 ✓",
         "en": "Analysis complete ✓",
+    },
+    "error.analysis_incomplete": {
+        "zh-TW": "分析未完成",
+        "en": "Analysis incomplete",
+    },
+    "error.analysis_failed_safe": {
+        "zh-TW": "分析未完成。請檢查上傳資料後再試。",
+        "en": "Analysis did not finish. Review your upload and try again.",
+    },
+    "error.analysis_missing_fields": {
+        "zh-TW": "必要欄位缺失或尚未完成資料驗證。",
+        "en": "Required fields are missing or data is not yet validated.",
+    },
+    "error.analysis_unit": {
+        "zh-TW": "單位無法辨識或資料編碼有問題。",
+        "en": "A unit could not be recognized or the file encoding is invalid.",
+    },
+    "error.analysis_file_format": {
+        "zh-TW": "檔案格式錯誤或不受支援。",
+        "en": "The file format is invalid or unsupported.",
+    },
+    "onboard.welcome_title": {
+        "zh-TW": "歡迎使用 Carbon Evidence Ledger",
+        "en": "Welcome to Carbon Evidence Ledger",
+    },
+    "onboard.welcome_body": {
+        "zh-TW": (
+            "先完成公司設定，我們會依已驗證法規整理"
+            "公司可能需要準備的 IFRS、溫室氣體與碳費要求。"
+        ),
+        "en": (
+            "Start with company setup. We will organize IFRS, GHG, and "
+            "carbon-fee requirements based on verified regulations."
+        ),
+    },
+    "onboard.step1": {"zh-TW": "公司設定", "en": "Company setup"},
+    "onboard.step2": {"zh-TW": "適用性判定", "en": "Applicability"},
+    "onboard.step3": {"zh-TW": "上傳資料", "en": "Upload data"},
+    "onboard.step4": {"zh-TW": "分析與檢查", "en": "Analyze & review"},
+    "onboard.step5": {"zh-TW": "準備報告", "en": "Prepare reports"},
+    "onboard.cta_setup": {
+        "zh-TW": "開始公司設定",
+        "en": "Start company setup",
+    },
+    "onboard.cta_demo": {
+        "zh-TW": "使用示範資料",
+        "en": "Try demo data",
+    },
+    "onboard.demo_note": {
+        "zh-TW": "示範資料僅供體驗，不會與真實公司資料混淆。",
+        "en": "Demo data is for exploration only and is clearly labeled.",
+    },
+    "empty.no_analysis_title": {
+        "zh-TW": "完成分析後即可查看結果",
+        "en": "Results appear after analysis",
+    },
+    "empty.no_analysis_body": {
+        "zh-TW": "完成分析後即可建立報告。",
+        "en": "Reports become available after analysis.",
+    },
+    "empty.no_upload_title": {
+        "zh-TW": "尚未上傳公司資料",
+        "en": "No company data uploaded yet",
+    },
+    "empty.no_upload_body": {
+        "zh-TW": "請先上傳 CSV 或 Excel，再完成欄位對應與驗證。",
+        "en": "Upload a CSV or Excel file, then map columns and validate.",
+    },
+    "intake.nav.back": {"zh-TW": "← 上一步", "en": "← Back"},
+    "intake.nav.next": {"zh-TW": "下一步 →", "en": "Next →"},
+    "intake.nav.edit": {"zh-TW": "修改", "en": "Edit"},
+    "intake.nav.replace_file": {"zh-TW": "更換檔案", "en": "Replace file"},
+    "intake.uploaded_summary": {
+        "zh-TW": "已上傳",
+        "en": "Uploaded",
+    },
+    "intake.step5": {"zh-TW": "開始分析", "en": "Start analysis"},
+    "intake.site_unknown_help": {
+        "zh-TW": (
+            "若檔案沒有據點欄位，請填寫廠場或營運據點名稱；"
+            "留空將標示為待確認。"
+        ),
+        "en": (
+            "If the file has no location column, enter a site / operating "
+            "location name. Leave blank to mark as needing confirmation."
+        ),
+    },
+    "intake.period_required": {
+        "zh-TW": "請指定報導期間（系統不會自動填入示範年份）。",
+        "en": "Specify the reporting period (demo years are not auto-filled).",
+    },
+    "coverage.calc_status": {
+        "zh-TW": "資料計算狀態",
+        "en": "Calculation coverage",
+    },
+    "coverage.calc_ratio": {
+        "zh-TW": "{done} / {total} 已完成",
+        "en": "{done} / {total} complete",
+    },
+    "coverage.calc_needs": {
+        "zh-TW": "{count} 筆需要補充資料或排放係數",
+        "en": "{count} records need data or factors",
     },
     "analysis.complete_detail": {
         "zh-TW": "{total} 筆活動資料已完成檢查。{done} 筆目前可計算。",
@@ -175,11 +310,19 @@ MESSAGES: dict[str, dict[str, str]] = {
     "common.critical": {"zh-TW": "重大", "en": "Critical"},
     "common.glossary": {"zh-TW": "名詞小幫手 →", "en": "Glossary →"},
     "common.advanced": {"zh-TW": "進階技術資訊", "en": "Advanced technical details"},
+    "common.view_details": {"zh-TW": "查看詳細資料", "en": "View details"},
     # Status labels
     "status.calculated": {"zh-TW": "已完成計算", "en": "Calculated"},
     "status.blocked_missing_conversion": {
         "zh-TW": "無法計算－缺少轉換資料",
         "en": "Blocked — missing conversion",
+    },
+    "status.blocked_natural_gas_type_required": {
+        "zh-TW": "請確認天然氣類型（NG1 或 NG2），才能套用正確熱值。",
+        "en": (
+            "Confirm natural-gas type (NG1 or NG2) before applying "
+            "the heating value."
+        ),
     },
     "status.no_factor_configured": {
         "zh-TW": "缺少排放係數",
@@ -200,6 +343,22 @@ MESSAGES: dict[str, dict[str, str]] = {
     "status.factor_match_inconsistent": {
         "zh-TW": "係數比對不一致",
         "en": "Factor match inconsistent",
+    },
+    "status.blocked_ambiguous_conversion": {
+        "zh-TW": "無法計算－熱值資料衝突",
+        "en": "Blocked — conflicting heating value",
+    },
+    "status.blocked_incomplete_gas_factors": {
+        "zh-TW": "無法計算－排放係數資料不完整",
+        "en": "Blocked — incomplete gas factors",
+    },
+    "status.blocked_conflicting_factor_group": {
+        "zh-TW": "無法計算－係數版本不一致",
+        "en": "Blocked — conflicting factor group",
+    },
+    "status.blocked_missing_gwp": {
+        "zh-TW": "無法計算－GWP 版本無法確認",
+        "en": "Blocked — GWP not confirmed",
     },
     "status.ready": {"zh-TW": "資料完整", "en": "Ready"},
     "status.partial_evidence": {
@@ -231,12 +390,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Purchased electricity",
     },
     "activity.natural_gas": {
-        "zh-TW": "熱處理天然氣",
-        "en": "Heat-treatment natural gas",
+        "zh-TW": "天然氣",
+        "en": "Natural gas",
     },
     "activity.diesel": {
-        "zh-TW": "公司車柴油",
-        "en": "Company-vehicle diesel",
+        "zh-TW": "柴油",
+        "en": "Diesel",
     },
     "activity.purchased_steel": {
         "zh-TW": "採購鋼材",
@@ -284,7 +443,7 @@ MESSAGES: dict[str, dict[str, str]] = {
     # Compliance Overview (formerly analysis results)
     "dash.page_title": {"zh-TW": "合規總覽", "en": "Compliance Overview"},
     "dash.page_subtitle": {
-        "zh-TW": "先看目前需要注意什麼、缺少什麼資料，再查看排放與證據細節。",
+        "zh-TW": "先處理優先事項與缺少的資料，再查看排放與證據細節。",
         "en": (
             "See what needs attention, what information is missing, "
             "and then review emissions and evidence details."
@@ -330,11 +489,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "View evidence & data",
     },
     "dash.no_fake_score_note": {
-        "zh-TW": "本頁不會顯示虛構的合規百分比，只整理目前可確認與仍缺的資料狀態。",
-        "en": (
-            "This page does not invent compliance percentages; "
-            "it only summarizes confirmed and missing information."
-        ),
+        "zh-TW": "",
+        "en": "",
+    },
+    "dash.cta.view_calc_basis": {
+        "zh-TW": "查看計算依據",
+        "en": "View calculation basis",
     },
     "dash.complete_title": {"zh-TW": "分析完成 ✓", "en": "Analysis complete ✓"},
     "dash.source_section": {"zh-TW": "資料來源", "en": "Data source"},
@@ -342,7 +502,58 @@ MESSAGES: dict[str, dict[str, str]] = {
     "dash.activities_kpi": {"zh-TW": "活動資料", "en": "Activity records"},
     "dash.calculated_kpi": {"zh-TW": "已成功計算", "en": "Successfully calculated"},
     "dash.needs_work_kpi": {"zh-TW": "仍需處理", "en": "Still needs attention"},
-    "dash.kpi.emissions": {"zh-TW": "已計算排放量", "en": "Calculated emissions"},
+    "dash.kpi.scope1": {"zh-TW": "Scope 1", "en": "Scope 1"},
+    "dash.kpi.scope2": {"zh-TW": "Scope 2", "en": "Scope 2"},
+    "dash.kpi.scope3": {"zh-TW": "Scope 3", "en": "Scope 3"},
+    "dash.kpi.scope1_plain": {"zh-TW": "直接排放", "en": "Direct emissions"},
+    "dash.kpi.scope2_plain": {"zh-TW": "外購能源", "en": "Purchased energy"},
+    "dash.kpi.scope3_plain": {
+        "zh-TW": "其他價值鏈排放",
+        "en": "Other value-chain emissions",
+    },
+    "dash.scope3_unsupported": {
+        "zh-TW": "尚未計算／尚未支援",
+        "en": "Not yet calculated / not yet supported",
+    },
+    "dash.scope_pending": {
+        "zh-TW": "尚未完成計算",
+        "en": "Not yet calculated",
+    },
+    "dash.emissions_coverage": {
+        "zh-TW": "目前已計算 {done} / {total} 筆活動資料",
+        "en": "Currently calculated {done} / {total} activity records",
+    },
+    "dash.partial_banner": {
+        "zh-TW": "尚有 {count} 筆活動未納入目前結果",
+        "en": "{count} activities are not yet included in the current result",
+    },
+    "dash.section_scope": {
+        "zh-TW": "範疇分解",
+        "en": "Scope breakdown",
+    },
+    "dash.partial_excluded": {
+        "zh-TW": "{count} 筆活動目前尚未納入計算結果。",
+        "en": "{count} activities are not yet included in calculated results.",
+    },
+    "act.basis.quantity": {"zh-TW": "原始用量", "en": "Original quantity"},
+    "act.basis.ng_type": {"zh-TW": "天然氣類型", "en": "Natural-gas type"},
+    "act.basis.heating_value": {
+        "zh-TW": "年度低位熱值",
+        "en": "Annual lower heating value",
+    },
+    "act.basis.energy": {"zh-TW": "換算後能源量", "en": "Converted energy"},
+    "act.basis.gas_factors": {
+        "zh-TW": "CO2 / CH4 / N2O 排放係數",
+        "en": "CO2 / CH4 / N2O emission factors",
+    },
+    "act.basis.gwp": {"zh-TW": "GWP", "en": "GWP"},
+    "act.basis.result": {"zh-TW": "計算結果", "en": "Calculation result"},
+    "act.basis.source": {"zh-TW": "官方來源", "en": "Official source"},
+    "act.basis.diesel_use": {"zh-TW": "柴油用途", "en": "Diesel use"},
+    "dash.kpi.emissions": {
+        "zh-TW": "目前已計算排放量",
+        "en": "Currently calculated emissions",
+    },
     "dash.kpi.completion": {"zh-TW": "計算完成", "en": "Calculation complete"},
     "dash.kpi.unresolved": {"zh-TW": "仍需處理", "en": "Still unresolved"},
     "dash.kpi.unresolved_hint": {
@@ -362,10 +573,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "dash.section_sources": {"zh-TW": "排放來源", "en": "Emissions sources"},
     "dash.section_sources_help": {
-        "zh-TW": "只顯示已計算活動；尚未計算者不顯示為 0。",
-        "en": "Calculated activities only; blocked items are not shown as zero.",
+        "zh-TW": "結果只包含目前已完成計算的活動。",
+        "en": "Results include only activities that have been calculated.",
     },
-    "dash.section_completeness": {"zh-TW": "資料完整度", "en": "Data completeness"},
+    "dash.section_completeness": {"zh-TW": "本次資料狀態", "en": "Dataset status"},
     "dash.section_completeness_help": {
         "zh-TW": "依活動檢視目前已能計算與仍缺資料的分布（輔助圖表）。",
         "en": (
@@ -374,8 +585,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "dash.completeness_note": {
-        "zh-TW": "完整度用於提醒下一步，不代表公司總排放。",
-        "en": "Completeness guides next steps; it is not total company emissions.",
+        "zh-TW": "本次資料狀態用來提醒還有哪些筆數尚未納入結果。",
+        "en": "This status shows which records are not yet included in the result.",
     },
     "dash.section_priority": {"zh-TW": "優先處理", "en": "Priority actions"},
     "dash.section_priority_help": {
@@ -684,11 +895,15 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     # Frameworks
     "fw.title": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
+    "fw.ifrs_what_title": {
+        "zh-TW": "? IFRS S1/S2 是什麼？",
+        "en": "? What are IFRS S1/S2?",
+    },
     "fw.subtitle": {
-        "zh-TW": "依官方核心結構整理：治理、策略、風險管理、指標與目標。",
+        "zh-TW": "先了解要準備什麼，再依治理、策略、風險管理、指標與目標整理。",
         "en": (
-            "Organized by the official pillars: Governance, Strategy, "
-            "Risk Management, Metrics & Targets."
+            "First understand what to prepare, then organize by governance, "
+            "strategy, risk management, and metrics & targets."
         ),
     },
     "fw.help": {
@@ -721,11 +936,90 @@ MESSAGES: dict[str, dict[str, str]] = {
             "conclusions are invented here."
         ),
     },
+    "fw.pillars_title": {"zh-TW": "四大支柱", "en": "Four pillars"},
+    "fw.pillars_help": {
+        "zh-TW": "先理解每個支柱要回答什麼，再準備對應資訊與證據。",
+        "en": "Learn what each pillar asks before gathering evidence.",
+    },
+    "fw.pillar.contains": {"zh-TW": "此處資訊：", "en": "Information here:"},
+    "fw.pillar.governance_help": {
+        "zh-TW": "董事會與管理階層如何監督氣候與永續相關風險與機會。",
+        "en": (
+            "How the board and management oversee climate-related "
+            "risks and opportunities."
+        ),
+    },
+    "fw.pillar.governance_need": {
+        "zh-TW": "治理架構、職責、開會與監督紀錄。",
+        "en": "Governance structure, roles, meeting and oversight records.",
+    },
+    "fw.pillar.strategy_help": {
+        "zh-TW": "氣候相關風險／機會如何影響商業模式與策略韌性。",
+        "en": (
+            "How climate risks/opportunities affect business model "
+            "and strategy resilience."
+        ),
+    },
+    "fw.pillar.strategy_need": {
+        "zh-TW": "風險機會說明、轉型計畫、情境分析摘要。",
+        "en": "Risk/opportunity narrative, transition plans, scenario summaries.",
+    },
+    "fw.pillar.risk_help": {
+        "zh-TW": "如何辨識、評估、排序與管理氣候相關風險。",
+        "en": (
+            "How climate-related risks are identified, assessed, "
+            "prioritized, and managed."
+        ),
+    },
+    "fw.pillar.risk_need": {
+        "zh-TW": "風險流程說明、評估結果、與既有風險管理整合方式。",
+        "en": "Risk process notes, assessment outcomes, integration with ERM.",
+    },
+    "fw.pillar.metrics_help": {
+        "zh-TW": "用來衡量與管理氣候相關風險／機會的指標與目標。",
+        "en": (
+            "Metrics and targets used to measure and manage "
+            "climate-related risks/opportunities."
+        ),
+    },
+    "fw.pillar.metrics_need": {
+        "zh-TW": "Scope 1/2（及相關）指標、目標、計算依據與證據。",
+        "en": "Scope 1/2 (and related) metrics, targets, methods, and evidence.",
+    },
+    "fw.learning_path_title": {
+        "zh-TW": "建議學習路徑",
+        "en": "Suggested learning path",
+    },
+    "fw.learning_path_body": {
+        "zh-TW": "了解 → 準備 → 提供證據 → 完成揭露（工作流程，不是合規分數）。",
+        "en": (
+            "Learn → Prepare → Provide evidence → Disclose "
+            "(workflow, not a compliance score)."
+        ),
+    },
     "fw.metrics_help": {
         "zh-TW": "目前已實作的 IFRS S2 氣候指標就緒度檢視（資料準備，非合規分數）。",
         "en": (
             "Currently implemented IFRS S2 climate-metrics readiness view "
             "(data prep, not a compliance score)."
+        ),
+    },
+    "fw.data_readiness_section": {
+        "zh-TW": "資料準備度",
+        "en": "Data readiness",
+    },
+    "fw.metrics_readiness_title": {
+        "zh-TW": "氣候指標資料準備度",
+        "en": "Climate Metrics Data Readiness",
+    },
+    "fw.metrics_readiness_disclaimer": {
+        "zh-TW": (
+            "此區僅反映目前排放／氣候資料的可用程度，"
+            "不代表 IFRS S1/S2 整體符合程度。"
+        ),
+        "en": (
+            "This section reflects only how complete current emissions / climate "
+            "data is. It does not represent overall IFRS S1/S2 compliance."
         ),
     },
     "fw.needs_information": {
@@ -802,14 +1096,17 @@ MESSAGES: dict[str, dict[str, str]] = {
     "fw.col.relevance": {"zh-TW": "相關性", "en": "Relevance"},
     "fw.col.missing": {"zh-TW": "缺少資料", "en": "What is missing"},
     "fw.col.evidence_role": {"zh-TW": "資料角色", "en": "Evidence role"},
-    "fw.col.readiness": {"zh-TW": "準備狀態", "en": "Readiness"},
+    "fw.col.readiness": {
+        "zh-TW": "資料準備狀態",
+        "en": "Data readiness",
+    },
     # Audit
     "aud.title": {"zh-TW": "報表與匯出", "en": "Reporting & Export"},
     "aud.subtitle": {
-        "zh-TW": "下載工作底稿、證據清冊與資料品質例外清單（非官方申報檔）。",
+        "zh-TW": "依用途把結果拿出去：給主管、準備 IFRS、盤查查驗、給稽核或自己分析。",
         "en": (
-            "Download workpapers, evidence registers, and data-quality "
-            "exception lists (not official filings)."
+            "Take results out by purpose: leadership, IFRS prep, inventory, "
+            "audit, or your own analysis."
         ),
     },
     "aud.help": {
@@ -830,6 +1127,18 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "下載你的分析成果",
         "en": "Download your analysis results",
     },
+    "aud.group.management": {"zh-TW": "管理摘要", "en": "Management summary"},
+    "aud.group.compliance": {
+        "zh-TW": "合規準備",
+        "en": "Compliance preparation",
+    },
+    "aud.group.evidence": {
+        "zh-TW": "GHG / 證據工作底稿",
+        "en": "GHG & evidence workpapers",
+    },
+    "aud.group.data": {"zh-TW": "資料匯出", "en": "Data export"},
+    "aud.group.ready": {"zh-TW": "可下載", "en": "Ready"},
+    "aud.group.partial": {"zh-TW": "部分就緒", "en": "Partially ready"},
     "aud.zip_title": {
         "zh-TW": "工作底稿／佐證包",
         "en": "Workpaper / supporting package",
@@ -845,8 +1154,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "aud.zip_button": {
-        "zh-TW": "下載佐證包 (.zip)",
-        "en": "Download supporting package (.zip)",
+        "zh-TW": "下載稽核包 (.zip)",
+        "en": "Download audit package (.zip)",
     },
     "aud.csv_title": {"zh-TW": "待處理問題", "en": "Open issues"},
     "aud.csv_desc": {
@@ -902,88 +1211,41 @@ MESSAGES: dict[str, dict[str, str]] = {
     "aud.ref_unregistered": {"zh-TW": "尚未登錄", "en": "unregistered"},
     # Tutorial
     "tut.title": {
-        "zh-TW": "第一次使用 Carbon Evidence Ledger？",
-        "en": "Using Carbon Evidence Ledger for the first time?",
+        "zh-TW": "歡迎使用 Carbon Evidence Ledger",
+        "en": "Welcome to Carbon Evidence Ledger",
     },
     "tut.subtitle": {
-        "zh-TW": "不用先懂碳盤查，照下面四步就可以開始。",
-        "en": (
-            "You do not need carbon-accounting expertise — "
-            "follow these four steps."
-        ),
+        "zh-TW": "不需要先懂碳盤查，我們會一步一步帶你完成。",
+        "en": "You do not need carbon-inventory expertise. We will guide you.",
     },
-    "tut.step1_title": {"zh-TW": "選擇分析內容", "en": "Choose what to analyze"},
+    "tut.step1_title": {"zh-TW": "填公司資料", "en": "Enter company details"},
     "tut.step1_body": {
-        "zh-TW": (
-            "公司碳盤查 / GHG Protocol：整理活動排放計算與 Scope。\n"
-            "氣候揭露 / IFRS S1/S2：查看治理、策略、風險與指標目標的資料準備狀態。\n"
-            "台灣溫室氣體與碳費：分開檢視盤查、查驗與碳費義務"
-            "（不足資料時顯示「需要更多資訊」）。"
-        ),
-        "en": (
-            "Corporate GHG / GHG Protocol: organize activity emissions and Scope.\n"
-            "Climate disclosure / IFRS S1/S2: review readiness across governance, "
-            "strategy, risk, and metrics & targets.\n"
-            "Taiwan GHG / Carbon Fee: separate inventory, verification, and fee "
-            "obligations (show Needs information when data is incomplete)."
-        ),
+        "zh-TW": "填公司資料。",
+        "en": "Enter company details.",
     },
     "tut.step2_title": {
-        "zh-TW": "按「開始分析」",
-        "en": "Click Start analysis",
+        "zh-TW": "上傳電力、燃料等營運資料",
+        "en": "Upload electricity, fuel, and operating data",
     },
     "tut.step2_body": {
-        "zh-TW": (
-            "系統會：整理活動資料；檢查資料品質；計算目前可以計算的排放；"
-            "執行你選擇的準則分析。"
-        ),
-        "en": (
-            "The app will organize activity data, check data quality, "
-            "calculate what is currently calculable, and run selected frameworks."
-        ),
+        "zh-TW": "上傳電力、燃料等營運資料。",
+        "en": "Upload electricity, fuel, and operating data.",
     },
-    "tut.step3_title": {
-        "zh-TW": "先處理「待處理問題」",
-        "en": "Start with open issues",
-    },
+    "tut.step3_title": {"zh-TW": "查看分析結果", "en": "Review the analysis"},
     "tut.step3_body": {
-        "zh-TW": (
-            "黃色或紅色並不表示排放量是零。它表示資料不足，因此系統拒絕猜測。"
-            "你會看到：缺什麼、為什麼需要、下一步應該取得什麼資料。"
-        ),
-        "en": (
-            "Yellow or red does not mean emissions are zero. "
-            "It means data is incomplete, so the system refuses to guess. "
-            "You will see what is missing, why it matters, "
-            "and what to collect next."
-        ),
+        "zh-TW": "查看分析結果。",
+        "en": "Review the analysis.",
     },
-    "tut.step4_title": {
-        "zh-TW": "查看結果與下載",
-        "en": "Review results and download",
+    "tut.helps": {
+        "zh-TW": "不懂的地方，隨時點「？」查看說明。",
+        "en": "Tap “?” whenever you need a short explanation.",
     },
-    "tut.step4_body": {
-        "zh-TW": (
-            "你可以查看：合規總覽、適用性、IFRS S1/S2 四個核心區塊、"
-            "台灣義務分軌、證據與資料缺口，最後下載工作底稿／佐證包。"
-        ),
-        "en": (
-            "Review the compliance overview, applicability, IFRS S1/S2 pillars, "
-            "Taiwan obligation tracks, evidence gaps — then download workpapers "
-            "and supporting packages."
-        ),
-    },
-    "tut.footer": {
-        "zh-TW": (
-            "目前是示範版本，使用內建的虛構公司資料。"
-            "尚未支援自行上傳公司的真實檔案。"
-        ),
-        "en": (
-            "This is a synthetic demonstration. Real company file upload "
-            "is not available yet."
-        ),
+    "tut.glossary_hint": {
+        "zh-TW": "",
+        "en": "",
     },
     "tut.start": {"zh-TW": "開始使用", "en": "Get started"},
+    "tut.later": {"zh-TW": "稍後再看", "en": "Maybe later"},
     # Explanations used in view models
     "explain.calculated": {
         "zh-TW": "已用已驗證輸入與對應排放係數完成計算。",
@@ -994,6 +1256,13 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": (
             "Calculation is blocked until verified conversion evidence "
             "is registered."
+        ),
+    },
+    "explain.blocked_natural_gas_type_required": {
+        "zh-TW": "請確認天然氣類型（NG1 或 NG2），才能套用正確熱值。",
+        "en": (
+            "Confirm whether this activity uses NG1 or NG2 before the "
+            "official heating value can be applied."
         ),
     },
     "explain.no_factor_configured": {
@@ -1027,6 +1296,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     "next.blocked_missing_conversion": {
         "zh-TW": "取得並登錄所需的已驗證轉換證據。",
         "en": "Obtain and register the required verified conversion evidence.",
+    },
+    "next.blocked_natural_gas_type_required": {
+        "zh-TW": "請確認天然氣類型為 NG1 或 NG2。系統不會自行推測。",
+        "en": "Confirm NG1 or NG2. The type is not inferred.",
     },
     "next.no_factor_configured": {
         "zh-TW": "選定並文件化適用的排放係數後再計算。",
@@ -1096,8 +1369,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Counts of CBAM data roles from the current evaluation.",
     },
     "chart.ifrs_ready.title": {
-        "zh-TW": "IFRS S2 準備狀態筆數",
-        "en": "IFRS S2 readiness counts",
+        "zh-TW": "氣候指標資料準備度筆數",
+        "en": "Climate metrics data readiness counts",
     },
     "chart.ifrs_ready.help": {
         "zh-TW": "依目前評估結果統計準備狀態筆數，不是合規分數。",
@@ -1127,12 +1400,68 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Current status",
     },
     # Phase 9A Data Intake
-    "intake.title": {"zh-TW": "匯入公司資料", "en": "Import company data"},
+    "intake.title": {"zh-TW": "上傳公司資料", "en": "Upload company data"},
     "intake.subtitle": {
-        "zh-TW": "上傳 CSV 或 Excel，確認欄位後再進行碳資料分析。",
+        "zh-TW": (
+            "上傳活動資料後，系統會協助確認欄位、單位與資料完整性，"
+            "完成後再進行排放分析。"
+        ),
         "en": (
-            "Upload a CSV or Excel file, confirm columns, "
-            "then prepare data for carbon analysis."
+            "After you upload activity data, the system helps confirm "
+            "columns, units, and completeness before emissions analysis."
+        ),
+    },
+    "intake.page_lead": {
+        "zh-TW": (
+            "上傳活動資料後，系統會協助確認欄位、單位與資料完整性，"
+            "完成後再進行排放分析。"
+        ),
+        "en": (
+            "After you upload activity data, the system helps confirm "
+            "columns, units, and completeness before emissions analysis."
+        ),
+    },
+    "intake.upload_limit": {
+        "zh-TW": "支援 CSV、XLSX。單一檔案最大 10 MB。",
+        "en": "CSV and XLSX. Maximum 10 MB per file.",
+    },
+    "intake.need_help_prepare": {
+        "zh-TW": "不知道怎麼準備資料？",
+        "en": "Not sure how to prepare the file?",
+    },
+    "intake.needed_fields_title": {
+        "zh-TW": "需要準備的資料",
+        "en": "What to prepare",
+    },
+    "intake.needed_fields_list": {
+        "zh-TW": (
+            "- 活動類型\n"
+            "- 用量\n"
+            "- 單位\n"
+            "- 開始日期\n"
+            "- 結束日期"
+        ),
+        "en": (
+            "- Activity type\n"
+            "- Quantity\n"
+            "- Unit\n"
+            "- Start date\n"
+            "- End date"
+        ),
+    },
+    "intake.advanced_schema": {
+        "zh-TW": "進階：查看系統欄位格式",
+        "en": "Advanced: system field format",
+    },
+    "intake.example_expand": {
+        "zh-TW": "查看填寫範例",
+        "en": "View a fill-in example",
+    },
+    "intake.example_disclaimer": {
+        "zh-TW": "以下僅為格式範例，不會自動匯入或參與分析。",
+        "en": (
+            "This is a format example only. "
+            "It is not imported and is not used in analysis."
         ),
     },
     "intake.intro": {
@@ -1214,11 +1543,17 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Please choose its purpose below."
         ),
     },
-    "intake.map_site": {"zh-TW": "廠區／場址欄位", "en": "Site / plant column"},
+    "intake.map_site": {
+        "zh-TW": "廠場／營運據點欄位",
+        "en": "Site / operating location column",
+    },
     "intake.field.activity_type": {"zh-TW": "活動類型", "en": "Activity type"},
-    "intake.field.activity_value": {"zh-TW": "活動數量", "en": "Activity amount"},
+    "intake.field.activity_value": {"zh-TW": "用量", "en": "Quantity"},
     "intake.field.unit": {"zh-TW": "單位", "en": "Unit"},
-    "intake.field.site_id": {"zh-TW": "廠區／場址", "en": "Site / plant"},
+    "intake.field.site_id": {
+        "zh-TW": "廠場／營運據點",
+        "en": "Site / operating location",
+    },
     "intake.field.start": {"zh-TW": "開始日期", "en": "Start date"},
     "intake.field.end": {"zh-TW": "結束日期", "en": "End date"},
     "intake.field.year_month": {
@@ -1281,8 +1616,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Used as the unit of measure, such as kWh, m³, L, kg, or t.",
     },
     "intake.interpret.site_id": {
-        "zh-TW": "用來區分資料所屬的場址。",
-        "en": "Used to tell which site each row belongs to.",
+        "zh-TW": "用來區分資料所屬的廠場或營運據點。",
+        "en": "Used to tell which site / operating location each row belongs to.",
     },
     "intake.interpret.year_month": {
         "zh-TW": (
@@ -1359,12 +1694,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Show advanced settings",
     },
     "intake.btn.show_advanced_help": {
-        "zh-TW": "檢視系統內部欄位名稱與其他進階選項。",
-        "en": "View internal field names and other advanced options.",
+        "zh-TW": "查看系統欄位格式與其他進階選項。",
+        "en": "View system field format and other advanced options.",
     },
     "intake.advanced_canonical": {
-        "zh-TW": "進階：系統內部欄位名稱",
-        "en": "Advanced: internal field names",
+        "zh-TW": "進階：查看系統欄位格式",
+        "en": "Advanced: system field format",
     },
     "intake.step1": {"zh-TW": "01 上傳檔案", "en": "01 Upload file"},
     "intake.step2": {"zh-TW": "02 對應欄位", "en": "02 Map columns"},
@@ -1386,15 +1721,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Choose a company data file",
     },
     "intake.upload_help": {
-        "zh-TW": "目前支援 CSV 與 XLSX。PDF 帳單與掃描文件將在後續版本支援。",
-        "en": (
-            "CSV and XLSX are supported now. "
-            "PDF invoices and scanned documents come later."
-        ),
+        "zh-TW": "支援 CSV、XLSX。單一檔案最大 10 MB。",
+        "en": "CSV and XLSX. Maximum 10 MB per file.",
     },
     "intake.template_button": {
-        "zh-TW": "下載空白範本 (.csv)",
-        "en": "Download blank template (.csv)",
+        "zh-TW": "下載資料範本",
+        "en": "Download data template",
     },
     "intake.example_button": {
         "zh-TW": "下載範例檔 (.csv)",
@@ -1451,8 +1783,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Activity type column",
     },
     "intake.map_activity_value": {
-        "zh-TW": "活動數量欄位",
-        "en": "Activity amount column",
+        "zh-TW": "用量欄位",
+        "en": "Quantity column",
     },
     "intake.map_unit": {"zh-TW": "單位欄位", "en": "Unit column"},
     "intake.dates_in_file": {
@@ -1471,10 +1803,104 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "活動類型對應",
         "en": "Activity type mapping",
     },
+    "intake.ng_type": {"zh-TW": "天然氣類型", "en": "Natural-gas type"},
+    "intake.ng_type_help": {
+        "zh-TW": (
+            "NG1 與 NG2 的官方年度熱值不同，因此需要確認類型後才能完成計算。"
+        ),
+        "en": (
+            "NG1 and NG2 have different official annual heating values, "
+            "so the type must be confirmed before calculation can finish."
+        ),
+    },
+    "intake.ng_type_unknown": {
+        "zh-TW": "不知道／不確定",
+        "en": "Don't know / not sure",
+    },
+    "intake.ng_learn_title": {
+        "zh-TW": "什麼是 NG1 / NG2？",
+        "en": "What are NG1 and NG2?",
+    },
+    "intake.ng_learn_body": {
+        "zh-TW": (
+            "環境部公布的年度天然氣熱值分為 NG1 與 NG2，"
+            "兩者熱值不同，因此盤查時需要確認公司使用的類型。"
+        ),
+        "en": (
+            "MOENV publishes annual natural-gas heating values as NG1 and NG2. "
+            "The values differ, so inventory work needs the company type."
+        ),
+    },
+    "intake.ng_type_from_file": {
+        "zh-TW": "檔案中已標示 NG1／NG2 的列會優先保留原值。",
+        "en": "Rows that already name NG1/NG2 keep that source value.",
+    },
+    "intake.map_ng_type_column": {
+        "zh-TW": "天然氣類型欄位（選填）",
+        "en": "Natural-gas type column (optional)",
+    },
+    "intake.interpret.fuel_subtype": {
+        "zh-TW": "這欄看起來是天然氣類型。",
+        "en": "This column looks like the natural-gas type.",
+    },
+    "intake.diesel_context": {
+        "zh-TW": "柴油用途",
+        "en": "Diesel context",
+    },
+    "intake.diesel_company_vehicle": {
+        "zh-TW": "公司車輛／公司控制的移動燃燒",
+        "en": "Company vehicle / company-controlled mobile combustion",
+    },
+    "intake.diesel_context_help": {
+        "zh-TW": (
+            "目前僅在公司車輛移動燃燒路徑計算柴油。"
+            "若無法確認，此筆活動將暫不納入計算。"
+        ),
+        "en": (
+            "Diesel is currently calculated only for company-vehicle "
+            "mobile combustion. Unconfirmed rows stay out of the total."
+        ),
+    },
+    "intake.electricity_context": {
+        "zh-TW": "電力盤查類型",
+        "en": "Electricity inventory type",
+    },
+    "intake.electricity_enterprise": {
+        "zh-TW": "企業／廠場盤查",
+        "en": "Enterprise / site inventory",
+    },
+    "intake.electricity_context_help": {
+        "zh-TW": "2025 年企業盤查電力係數需確認用途後才能套用。",
+        "en": (
+            "The 2025 enterprise electricity factor can be applied only "
+            "after this use is confirmed."
+        ),
+    },
+    "intake.review.ready": {
+        "zh-TW": "可開始分析",
+        "en": "Ready to analyze",
+    },
+    "intake.review.needs_confirm": {
+        "zh-TW": "仍需確認",
+        "en": "Still needs confirmation",
+    },
+    "intake.review.unsupported": {
+        "zh-TW": "已知不支援",
+        "en": "Known unsupported",
+    },
     "intake.value_map_unit": {"zh-TW": "單位對應", "en": "Unit mapping"},
     "intake.choose": {"zh-TW": "請選擇", "en": "Please choose"},
     "intake.source_name": {"zh-TW": "資料來源名稱", "en": "Source name"},
-    "intake.site_id": {"zh-TW": "場址 ID", "en": "Site ID"},
+    "intake.site_name": {"zh-TW": "廠場／營運據點", "en": "Site / operating location"},
+    "intake.site_id": {"zh-TW": "廠場／營運據點", "en": "Site / operating location"},
+    "intake.site_placeholder": {
+        "zh-TW": "例如：高雄廠、台中辦公室、第一倉庫",
+        "en": "e.g. Kaohsiung plant, Taichung office, Warehouse 1",
+    },
+    "intake.site_unconfirmed": {
+        "zh-TW": "待確認",
+        "en": "Needs confirmation",
+    },
     "intake.document_date": {"zh-TW": "文件日期", "en": "Document date"},
     "intake.data_quality": {"zh-TW": "資料品質", "en": "Data quality"},
     "intake.quality.primary": {
@@ -1490,10 +1916,12 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "intake.advanced": {"zh-TW": "進階欄位", "en": "Advanced fields"},
     "intake.col.activity": {"zh-TW": "活動", "en": "Activity"},
-    "intake.col.amount": {"zh-TW": "數量", "en": "Amount"},
+    "intake.col.amount": {"zh-TW": "用量", "en": "Quantity"},
     "intake.col.unit": {"zh-TW": "單位", "en": "Unit"},
     "intake.col.start": {"zh-TW": "開始日期", "en": "Start date"},
     "intake.col.end": {"zh-TW": "結束日期", "en": "End date"},
+    "intake.col.status": {"zh-TW": "狀態", "en": "Status"},
+    "intake.col.issue": {"zh-TW": "問題", "en": "Issue"},
     "intake.col.quality": {"zh-TW": "資料品質", "en": "Data quality"},
     "intake.col.review": {
         "zh-TW": "需要人工確認",
@@ -1505,6 +1933,63 @@ MESSAGES: dict[str, dict[str, str]] = {
     "intake.success": {
         "zh-TW": "資料格式檢查完成。",
         "en": "Data-format checks completed.",
+    },
+    "intake.dup.title": {
+        "zh-TW": "發現可能重複的資料",
+        "en": "Possible duplicate records found",
+    },
+    "intake.dup.body": {
+        "zh-TW": (
+            "發現 {count} 組可能重複的活動資料。\n"
+            "重複資料可能造成排放量重複計算，請先確認。"
+        ),
+        "en": (
+            "Found {count} possible duplicate activity group(s).\n"
+            "Duplicates can double-count emissions. Please confirm first."
+        ),
+    },
+    "intake.dup.review": {
+        "zh-TW": "查看並確認",
+        "en": "Review and confirm",
+    },
+    "intake.dup.keep_all": {
+        "zh-TW": "這是不同的真實紀錄 → 保留全部",
+        "en": "These are different real records — keep all",
+    },
+    "intake.dup.exclude": {
+        "zh-TW": "這是重複匯入 → 排除重複列",
+        "en": "This is a duplicate import — exclude duplicate rows",
+    },
+    "intake.dup.group": {
+        "zh-TW": "第 {n} 組",
+        "en": "Group {n}",
+    },
+    "intake.dup.file_row": {
+        "zh-TW": "檔案列次",
+        "en": "File row",
+    },
+    "intake.dup.context": {
+        "zh-TW": "燃料／活動內容",
+        "en": "Fuel / activity context",
+    },
+    "intake.dup.blocked": {
+        "zh-TW": "請先確認可能重複的資料，才能開始分析。",
+        "en": "Confirm possible duplicates before starting analysis.",
+    },
+    "intake.dup.exclude_note": {
+        "zh-TW": "將保留檔案中的第一筆，排除其餘重複列。原始資料仍會保存。",
+        "en": (
+            "The first file row is kept and later lookalike rows are "
+            "excluded. Original imported rows are preserved."
+        ),
+    },
+    "intake.dup.keep_note": {
+        "zh-TW": "這些列都會納入計算。",
+        "en": "All of these rows will be included in the calculation.",
+    },
+    "intake.dup.confirmed": {
+        "zh-TW": "可能重複的資料已確認。",
+        "en": "Possible duplicates have been confirmed.",
     },
     "intake.partial": {
         "zh-TW": "有部分資料需要修正。",
@@ -1544,19 +2029,35 @@ MESSAGES: dict[str, dict[str, str]] = {
             "gap checks, and framework analysis."
         ),
     },
+    "intake.review.rows": {"zh-TW": "資料筆數", "en": "Record count"},
+    "intake.review.period": {"zh-TW": "報導期間", "en": "Reporting period"},
+    "intake.review.period_to": {"zh-TW": "至", "en": "to"},
+    "intake.review.activity_types": {"zh-TW": "活動類型", "en": "Activity types"},
+    "intake.review.pending": {"zh-TW": "待確認資料", "en": "Rows needing review"},
     "intake.start_analysis": {
         "zh-TW": "使用這批資料開始分析",
         "en": "Analyze this uploaded dataset",
     },
     "intake.back_edit": {"zh-TW": "返回修改資料", "en": "Back to edit data"},
     "intake.demo_notice": {
-        "zh-TW": (
-            "上傳並完成檢查後，可改用你的公司資料開始分析；"
-            "在此之前仍顯示示範分析結果。"
-        ),
+        "zh-TW": "上傳並完成資料確認後，即可使用公司資料進行分析。",
         "en": (
-            "After upload and format checks, you can analyze your company "
-            "data. Until then, demo analysis results remain visible."
+            "After upload and data confirmation, you can analyze "
+            "using your company data."
+        ),
+    },
+    "intake.upload_notice": {
+        "zh-TW": "上傳並完成資料確認後，即可使用公司資料進行分析。",
+        "en": (
+            "After upload and data confirmation, you can analyze "
+            "using your company data."
+        ),
+    },
+    "intake.document_date_required": {
+        "zh-TW": "請確認文件日期。系統不會把「不知道」自動填成今天。",
+        "en": (
+            "Please confirm the document date. "
+            "Unknown must not become today's date."
         ),
     },
     "act.trace_activity": {"zh-TW": "活動量", "en": "Activity amount"},
@@ -1611,32 +2112,268 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "未來要求",
         "en": "Future requirement",
     },
-    "apl.title": {"zh-TW": "適用性判定", "en": "Applicability"},
+    "apl.title": {
+        "zh-TW": "你的公司適用哪些要求？",
+        "en": "Which requirements apply to your company?",
+    },
     "apl.subtitle": {
-        "zh-TW": "說明為何某項義務可能適用，以及目前是否還缺公司檔資訊。",
+        "zh-TW": (
+            "輸入統一編號，我們會從目前的官方公司資料中尋找，"
+            "再整理與公司相關的 IFRS 與台灣溫室氣體要求。"
+        ),
         "en": (
-            "Explain why an obligation may apply, and what company-profile "
-            "information is still missing."
+            "Enter the unified business number. We search the current official "
+            "company data, then list related IFRS and Taiwan GHG requirements."
         ),
     },
     "apl.help": {
-        "zh-TW": "公司檔資訊不足時會顯示「需要更多資訊」，不會臆測適用結論。",
+        "zh-TW": (
+            "公司檔資訊不足時會顯示「需要更多資料」，不會臆測適用結論。"
+            "此判定僅供合規準備，必要時應再經專業判斷。"
+        ),
         "en": (
             "When company-profile data is incomplete, the status is Needs "
-            "information — never guessed."
+            "information — never guessed. This assessment supports preparation "
+            "and should be reviewed where professional judgement is required."
         ),
     },
     "apl.company_profile": {
-        "zh-TW": "公司檔（後續階段）",
-        "en": "Company profile (later stage)",
+        "zh-TW": "公司基本資料",
+        "en": "Company basics",
     },
     "apl.company_profile_help": {
-        "zh-TW": "未來可輸入上市／興櫃／非公開、實收資本、產業、廠址與台灣法規狀態等。",
+        "zh-TW": "先填寫公司是誰與報導年度；其餘欄位依公司類型逐步顯示。",
         "en": (
-            "Future inputs may include listing status, paid-in capital, "
-            "industry, facilities, and Taiwan regulatory status."
+            "Start with who the company is and the reporting year; other fields "
+            "appear based on entity type."
         ),
     },
+    "apl.section.entity": {
+        "zh-TW": "公司類型與上市狀態",
+        "en": "Entity type and market status",
+    },
+    "apl.section.finance": {"zh-TW": "財務資料", "en": "Financial profile"},
+    "apl.section.group": {
+        "zh-TW": "集團與報導邊界",
+        "en": "Group and reporting boundary",
+    },
+    "apl.section.industry": {"zh-TW": "產業", "en": "Industry"},
+    "apl.section.facilities": {
+        "zh-TW": "台灣廠場與環境資訊",
+        "en": "Taiwan facilities and environmental context",
+    },
+    "apl.section.results": {"zh-TW": "判定結果", "en": "Assessment results"},
+    "apl.save_profile": {
+        "zh-TW": "儲存公司資料",
+        "en": "Save Company Profile",
+    },
+    "apl.edit_profile": {
+        "zh-TW": "修改公司資料",
+        "en": "Edit Company Profile",
+    },
+    "apl.run_assessment": {
+        "zh-TW": "進行適用性判定",
+        "en": "Run applicability assessment",
+    },
+    "apl.saved_ok": {
+        "zh-TW": "公司資料已儲存於本次工作階段。",
+        "en": "Company profile saved for this session.",
+    },
+    "apl.why": {"zh-TW": "為什麼？", "en": "Why?"},
+    "apl.when": {"zh-TW": "何時開始？", "en": "When does it start?"},
+    "apl.missing": {"zh-TW": "缺少哪些資料？", "en": "What is missing?"},
+    "apl.next": {"zh-TW": "下一步", "en": "Next action"},
+    "apl.view_basis": {
+        "zh-TW": "查看法規依據",
+        "en": "View regulatory basis",
+    },
+    "apl.effective_year": {
+        "zh-TW": "適用報導年度",
+        "en": "Effective reporting year",
+    },
+    "apl.first_filing_year": {
+        "zh-TW": "首次申報／揭露年度",
+        "en": "First filing year",
+    },
+    "apl.disclaimer": {
+        "zh-TW": (
+            "依目前公司檔與已驗證法規規則判定，僅供合規準備參考；"
+            "需要專業判斷處請再人工檢視。"
+        ),
+        "en": (
+            "Based on the current company profile and verified regulatory rules. "
+            "This supports compliance preparation and should be reviewed where "
+            "professional judgement is required."
+        ),
+    },
+    "apl.field.company_name": {"zh-TW": "公司名稱", "en": "Company name"},
+    "apl.field.reporting_year": {
+        "zh-TW": "要評估哪一年度？",
+        "en": "Which year should we assess?",
+    },
+    "apl.field.reporting_year_help": {
+        "zh-TW": "例如：評估 2026 年公司需要準備哪些要求。",
+        "en": "Example: which requirements the company should prepare for in 2026.",
+    },
+    "apl.field.reporting_year_professional": {
+        "zh-TW": "專業上稱為報導年度。",
+        "en": "Professionally this is the reporting year.",
+    },
+    "apl.field.entity_type": {"zh-TW": "公司類型", "en": "Entity type"},
+    "apl.field.listing_status": {
+        "zh-TW": "公司是否上市／上櫃？",
+        "en": "Is the company listed / OTC?",
+    },
+    "apl.field.paid_in_capital_twd": {
+        "zh-TW": "實收資本額（新台幣）",
+        "en": "Paid-in capital (TWD)",
+    },
+    "apl.field.net_worth_twd": {"zh-TW": "淨值（新台幣）", "en": "Net worth (TWD)"},
+    "apl.field.is_fhc_subsidiary": {
+        "zh-TW": "是否為金融控股公司子公司",
+        "en": "Is a financial-holding-company subsidiary?",
+    },
+    "apl.field.has_taiwan_facilities": {
+        "zh-TW": "是否有台灣廠場／營運據點",
+        "en": "Has Taiwan facilities / operations?",
+    },
+    "apl.field.received_environmental_authority_inventory_notice": {
+        "zh-TW": "是否曾收到環境主管機關要求盤查或登錄溫室氣體的通知",
+        "en": (
+            "Has the company received an environmental-authority GHG inventory "
+            "or registration notice?"
+        ),
+    },
+    "apl.field.received_authority_notice": {
+        "zh-TW": "公司是否曾收到主管機關要求盤查、登錄或查驗溫室氣體的通知？",
+        "en": (
+            "Has the company received an authority notice requiring GHG "
+            "inventory, registration, or verification?"
+        ),
+    },
+    "apl.field.received_verification_requirement": {
+        "zh-TW": "是否曾收到查驗／確信要求",
+        "en": "Has the company received a verification requirement?",
+    },
+    "apl.field.known_regulated_facility": {
+        "zh-TW": "是否已知有列管廠場",
+        "en": "Known regulated facility?",
+    },
+    "apl.field.reporting_entities_known": {
+        "zh-TW": "這次報告包含哪些公司？",
+        "en": "Which companies does this report include?",
+    },
+    "apl.field.reporting_entities_known_help": {
+        "zh-TW": "這會用來建立本次報告涵蓋的公司範圍。專業上稱為報導邊界。",
+        "en": (
+            "This sets the company scope. "
+            "Professionally this is the reporting boundary."
+        ),
+    },
+    "apl.field.industry": {"zh-TW": "產業", "en": "Industry"},
+    "apl.field.sasb_industry": {
+        "zh-TW": "SASB 產業（可選）",
+        "en": "SASB industry (optional)",
+    },
+    "apl.field.share_par_value_twd": {
+        "zh-TW": "股票面額（新台幣）",
+        "en": "Share par value (TWD)",
+    },
+    "apl.field.has_no_par_value_shares": {
+        "zh-TW": "是否有無面額股份",
+        "en": "Has no-par-value shares?",
+    },
+    "apl.field.uses_consolidated_financial_statements": {
+        "zh-TW": "是否使用合併財務報表",
+        "en": "Uses consolidated financial statements?",
+    },
+    "apl.field.number_of_taiwan_facilities": {
+        "zh-TW": "台灣廠場數量",
+        "en": "Number of Taiwan facilities",
+    },
+    "apl.entity.general_listed_company": {
+        "zh-TW": "一般上市公司",
+        "en": "General listed company (TWSE)",
+    },
+    "apl.entity.general_otc_company": {
+        "zh-TW": "一般上櫃公司",
+        "en": "General OTC company (TPEx)",
+    },
+    "apl.entity.financial_holding_company": {
+        "zh-TW": "金融控股公司",
+        "en": "Financial holding company",
+    },
+    "apl.entity.bank": {"zh-TW": "銀行", "en": "Bank"},
+    "apl.entity.bills_finance_company": {
+        "zh-TW": "票券金融公司",
+        "en": "Bills finance company",
+    },
+    "apl.entity.securities_firm": {"zh-TW": "證券商", "en": "Securities firm"},
+    "apl.entity.futures_commission_merchant": {
+        "zh-TW": "期貨商",
+        "en": "Futures commission merchant",
+    },
+    "apl.entity.other": {"zh-TW": "其他", "en": "Other"},
+    "apl.entity.unresolved": {
+        "zh-TW": "不知道／不確定",
+        "en": "I don't know / not sure",
+    },
+    "apl.listing.TWSE": {"zh-TW": "上市（TWSE）", "en": "TWSE listed"},
+    "apl.listing.TPEX": {"zh-TW": "上櫃（TPEx）", "en": "TPEx OTC"},
+    "apl.listing.EMERGING": {"zh-TW": "興櫃", "en": "Emerging stock"},
+    "apl.listing.PRIVATE": {
+        "zh-TW": "未上市／未上櫃",
+        "en": "Not listed / not OTC",
+    },
+    "apl.listing.NOT_APPLICABLE": {"zh-TW": "不適用", "en": "Not applicable"},
+    "apl.listing.UNKNOWN": {"zh-TW": "不知道／不確定", "en": "Not sure"},
+    "apl.choice.YES": {"zh-TW": "是", "en": "Yes"},
+    "apl.choice.NO": {"zh-TW": "否", "en": "No"},
+    "apl.choice.NOT_SURE": {"zh-TW": "不知道／不確定", "en": "Not sure"},
+    "apl.choice.TRUE": {"zh-TW": "是", "en": "Yes"},
+    "apl.choice.FALSE": {"zh-TW": "否", "en": "No"},
+    "apl.choice.UNKNOWN": {"zh-TW": "不知道／不確定", "en": "Not sure"},
+    "apl.status.APPLICABLE": {"zh-TW": "適用", "en": "Applicable"},
+    "apl.status.NOT_APPLICABLE": {
+        "zh-TW": "目前不適用",
+        "en": "Does not apply now",
+    },
+    "apl.status.FUTURE_REQUIREMENT": {
+        "zh-TW": "未來將適用",
+        "en": "Will apply later",
+    },
+    "apl.status.NEEDS_INFORMATION": {
+        "zh-TW": "還需要一些資料",
+        "en": "Needs a few more details",
+    },
+    "apl.status.NEEDS_REVIEW": {
+        "zh-TW": "正在確認中",
+        "en": "Being confirmed",
+    },
+    "apl.status.NOT_YET_ASSESSED": {
+        "zh-TW": "尚未開始",
+        "en": "Not started",
+    },
+    "apl.status.MANUAL_VERIFICATION_REQUIRED": {
+        "zh-TW": "正在確認中",
+        "en": "Being confirmed",
+    },
+    "apl.status.REGULATORY_DATA_STALE": {
+        "zh-TW": "法規資料需要更新",
+        "en": "Regulatory data update required",
+    },
+    "apl.status.OUT_OF_V1_SCOPE": {
+        "zh-TW": "目前版本暫不支援",
+        "en": "Not supported in this version",
+    },
+    "apl.basis.authority": {"zh-TW": "官方主管機關", "en": "Official authority"},
+    "apl.basis.document": {"zh-TW": "官方文件", "en": "Official document"},
+    "apl.basis.citation": {"zh-TW": "條文／段落", "en": "Citation"},
+    "apl.basis.rule_id": {"zh-TW": "規則編號", "en": "Rule ID"},
+    "apl.basis.effective": {"zh-TW": "生效日", "en": "Effective date"},
+    "apl.basis.version": {"zh-TW": "規則版本", "en": "Rule version"},
+    "apl.basis.verified": {"zh-TW": "最後驗證日期", "en": "Last verified date"},
+    "apl.basis.source": {"zh-TW": "官方來源編號", "en": "Official source"},
     "apl.obligation_ifrs": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
     "apl.obligation_inventory": {
         "zh-TW": "台灣溫室氣體盤查",
@@ -1647,26 +2384,194 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Verification / assurance",
     },
     "apl.obligation_carbon_fee": {"zh-TW": "碳費", "en": "Carbon fee"},
+    "reg.status_title": {"zh-TW": "法規資料", "en": "Regulatory data"},
+    "reg.status_verified": {"zh-TW": "已驗證", "en": "Verified"},
+    "reg.status_pending_verification": {
+        "zh-TW": "法規更新確認中",
+        "en": "Regulatory update under verification",
+    },
+    "reg.last_success_check": {
+        "zh-TW": "最後成功檢查",
+        "en": "Last successful check",
+    },
+    "reg.last_verified": {
+        "zh-TW": "最後法規確認",
+        "en": "Last regulatory verification",
+    },
+    "reg.pending_reviews": {
+        "zh-TW": "待審法規變更",
+        "en": "Pending regulatory reviews",
+    },
+    "reg.pending_major_updates": {
+        "zh-TW": "待人工確認之重大更新",
+        "en": "Major updates pending admin verification",
+    },
+    "reg.auto_sources_label": {
+        "zh-TW": "核心法規監控",
+        "en": "Core regulatory monitoring",
+    },
+    "reg.auto_sources_ok": {"zh-TW": "正常", "en": "Healthy"},
+    "reg.auto_sources_attention": {
+        "zh-TW": "需系統維護關注",
+        "en": "Needs system maintenance attention",
+    },
+    "reg.supporting_config_required": {
+        "zh-TW": "輔助資料來源：{n} 個尚未設定",
+        "en": "Supporting data sources: {n} not configured",
+    },
+    "reg.pending_signal_note": {
+        "zh-TW": "目前評估仍依最近已驗證規則集；無需自行查法規網站。",
+        "en": "Uses last verified rules; no need to research laws yourself.",
+    },
+    "reg.admin_expander": {
+        "zh-TW": "系統維護／技術狀態（管理員）",
+        "en": "System maintenance / technical status (admin)",
+    },
+    "reg.freshness.CURRENT": {"zh-TW": "最新", "en": "Current"},
+    "reg.freshness.CHECK_DUE": {"zh-TW": "建議更新", "en": "Check due"},
+    "reg.freshness.UPDATE_REQUIRED": {
+        "zh-TW": "建議更新",
+        "en": "Update recommended",
+    },
+    "reg.freshness.STALE": {"zh-TW": "需要更新", "en": "Stale"},
+    "reg.freshness.REGULATORY_DATA_STALE": {
+        "zh-TW": "需要更新",
+        "en": "Regulatory data stale",
+    },
+    "reg.freshness.MANUAL_VERIFICATION_REQUIRED": {
+        "zh-TW": "需要人工確認官方版本",
+        "en": "Manual verification required",
+    },
+    "reg.freshness.MANUAL_ACCESS_REQUIRED": {
+        "zh-TW": "需要人工確認官方版本",
+        "en": "Manual access required",
+    },
+    "reg.freshness.SOURCE_CHECK_FAILED": {
+        "zh-TW": "來源檢查失敗",
+        "en": "Source check failed",
+    },
+    "reg.freshness.FRESHNESS_STATE_UNAVAILABLE": {
+        "zh-TW": "新鮮度狀態不可用",
+        "en": "Freshness state unavailable",
+    },
+    "reg.freshness.PARTIAL": {
+        "zh-TW": "核心監控正常／部分輔助來源尚未設定",
+        "en": "Core monitoring OK; some supporting sources unset",
+    },
+    "reg.freshness.MONITORING_PARTIAL": {
+        "zh-TW": "核心監控正常／部分輔助來源尚未設定",
+        "en": "Core monitoring OK; some supporting sources unset",
+    },
+    "reg.freshness.MONITORING_CURRENT": {
+        "zh-TW": "法規資料：已驗證",
+        "en": "Regulations verified",
+    },
+    "reg.freshness.BASELINE_CAPTURED": {
+        "zh-TW": "已建立基準",
+        "en": "Baseline established",
+    },
+    "reg.freshness.SOURCE_UNAVAILABLE": {
+        "zh-TW": "來源目前無法檢查",
+        "en": "Source currently unavailable",
+    },
+    "reg.freshness.NOT_ACTIVATED": {
+        "zh-TW": "尚未啟用",
+        "en": "Not activated",
+    },
+    "reg.freshness.NEEDS_INFORMATION": {
+        "zh-TW": "還需要一些資料",
+        "en": "More information needed",
+    },
+    "reg.freshness.OUT_OF_V1_SCOPE": {
+        "zh-TW": "目前版本暫不支援",
+        "en": "Not supported in this version",
+    },
+    "dash.section_requirements": {
+        "zh-TW": "適用要求",
+        "en": "Your Requirements",
+    },
+    "dash.section_requirements_help": {
+        "zh-TW": "與適用性判定使用同一份評估結果。",
+        "en": "Uses the same assessment object as Applicability.",
+    },
+    "dash.section_attention_reg": {
+        "zh-TW": "目前需要注意",
+        "en": "Current Attention",
+    },
+    "dash.section_missing_profile": {
+        "zh-TW": "缺少的資料（公司檔）",
+        "en": "Missing Information (company profile)",
+    },
+    "dash.section_missing_emissions": {
+        "zh-TW": "缺少的資料（排放資料）",
+        "en": "Missing Information (emissions data)",
+    },
+    "dash.attention.need_profile": {
+        "zh-TW": "尚未完成適用性判定",
+        "en": "Applicability assessment not completed",
+    },
+    "dash.attention.need_profile_action": {
+        "zh-TW": "前往「適用性判定」填寫公司資料。",
+        "en": "Go to Applicability and complete the company profile.",
+    },
+    "dash.attention.freshness": {
+        "zh-TW": "法規資料需要更新或人工確認",
+        "en": "Regulatory data needs update or manual verification",
+    },
+    "dash.attention.freshness_action": {
+        "zh-TW": "系統正在確認法規更新；目前結論仍依已驗證規則。",
+        "en": "Verifying a regulatory update; last verified rules still apply.",
+    },
+    "dash.attention.review_action": {
+        "zh-TW": "查看相關要求與法規依據。",
+        "en": "Review the related requirements and legal basis.",
+    },
+    "dash.attention.future": {
+        "zh-TW": "{obligation}：未來適用（{year}）",
+        "en": "{obligation}: future requirement ({year})",
+    },
+    "dash.attention.future_action": {
+        "zh-TW": "開始準備首個適用報導年度所需資料。",
+        "en": "Begin readiness work before the first reporting year.",
+    },
+    "dash.attention.missing_profile": {
+        "zh-TW": "{obligation}：公司檔資料不足",
+        "en": "{obligation}: company-profile information missing",
+    },
+    "dash.attention.missing_profile_action": {
+        "zh-TW": "回到適用性判定補齊缺少欄位。",
+        "en": "Return to Applicability and complete the missing fields.",
+    },
+    "dash.no_assessment_yet": {
+        "zh-TW": "尚未產生適用性判定。請先到「適用性判定」頁面。",
+        "en": "No applicability assessment yet. Open the Applicability page first.",
+    },
+    "fw.applicability_summary": {
+        "zh-TW": "適用性摘要（IFRS）",
+        "en": "Applicability summary (IFRS)",
+    },
+    "tw.applicability_summary": {
+        "zh-TW": "適用性摘要（台灣義務）",
+        "en": "Applicability summary (Taiwan obligations)",
+    },
     "tw.title": {
         "zh-TW": "台灣溫室氣體與碳費",
         "en": "Taiwan GHG / Carbon Fee",
     },
     "tw.subtitle": {
-        "zh-TW": "盤查、查驗與碳費是分開的義務，不互相自動推論。",
+        "zh-TW": "先分清楚盤查、查驗、確信與碳費，再看你目前的狀態。",
         "en": (
-            "Inventory, verification, and carbon fee are separate "
-            "obligations — never inferred from each other."
+            "First tell inventory, verification, assurance, and carbon fee apart, "
+            "then review your status."
         ),
     },
     "tw.help": {
         "zh-TW": (
-            "Stage 2 僅建立分軌結構。適用性引擎尚未接上時一律標示為"
-            "需要更多資訊／規則尚未實作。"
+            "此頁顯示適用性判定摘要；完整盤查／碳費表單與計算屬於後續階段。"
         ),
         "en": (
-            "Stage 2 only establishes separate tracks. Until the "
-            "applicability engine exists, statuses remain Needs information "
-            "/ Rule set not yet implemented."
+            "This page shows applicability summaries; full inventory / carbon-fee "
+            "forms belong to a later stage."
         ),
     },
     "tw.inventory": {"zh-TW": "溫室氣體盤查", "en": "GHG Inventory"},
@@ -1675,17 +2580,35 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Verification / Assurance",
     },
     "tw.carbon_fee": {"zh-TW": "碳費", "en": "Carbon Fee"},
+    "tw.track.inventory": {"zh-TW": "溫室氣體盤查", "en": "GHG Inventory"},
+    "tw.track.env_verification": {
+        "zh-TW": "環境部溫室氣體查驗",
+        "en": "MOENV GHG verification",
+    },
+    "tw.track.carbon_fee": {"zh-TW": "碳費", "en": "Carbon Fee"},
+    "tw.track.ifrs_assurance": {
+        "zh-TW": "IFRS Scope 1/2 確信",
+        "en": "IFRS Scope 1/2 assurance",
+    },
+    "tw.ifrs_assurance_note": {
+        "zh-TW": "這是永續揭露的第三方確信，與環境部溫室氣體查驗不同。",
+        "en": "This is disclosure assurance, distinct from MOENV GHG verification.",
+    },
+    "tw.track.empty": {
+        "zh-TW": "此軌道尚無判定結果；請先完成公司設定。",
+        "en": "No result for this track yet — finish company setup first.",
+    },
     "tw.section_help": {
-        "zh-TW": "各自有獨立的適用性、期間、截止日、資料與證據要求（後續階段）。",
+        "zh-TW": "詳細工作底稿與申報表單尚未開放；請先完成適用性判定。",
         "en": (
-            "Each track will have its own applicability, period, deadline, "
-            "data, and evidence requirements (later stage)."
+            "Detailed workpapers and filing forms are not open yet; complete "
+            "Applicability first."
         ),
     },
     "ev.title": {"zh-TW": "證據與資料", "en": "Evidence & Data"},
     "ev.subtitle": {
-        "zh-TW": "上傳 → 活動計算 → 待處理問題 → 證據追溯。",
-        "en": "Upload → activity calculations → open issues → evidence trail.",
+        "zh-TW": "把資料給系統，系統幫你整理和計算。",
+        "en": "Give the system your data; it organizes and calculates it for you.",
     },
     "ev.help": {
         "zh-TW": "同一來源文件可支援多項義務；此頁整理入口，不重寫計算管線。",
@@ -1747,6 +2670,1388 @@ MESSAGES: dict[str, dict[str, str]] = {
     "ev.open_intake": {"zh-TW": "開啟資料匯入", "en": "Open data upload"},
     "ev.open_activity": {"zh-TW": "開啟活動資料", "en": "Open activity data"},
     "ev.open_issues": {"zh-TW": "開啟待處理問題", "en": "Open issues"},
+    # --- Stage 3B.2 enterprise UX ---
+    "header.help": {"zh-TW": "? 說明", "en": "? Help"},
+    "header.glossary": {"zh-TW": "名詞解釋", "en": "Glossary"},
+    "glossary.title": {"zh-TW": "名詞解釋", "en": "Glossary"},
+    "glossary.intro": {
+        "zh-TW": "工作時可隨時查閱的簡短說明。",
+        "en": "Short definitions available while you work.",
+    },
+    "dash.greeting": {"zh-TW": "早安，{company}", "en": "Good morning, {company}"},
+    "dash.greeting_company_fallback": {
+        "zh-TW": "貴公司",
+        "en": "your company",
+    },
+    "dash.greeting_year_suffix": {
+        "zh-TW": "報導年度",
+        "en": "reporting year",
+    },
+    "dash.greeting_attention_count": {
+        "zh-TW": "{n} 件事項需要處理",
+        "en": "{n} items need attention",
+    },
+    "dash.reporting_context": {
+        "zh-TW": "報導區間與資料",
+        "en": "Reporting period & data",
+    },
+    "dash.section_attention_unified": {
+        "zh-TW": "目前需要注意",
+        "en": "Current Attention",
+    },
+    "dash.section_attention_unified_help": {
+        "zh-TW": "先處理最重要的事項，再進入細節。",
+        "en": "Handle the highest-priority items first.",
+    },
+    "dash.priority.high": {"zh-TW": "高優先", "en": "High"},
+    "dash.priority.medium": {"zh-TW": "中優先", "en": "Medium"},
+    "dash.cta.complete_now": {"zh-TW": "現在完成", "en": "Complete now"},
+    "dash.cta.review_reg": {"zh-TW": "查看法規狀態", "en": "Review regulatory status"},
+    "dash.journey_title": {"zh-TW": "工作進度", "en": "Workflow journey"},
+    "dash.journey_help": {
+        "zh-TW": "顯示目前已完成的工作步驟。",
+        "en": "Shows which work steps are already done.",
+    },
+    "dash.journey.company": {"zh-TW": "公司設定", "en": "Company setup"},
+    "dash.journey.applicability": {
+        "zh-TW": "我的適用要求",
+        "en": "Your requirements",
+    },
+    "dash.journey.data": {"zh-TW": "資料與證據", "en": "Data & evidence"},
+    "dash.journey.prepare": {
+        "zh-TW": "IFRS / 台灣準備",
+        "en": "IFRS / Taiwan preparation",
+    },
+    "dash.journey.reporting": {"zh-TW": "報表", "en": "Reporting"},
+    "dash.emissions_section": {"zh-TW": "排放資料摘要", "en": "Emissions summary"},
+    "dash.coverage_complete": {
+        "zh-TW": "本次上傳的 {total} 筆資料皆已完成計算。",
+        "en": "All {total} uploaded records have been calculated.",
+    },
+    "dash.coverage_complete_demo": {
+        "zh-TW": "本次資料皆已完成計算。",
+        "en": "All records in this dataset have been calculated.",
+    },
+    "dash.coverage_partial": {
+        "zh-TW": "目前已計算 {done} / {total} 筆；其餘資料尚未納入結果。",
+        "en": (
+            "Currently calculated {done} / {total} records; "
+            "the rest are not yet included."
+        ),
+    },
+    "dash.coverage_all_done": {
+        "zh-TW": "本次資料皆已完成計算",
+        "en": "All records in this run are calculated",
+    },
+    "dash.section_scope_main": {
+        "zh-TW": "主要排放範疇",
+        "en": "Main emission scopes",
+    },
+    "dash.scope_help_title": {
+        "zh-TW": "? Scope 是什麼？",
+        "en": "? What is Scope?",
+    },
+    "dash.scope_help_body": {
+        "zh-TW": (
+            "**Scope 1**：公司直接產生的排放，例如燃料燃燒。\n\n"
+            "**Scope 2**：外購能源的間接排放，例如外購電力。\n\n"
+            "**Scope 3**：價值鏈其他間接排放；本版本尚未計算。"
+        ),
+        "en": (
+            "**Scope 1**: Direct emissions, such as fuel combustion.\n\n"
+            "**Scope 2**: Indirect emissions from purchased energy, "
+            "such as electricity.\n\n"
+            "**Scope 3**: Other value-chain emissions; not calculated in this version."
+        ),
+    },
+    "dash.insight.top_scope": {
+        "zh-TW": "目前排放主要來自 {scope}，約占已計算排放量的 {percent}%。",
+        "en": (
+            "Emissions currently come mainly from {scope}, "
+            "about {percent}% of calculated emissions."
+        ),
+    },
+    "dash.insight.top_source": {
+        "zh-TW": "{name}是目前最大的單一排放來源。",
+        "en": "{name} is currently the largest single emissions source.",
+    },
+    "dash.insight.top_source_share": {
+        "zh-TW": "{name}是目前最大的排放來源，占已計算排放量 {percent}%。",
+        "en": (
+            "{name} is currently the largest emissions source, "
+            "{percent}% of calculated emissions."
+        ),
+    },
+    "dash.section_detail": {"zh-TW": "排放明細", "en": "Emissions detail"},
+    "dash.section_detail_help": {
+        "zh-TW": "排放來源與排放趨勢，一次只顯示一張圖。",
+        "en": "Source and trend views; one chart at a time.",
+    },
+    "dash.detail.source": {"zh-TW": "依來源", "en": "By source"},
+    "dash.detail.trend": {"zh-TW": "依月份", "en": "By month"},
+    "dash.detail.trend_title": {
+        "zh-TW": "每月已計算排放量",
+        "en": "Monthly calculated emissions",
+    },
+    "dash.cta.view_detail": {"zh-TW": "查看排放明細", "en": "View emissions detail"},
+    "dash.cta.view_all_attention": {"zh-TW": "查看全部", "en": "View all"},
+    "dash.cta.calc_help": {"zh-TW": "查看計算說明", "en": "View calculation notes"},
+    "dash.evidence_line": {
+        "zh-TW": "資料來源：{count} 個上傳檔案",
+        "en": "Data source: {count} uploaded file(s)",
+    },
+    "dash.evidence_line_demo": {
+        "zh-TW": "資料來源：{count} 個示範檔案",
+        "en": "Data source: {count} demo file(s)",
+    },
+    "dash.scope3_short": {"zh-TW": "尚未計算", "en": "Not yet calculated"},
+    "dash.coverage_learn": {
+        "zh-TW": "了解結果涵蓋範圍",
+        "en": "What this result includes",
+    },
+    "dash.coverage_learn_body": {
+        "zh-TW": (
+            "結果涵蓋目前已完成計算的活動。"
+            "未完成計算的活動不會被當成 0。"
+            "這不是公司的總排放量。"
+        ),
+        "en": (
+            "Results cover activities that have been calculated. "
+            "Activities not yet calculated are not treated as zero. "
+            "This is not total company emissions."
+        ),
+    },
+    "dash.issues_banner": {
+        "zh-TW": "{count} 筆資料仍需處理",
+        "en": "{count} records still need attention",
+    },
+    "dash.cta.view_problems": {"zh-TW": "查看問題", "en": "View issues"},
+    "dash.no_data_issues": {
+        "zh-TW": "沒有待處理的資料問題",
+        "en": "No outstanding data issues",
+    },
+    "dash.section_next": {"zh-TW": "下一步", "en": "Next step"},
+    "dash.next.applicability": {
+        "zh-TW": "完成公司適用性判定",
+        "en": "Complete company applicability",
+    },
+    "dash.next.applicability_body": {
+        "zh-TW": "了解 IFRS / 台灣相關要求",
+        "en": "See IFRS / Taiwan requirements that may apply",
+    },
+    "dash.next.need_more": {
+        "zh-TW": "還需要一些公司資訊才能完成判定",
+        "en": "A few more company details are needed to finish the assessment",
+    },
+    "dash.req.headline": {"zh-TW": "你的主要要求", "en": "Your main requirements"},
+    "dash.req.applies": {"zh-TW": "適用", "en": "Applies"},
+    "dash.req.year_applies": {
+        "zh-TW": "{year} 年開始適用",
+        "en": "Applies from {year}",
+    },
+    "dash.cta.view_requirements": {
+        "zh-TW": "查看全部要求",
+        "en": "View all requirements",
+    },
+    "dash.reg_details": {"zh-TW": "查看詳細資訊", "en": "View details"},
+    "dash.period_line": {
+        "zh-TW": "資料期間 {start} ～ {end}",
+        "en": "Reporting period {start} – {end}",
+    },
+    "dash.source_files_line": {
+        "zh-TW": "來源：{count} 個資料檔案",
+        "en": "Source: {count} data file(s)",
+    },
+    "apl.why_title": {
+        "zh-TW": "為什麼我要回答這些問題？",
+        "en": "Why am I answering these questions?",
+    },
+    "apl.why_body": {
+        "zh-TW": (
+            "這些資料用來判斷哪些法規要求跟你的公司有關。"
+            "你不必先懂碳盤查。"
+        ),
+        "en": (
+            "These answers help identify which requirements apply to your company. "
+            "You do not need carbon-inventory expertise first."
+        ),
+    },
+    "apl.result_heading": {
+        "zh-TW": "你的公司目前：",
+        "en": "Your company today:",
+    },
+    "apl.result.year_applies": {
+        "zh-TW": "{year} 年開始適用",
+        "en": "Applies from {year}",
+    },
+    "apl.result.need_info": {
+        "zh-TW": "還需要更多公司資訊",
+        "en": "More company information is needed",
+    },
+    "apl.cta.view_basis": {"zh-TW": "查看法規依據", "en": "View regulatory basis"},
+    "fw.prepare_what": {
+        "zh-TW": "IFRS S1/S2 要公司準備什麼？",
+        "en": "What do IFRS S1/S2 ask companies to prepare?",
+    },
+    "fw.prepare_body": {
+        "zh-TW": (
+            "公司需要說明如何治理永續議題、策略如何受影響、"
+            "如何管理風險，以及追蹤哪些指標與目標。"
+        ),
+        "en": (
+            "Companies explain who oversees sustainability, how it affects strategy, "
+            "how risks are managed, and which metrics and targets are tracked."
+        ),
+    },
+    "fw.not_compliance": {
+        "zh-TW": "這是揭露準備，不代表已經符合 IFRS。",
+        "en": "This is disclosure preparation; it does not represent IFRS compliance.",
+    },
+    "fw.pillar.governance_q": {
+        "zh-TW": "誰負責永續議題？",
+        "en": "Who is accountable for sustainability?",
+    },
+    "fw.pillar.strategy_q": {
+        "zh-TW": "永續議題如何影響公司？",
+        "en": "How do sustainability issues affect the company?",
+    },
+    "fw.pillar.risk_q": {
+        "zh-TW": "公司如何辨識與管理風險？",
+        "en": "How does the company identify and manage risk?",
+    },
+    "fw.pillar.metrics_q": {
+        "zh-TW": "公司追蹤哪些數據與目標？",
+        "en": "Which metrics and targets does the company track?",
+    },
+    "fw.readiness_detail": {
+        "zh-TW": "了解資料準備細節",
+        "en": "Data-readiness detail",
+    },
+    "tw.explain_title": {
+        "zh-TW": "這四件事有什麼不同？",
+        "en": "How do these four tracks differ?",
+    },
+    "tw.explain.inventory.title": {
+        "zh-TW": "溫室氣體盤查",
+        "en": "GHG inventory",
+    },
+    "tw.explain.inventory.body": {
+        "zh-TW": "算清楚排放量。",
+        "en": "Calculate emissions clearly.",
+    },
+    "tw.explain.verification.title": {
+        "zh-TW": "環境部溫室氣體查驗",
+        "en": "MOENV GHG verification",
+    },
+    "tw.explain.verification.body": {
+        "zh-TW": "特定企業可能需要第三方查驗。",
+        "en": "Some companies may need third-party verification.",
+    },
+    "tw.explain.assurance.title": {
+        "zh-TW": "IFRS Scope 1/2 確信",
+        "en": "IFRS Scope 1/2 assurance",
+    },
+    "tw.explain.assurance.body": {
+        "zh-TW": "永續揭露的第三方確信。",
+        "en": "Third-party assurance for the sustainability disclosure.",
+    },
+    "tw.explain.fee.title": {"zh-TW": "碳費", "en": "Carbon fee"},
+    "tw.explain.fee.body": {
+        "zh-TW": "符合條件的排放來源可能涉及碳費。",
+        "en": "Qualifying emission sources may involve a carbon fee.",
+    },
+    "tw.status_title": {"zh-TW": "你目前的狀態", "en": "Your current status"},
+    "ev.status_title": {"zh-TW": "資料狀態", "en": "Data status"},
+    "ev.status_done": {
+        "zh-TW": "{done} 筆已完成",
+        "en": "{done} records calculated",
+    },
+    "ev.cta.view_activities": {"zh-TW": "查看活動資料", "en": "View activities"},
+    "ev.cta.view_files": {"zh-TW": "查看文件", "en": "View files"},
+    "aud.ask.management": {"zh-TW": "給主管看", "en": "For leadership"},
+    "aud.ask.ifrs": {"zh-TW": "準備 IFRS", "en": "Prepare IFRS"},
+    "aud.ask.ghg": {"zh-TW": "盤查 / 查驗", "en": "Inventory / verification"},
+    "aud.ask.audit": {"zh-TW": "給稽核", "en": "For auditors"},
+    "aud.ask.data": {"zh-TW": "自己分析", "en": "Analyze yourself"},
+    "apl.wizard.step_of": {
+        "zh-TW": "步驟 {current} / {total}",
+        "en": "Step {current} / {total}",
+    },
+    "apl.wizard.step1": {"zh-TW": "確認公司", "en": "Confirm company"},
+    "apl.wizard.step2": {"zh-TW": "補充必要資訊", "en": "Add missing facts"},
+    "apl.wizard.step3": {"zh-TW": "確認台灣廠場", "en": "Confirm Taiwan sites"},
+    "apl.wizard.step4": {"zh-TW": "你的結果", "en": "Your results"},
+    "apl.wizard.step5": {"zh-TW": "你的結果", "en": "Your results"},
+    "apl.wizard.back": {"zh-TW": "上一步", "en": "Back"},
+    "apl.wizard.continue": {"zh-TW": "繼續", "en": "Continue"},
+    "apl.wizard.save": {"zh-TW": "儲存", "en": "Save"},
+    "apl.wizard.finish": {"zh-TW": "查看目前結果", "en": "View current results"},
+    "apl.wizard.view_current": {
+        "zh-TW": "查看目前結果",
+        "en": "View current results",
+    },
+    "apl.wizard.save_view": {
+        "zh-TW": "儲存並查看結果",
+        "en": "Save and view results",
+    },
+    "apl.money.unknown": {"zh-TW": "我不知道", "en": "I don't know"},
+    "apl.money.unknown_help": {
+        "zh-TW": "可以稍後補上；部分判定可能暫時無法完成。",
+        "en": "You can add this later; some results may stay incomplete for now.",
+    },
+    "apl.money.amount_placeholder": {
+        "zh-TW": "請輸入金額",
+        "en": "Enter amount",
+    },
+    "apl.money.blank_is_unknown": {
+        "zh-TW": "",
+        "en": "",
+    },
+    "apl.step2.wait_for_type": {
+        "zh-TW": "請先選擇公司類型，我們再問需要的財務或上市資料。",
+        "en": "Choose a company type first; then we will ask only the needed details.",
+    },
+    "apl.money.invalid_number": {
+        "zh-TW": "請輸入有效數字。",
+        "en": "Please enter a valid number.",
+    },
+    "apl.money.unit_label": {"zh-TW": "單位", "en": "Unit"},
+    "apl.money.unit.yuan": {"zh-TW": "元", "en": "TWD"},
+    "apl.money.unit.wan": {"zh-TW": "萬元", "en": "10k TWD"},
+    "apl.money.unit.yi": {"zh-TW": "億元", "en": "100m TWD"},
+    "apl.obligation_ifrs_assurance": {
+        "zh-TW": "IFRS Scope 1/2 確信",
+        "en": "IFRS Scope 1/2 Assurance",
+    },
+    "apl.obligation_env_verification": {
+        "zh-TW": "環境部溫室氣體查驗",
+        "en": "MOENV GHG verification",
+    },
+    "apl.kind.ifrs_assurance": {
+        "zh-TW": "類型：IFRS 相關確信（與環境查驗不同）",
+        "en": "Type: IFRS-related assurance (distinct from environmental verification)",
+    },
+    "apl.kind.env_verification": {
+        "zh-TW": "類型：台灣環境主管機關查驗",
+        "en": "Type: Taiwan environmental authority verification",
+    },
+    "apl.basis.empty": {
+        "zh-TW": "目前尚未提供自動判定。",
+        "en": "An automatic determination is not available yet.",
+    },
+    "apl.basis.technical": {"zh-TW": "技術資訊", "en": "Technical details"},
+    "apl.cta.start_prepare": {"zh-TW": "開始準備", "en": "Start preparing"},
+    "apl.cta.start_prepare_ifrs": {
+        "zh-TW": "開始準備 IFRS 資料",
+        "en": "Start preparing IFRS data",
+    },
+    "apl.cta.prepare_taiwan": {
+        "zh-TW": "查看台灣要求",
+        "en": "View Taiwan requirements",
+    },
+    "apl.cta.provide_info": {"zh-TW": "補充資料", "en": "Provide information"},
+    "apl.text_needs_review_fallback": {
+        "zh-TW": "目前仍需補充或確認資料後才能完成判定。",
+        "en": "More information is needed before this determination can be completed.",
+    },
+    "apl.notes_secondary": {
+        "zh-TW": "部分官方版本細節仍在確認中；不影響已驗證的適用年度結論。",
+        "en": "Some recognised-version details are still being confirmed.",
+    },
+    "apl.reason_generic.APPLICABLE": {
+        "zh-TW": "依目前公司資料與已驗證規則，此要求適用。開始年度 {year}，首次申報 {filing}。",  # noqa: E501
+        "en": "Applicable under the current profile and verified rules. Start year {year}; first filing {filing}.",  # noqa: E501
+    },
+    "apl.reason_generic.FUTURE_REQUIREMENT": {
+        "zh-TW": "此要求將於未來年度適用（{year}）。",
+        "en": "This requirement applies in a future year ({year}).",
+    },
+    "apl.reason_generic.NEEDS_INFORMATION": {
+        "zh-TW": "我們還無法確認是否適用，請先補充下方資料。",
+        "en": "We cannot confirm applicability yet — please provide the missing information.",  # noqa: E501
+    },
+    "apl.reason_generic.NEEDS_REVIEW": {
+        "zh-TW": "需要進一步人工確認後才能完成判定。",
+        "en": "Additional human review is required before concluding.",
+    },
+    "apl.reason_generic.NOT_APPLICABLE": {
+        "zh-TW": "依目前資料，此要求目前不適用。",
+        "en": "Not applicable based on the current profile.",
+    },
+    "apl.reason_generic.OUT_OF_V1_SCOPE": {
+        "zh-TW": "此類型目前不在本產品第一版自動化範圍。",
+        "en": "This entity type is outside V1 automated support.",
+    },
+    "apl.reason_generic.MANUAL_VERIFICATION_REQUIRED": {
+        "zh-TW": "法規更新確認中，請稍後再判定。",
+        "en": "A regulatory update is under verification.",
+    },
+    "apl.reason_generic.REGULATORY_DATA_STALE": {
+        "zh-TW": "法規資料需要更新後才能完成判定。",
+        "en": "Regulatory data must be refreshed before concluding.",
+    },
+    "apl.reason_generic.NOT_YET_ASSESSED": {
+        "zh-TW": "尚未完成判定。",
+        "en": "Not yet assessed.",
+    },
+    "apl.next_generic.APPLICABLE": {
+        "zh-TW": "開始準備相關揭露與證據資料。",
+        "en": "Start preparing the related disclosures and evidence.",
+    },
+    "apl.next_generic.FUTURE_REQUIREMENT": {
+        "zh-TW": "可先了解時程並預作資料盤點。",
+        "en": "Review the timeline and begin readiness planning.",
+    },
+    "apl.next_generic.NEEDS_INFORMATION": {
+        "zh-TW": "補充公司資料後重新判定。",
+        "en": "Provide the missing company information and reassess.",
+    },
+    "apl.next_generic.NEEDS_REVIEW": {
+        "zh-TW": "此項目前正在確認中，你現在不需要操作。",
+        "en": "This item is being confirmed. You do not need to act now.",
+    },
+    "apl.next_generic.NOT_APPLICABLE": {
+        "zh-TW": "目前無需為此要求準備申報。",
+        "en": "No filing preparation is required for this item now.",
+    },
+    "apl.next_generic.OUT_OF_V1_SCOPE": {
+        "zh-TW": "請另循專責流程追蹤。",
+        "en": "Track this obligation outside the V1 workflow.",
+    },
+    "apl.next_generic.MANUAL_VERIFICATION_REQUIRED": {
+        "zh-TW": "等待法規確認完成後再評估。",
+        "en": "Wait for regulatory verification to finish.",
+    },
+    "apl.next_generic.REGULATORY_DATA_STALE": {
+        "zh-TW": "先更新法規監控狀態。",
+        "en": "Refresh regulatory monitoring state first.",
+    },
+    "apl.next_generic.NOT_YET_ASSESSED": {
+        "zh-TW": "完成公司設定以開始判定。",
+        "en": "Complete company setup to begin assessment.",
+    },
+    "apl.reason.ifrs_s1_s2.APPLICABLE": {
+        "zh-TW": "你的公司屬上市公司，且符合目前第一階段適用條件。",
+        "en": "Your company is a listed company meeting the current first-phase conditions.",  # noqa: E501
+    },
+    "apl.next.ifrs_s1_s2.APPLICABLE": {
+        "zh-TW": "開始準備 IFRS S1/S2 揭露資料。",
+        "en": "Start preparing IFRS S1/S2 disclosure materials.",
+    },
+    "apl.reason.ghg_inventory.NEEDS_INFORMATION": {
+        "zh-TW": "我們還無法確認是否適用溫室氣體盤查。",
+        "en": "We cannot yet confirm whether GHG inventory applies.",
+    },
+    "apl.next.ghg_inventory.NEEDS_INFORMATION": {
+        "zh-TW": "請補充台灣廠場與主管機關通知相關資料。",
+        "en": "Provide Taiwan facility and authority-notice information.",
+    },
+    "apl.reason.carbon_fee.NEEDS_INFORMATION": {
+        "zh-TW": "碳費適用性仍待補充公司與廠場資料後判定。",
+        "en": "Carbon-fee applicability still needs facility information.",
+    },
+    "apl.next.carbon_fee.NEEDS_INFORMATION": {
+        "zh-TW": "請補充台灣廠場與報導邊界相關資料。",
+        "en": "Clarify Taiwan facilities and reporting boundary.",
+    },
+    "apl.reason.verification_assurance.APPLICABLE": {
+        "zh-TW": "IFRS Scope 1/2 確信要求與此公司適用時程相關。",
+        "en": "IFRS Scope 1/2 assurance follows the IFRS adoption timing.",
+    },
+    "apl.reason.verification_assurance.NEEDS_INFORMATION": {
+        "zh-TW": "IFRS 確信判定仍取決於 IFRS 適用性與公司資料。",
+        "en": "IFRS assurance still depends on the IFRS adoption assessment.",
+    },
+    "apl.reason.verification_assurance.FUTURE_REQUIREMENT": {
+        "zh-TW": "IFRS Scope 1/2 確信將依適用時程於未來年度發生。",
+        "en": "IFRS Scope 1/2 assurance will apply in a future year.",
+    },
+    "apl.reason.env_verification.NEEDS_INFORMATION": {
+        "zh-TW": "台灣溫室氣體查驗與 IFRS 確信不同；目前還需要確認是否收到查驗要求。",
+        "en": "Taiwan environmental verification is distinct from IFRS assurance; confirm any notice received.",  # noqa: E501
+    },
+    "apl.reason.env_verification.NEEDS_REVIEW": {
+        "zh-TW": "你已表示收到查驗要求。",
+        "en": "You indicated that a verification requirement was received.",
+    },
+    "apl.next.env_verification.NEEDS_INFORMATION": {
+        "zh-TW": "補充是否曾收到環境主管機關查驗要求。",
+        "en": "Confirm whether an environmental authority required verification.",
+    },
+    "apl.next.env_verification.NEEDS_REVIEW": {
+        "zh-TW": "補充／核對主管機關通知。",
+        "en": "Add or check the official notice.",
+    },
+    "learn.why_label": {
+        "zh-TW": "為什麼需要這項資料？",
+        "en": "Why is this information needed?",
+    },
+    "learn.where_label": {"zh-TW": "去哪裡找資料？", "en": "Where to find it?"},
+    "learn.wizard.step1.title": {
+        "zh-TW": "這一步需要什麼？",
+        "en": "What this step needs",
+    },
+    "learn.wizard.step1.body": {
+        "zh-TW": "輸入統一編號後，先確認帶入的公司資料是否正確。",
+        "en": "After entering the business number, confirm the company we found.",
+    },
+    "learn.wizard.step1.where": {
+        "zh-TW": "公司登記資料、最新年報或公開資訊觀測站。",
+        "en": "Company registration, annual report, or market disclosure sites.",
+    },
+    "learn.wizard.step1.why": {
+        "zh-TW": "不同公司類型的適用時程與義務不同。",
+        "en": "Different entity types follow different obligation timelines.",
+    },
+    "learn.wizard.step2.title": {
+        "zh-TW": "上市與財務資料",
+        "en": "Listing & financials",
+    },
+    "learn.wizard.step2.body": {
+        "zh-TW": "只補官方資料沒有、但判定真正需要的項目；不知道請勿填 0。",
+        "en": (
+            "Add only facts official data could not supply and the rules need; "
+            "never enter 0 if unknown."
+        ),
+    },
+    "learn.wizard.step2.where": {
+        "zh-TW": "資產負債表「權益總額」、公司登記資本額、公開資訊觀測站。",
+        "en": "Balance-sheet equity, registered capital, or disclosure filings.",
+    },
+    "learn.wizard.step2.why": {
+        "zh-TW": "部分上市櫃適用時程依資本額分階段；淨值僅在特定情形輔助判定。",
+        "en": (
+            "Some listed phases depend on capital; "
+            "net worth is only used in specific cases."
+        ),
+    },
+    "learn.wizard.step3.title": {
+        "zh-TW": "確認台灣廠場",
+        "en": "Confirm Taiwan sites",
+    },
+    "learn.wizard.step3.body": {
+        "zh-TW": (
+            "政府名錄與上傳資料找出的據點，請確認這次是否納入。"
+            "登記工廠不自動等於盤查範圍。"
+        ),
+        "en": (
+            "Confirm whether discovered sites belong in this year's data. "
+            "A registered factory is not automatically in scope."
+        ),
+    },
+    "learn.wizard.step3.where": {
+        "zh-TW": "合併財務報表附註、組織圖、永續報告書邊界說明。",
+        "en": (
+            "Consolidated-statement notes, org charts, "
+            "sustainability boundary notes."
+        ),
+    },
+    "learn.wizard.step3.why": {
+        "zh-TW": "邊界不清會影響後續證據與揭露準備。",
+        "en": "Unclear boundaries create evidence and disclosure gaps later.",
+    },
+    "learn.wizard.step4.title": {
+        "zh-TW": "台灣廠場與通知",
+        "en": "Taiwan facilities & notices",
+    },
+    "learn.wizard.step4.body": {
+        "zh-TW": (
+            "台灣盤查、環境查驗與碳費取決於廠場與主管機關通知，"
+            "不是只看上傳排放量。"
+        ),
+        "en": (
+            "Taiwan inventory, verification, and carbon fee depend on "
+            "facilities and notices — not upload totals alone."
+        ),
+    },
+    "learn.wizard.step4.where": {
+        "zh-TW": "廠場清冊、環境主管機關公文／通知、既有環保許可資料。",
+        "en": "Facility lists, environmental authority notices, existing permits.",
+    },
+    "learn.wizard.step4.why": {
+        "zh-TW": "缺少這些資訊時系統會標示「還需要資料」，而不是當成違法。",
+        "en": (
+            "Missing facts show as “needs information”, "
+            "not as a legal failure."
+        ),
+    },
+    "learn.wizard.step5.title": {
+        "zh-TW": "判定結果怎麼讀",
+        "en": "How to read results",
+    },
+    "learn.wizard.step5.body": {
+        "zh-TW": (
+            "每張結果卡會說明是否適用、何時開始，以及建議下一步；"
+            "官方依據預設收合。"
+        ),
+        "en": (
+            "Each card shows applicability, timing, and next action; "
+            "official basis stays collapsed."
+        ),
+    },
+    "learn.wizard.step5.where": {
+        "zh-TW": "展開「查看官方依據」可看到主管機關與文件編號。",
+        "en": "Expand “View official basis” for authority and document IDs.",
+    },
+    "learn.wizard.step5.why": {
+        "zh-TW": "先理解決策，再深入法條細節，可減少閱讀負擔。",
+        "en": (
+            "Understand the decision first, then dive into "
+            "legal detail when needed."
+        ),
+    },
+    "learn.hint.entity_type": {
+        "zh-TW": "會影響部分要求的開始年度。",
+        "en": "This can affect when some requirements start.",
+    },
+    "learn.why.entity_type": {
+        "zh-TW": "不同公司類型的適用時程與義務不同。",
+        "en": "Different company types follow different timelines.",
+    },
+    "learn.hint.paid_in_capital_twd": {
+        "zh-TW": "通常可在公司登記資料找到。",
+        "en": "Usually found in company registration records.",
+    },
+    "learn.hint.net_worth_twd": {
+        "zh-TW": "通常可在資產負債表「權益總額」找到。",
+        "en": "Usually found as total equity on the balance sheet.",
+    },
+    "learn.example.paid_in_capital_twd": {
+        "zh-TW": "例如：實收資本額 120 億元。",
+        "en": "Example: paid-in capital NT$12 billion.",
+    },
+    "learn.example.net_worth_twd": {
+        "zh-TW": "例如：權益總額 95 億元。",
+        "en": "Example: total equity NT$9.5 billion.",
+    },
+    "learn.why.paid_in_capital_twd": {
+        "zh-TW": "部分上市櫃適用時程會依實收資本額分階段。",
+        "en": "Some listed-company phases depend on paid-in capital.",
+    },
+    "learn.why.net_worth_twd": {
+        "zh-TW": "在特定情況下，部分適用時程會使用淨值輔助判定。",
+        "en": "In some cases, timing rules may also use net worth.",
+    },
+    "learn.why_detail.paid_in_capital_twd": {
+        "zh-TW": "系統只會在相關規則需要時使用此資料，不會改寫你的財務報表。",
+        "en": "Used only when a relevant rule needs it.",
+    },
+    "learn.why_detail.net_worth_twd": {
+        "zh-TW": "若你暫時不知道，可先勾選「不知道」，不要填 0。",
+        "en": "If unknown, choose “I don't know” — do not enter 0.",
+    },
+    "learn.panel_title": {"zh-TW": "了解這項要求", "en": "Learn this requirement"},
+    "learn.req.label.what": {"zh-TW": "這是什麼？", "en": "What is it?"},
+    "learn.req.label.why": {"zh-TW": "為什麼可能適用？", "en": "Why may it apply?"},
+    "learn.req.label.need": {"zh-TW": "之後需要哪些資料？", "en": "What will I need?"},
+    "learn.req.label.first": {"zh-TW": "建議先做什麼？", "en": "What to prepare first?"},  # noqa: E501
+    "learn.req.ifrs.what": {
+        "zh-TW": "IFRS S1/S2 是永續與氣候相關財務揭露準則。",
+        "en": "IFRS S1/S2 are sustainability and climate disclosure standards.",
+    },
+    "learn.req.ifrs.why": {
+        "zh-TW": "台灣已對特定上市櫃公司訂定適用時程。",
+        "en": "Taiwan has set adoption timing for certain listed companies.",
+    },
+    "learn.req.ifrs.need": {
+        "zh-TW": "治理、策略、風險與指標相關說明，以及可追溯證據。",
+        "en": "Governance, strategy, risk, metrics narrative, and traceable evidence.",
+    },
+    "learn.req.ifrs.first": {
+        "zh-TW": "先完成適用性判定，再整理 Scope 1/2 排放與相關證據。",
+        "en": "Finish applicability, then organise Scope 1/2 emissions and evidence.",
+    },
+    "learn.req.taiwan.what": {
+        "zh-TW": "台灣溫室氣體盤查、查驗與碳費是不同制度軌道。",
+        "en": "Taiwan GHG inventory, verification, and carbon fee are distinct tracks.",
+    },
+    "learn.req.taiwan.why": {
+        "zh-TW": "是否適用取決於廠場、通知與官方條件，不能只看上傳排放量。",
+        "en": "Applicability depends on facilities and official criteria — not upload totals alone.",  # noqa: E501
+    },
+    "learn.req.taiwan.need": {
+        "zh-TW": "廠場資訊、官方通知，以及後續盤查工作底稿。",
+        "en": "Facility facts, official notices, and later inventory workpapers.",
+    },
+    "learn.req.taiwan.first": {
+        "zh-TW": "先回答台灣廠場與通知問題。",
+        "en": "Answer the Taiwan facility and notice questions first.",
+    },
+    "reg.admin.expected": {"zh-TW": "預期自動化來源", "en": "Automated sources expected"},  # noqa: E501
+    "reg.admin.successful": {"zh-TW": "成功檢查", "en": "Successful checks"},
+    "reg.admin.failed": {"zh-TW": "失敗檢查", "en": "Failed checks"},
+    "reg.admin.config_required": {
+        "zh-TW": "待設定來源",
+        "en": "Configuration required",
+    },
+    "reg.admin.manual_access": {
+        "zh-TW": "本輪需人工處理",
+        "en": "Manual access this run",
+    },
+    "reg.admin.manual_reference": {
+        "zh-TW": "人工／參考來源總數",
+        "en": "Manual/reference sources",
+    },
+    "reg.admin.restricted": {
+        "zh-TW": "限制自動化來源",
+        "en": "Restricted automation sources",
+    },
+    "reg.admin.pending_signals": {
+        "zh-TW": "待審變更訊號",
+        "en": "Pending change signals",
+    },
+    "reg.admin.last_verified": {"zh-TW": "最後確認", "en": "Last verified"},
+    "reg.admin.monitoring_health": {"zh-TW": "監控健康狀態", "en": "Monitoring health"},
+    "reg.admin.supporting_note": {"zh-TW": "輔助來源說明", "en": "Supporting note"},
+    "ev.reuse_title": {
+        "zh-TW": "上傳一次，多處重用",
+        "en": "Upload once, reuse across requirements",
+    },
+    "ev.reuse_help": {
+        "zh-TW": "同一證據可同時支持排放計算、IFRS 指標與盤查工作底稿。",
+        "en": "The same evidence can support calculations, IFRS metrics, and inventory workpapers.",  # noqa: E501
+    },
+    "empty.no_assessment_title": {
+        "zh-TW": "先完成公司設定",
+        "en": "Complete company setup first",
+    },
+    "empty.no_assessment_body": {
+        "zh-TW": "提供幾項公司基本資料後，即可查看此處要求。",
+        "en": "Share a few company basics to see the related requirements here.",
+    },
+    "empty.no_evidence_title": {
+        "zh-TW": "尚未加入證據資料",
+        "en": "No evidence uploaded yet",
+    },
+    "empty.no_evidence_body": {
+        "zh-TW": "上傳電費單、燃料紀錄或其他活動資料後，系統會在這裡建立可追溯的證據紀錄。",  # noqa: E501
+        "en": "Upload utility bills or activity data to create traceable evidence records.",  # noqa: E501
+    },
+    "sidebar.company_unset": {
+        "zh-TW": "尚未設定公司",
+        "en": "Company not set",
+    },
+    "sidebar.source_empty_detail": {
+        "zh-TW": "尚未上傳公司資料",
+        "en": "No company data uploaded yet",
+    },
+    "aud.group.ifrs": {"zh-TW": "IFRS 準備資料", "en": "IFRS preparation"},
+    "aud.group.ifrs_help": {
+        "zh-TW": "前往 IFRS 工作區整理揭露準備資料。",
+        "en": "Open the IFRS workspace to prepare disclosure materials.",
+    },
+    "aud.group.ifrs_body": {
+        "zh-TW": "適用性判定完成後，可在此繼續準備 IFRS S1/S2 相關資料。",
+        "en": "After applicability, continue preparing IFRS S1/S2 materials.",
+    },
+    "aud.group.management_help": {
+        "zh-TW": "給經營層閱讀的分析摘要，不是技術稽核檔。",
+        "en": "An executive-readable summary — not a technical audit file.",
+    },
+    "aud.group.management_unavailable": {
+        "zh-TW": "管理摘要匯出尚未建立。目前僅顯示畫面上的分析摘要。",
+        "en": (
+            "A downloadable management-summary export is not available yet. "
+            "The on-screen summary is shown instead."
+        ),
+    },
+    "aud.group.audit_pkg": {"zh-TW": "稽核包", "en": "Audit package"},
+    "aud.group.audit_pkg_help": {
+        "zh-TW": "下載完整技術稽核包供外部查核使用。",
+        "en": "Download the full technical audit package for external review.",
+    },
+    "aud.group.audit_pkg_body": {
+        "zh-TW": (
+            "包含活動資料、排放計算、待處理問題、IFRS 資料準備度與證據追蹤"
+            "（工作底稿用途，非正式申報檔）。"
+        ),
+        "en": (
+            "Includes activities, calculations, open issues, IFRS data readiness, "
+            "and evidence trail files (workpaper use, not an official filing)."
+        ),
+    },
+    "aud.audit_trace": {"zh-TW": "稽核追溯資訊", "en": "Audit trace information"},
+    "aud.tech_ids": {"zh-TW": "技術識別資訊", "en": "Technical identifiers"},
+    "aud.evidence_desc": {
+        "zh-TW": "已接受的來源文件與使用情形。",
+        "en": "Accepted source documents and how they are used.",
+    },
+    "aud.advanced_audit": {
+        "zh-TW": "稽核追溯資訊",
+        "en": "Audit trace information",
+    },
+    "aud.advanced_customer_note": {
+        "zh-TW": "此區提供稽核追蹤用的技術資訊，日常作業通常不需開啟。",
+        "en": "Technical audit metadata — usually not needed for daily work.",
+    },
+    "aud.advanced_admin_only": {
+        "zh-TW": "登錄庫維護與系統架構細節僅在管理模式下顯示。",
+        "en": "Registry maintenance details appear in admin mode only.",
+    },
+    "aud.run_id_hidden": {"zh-TW": "執行識別", "en": "Run identity"},
+    "aud.ingested_at": {"zh-TW": "匯入時間", "en": "Ingested at"},
+    "act.col.unit": {"zh-TW": "單位", "en": "Unit"},
+    "act.col.period": {"zh-TW": "活動日期／期間", "en": "Activity period"},
+    "act.col.source_doc": {"zh-TW": "來源文件", "en": "Source document"},
+    "act.layer.operational": {
+        "zh-TW": "活動摘要",
+        "en": "Activity summary",
+    },
+    "act.layer.basis": {"zh-TW": "查看計算依據", "en": "View calculation basis"},
+    "act.layer.audit": {"zh-TW": "稽核追溯資訊", "en": "Audit trace information"},
+    "act.trace_normalized": {
+        "zh-TW": "正規化用量",
+        "en": "Normalized quantity",
+    },
+    "act.trace_authority": {
+        "zh-TW": "官方來源／機關",
+        "en": "Official authority / source",
+    },
+    "iss.related.activity": {"zh-TW": "相關活動", "en": "Related activity"},
+    "iss.related.document": {"zh-TW": "來源文件", "en": "Source document"},
+    "iss.related.period": {"zh-TW": "期間", "en": "Period"},
+    "iss.related.view_source": {
+        "zh-TW": "查看來源資料",
+        "en": "View source data",
+    },
+    "iss.audit_trace": {"zh-TW": "稽核追溯資訊", "en": "Audit trace information"},
+    "ev.col.name": {"zh-TW": "文件名稱", "en": "Document name"},
+    "ev.col.type": {"zh-TW": "文件類型", "en": "Document type"},
+    "ev.col.period": {"zh-TW": "期間", "en": "Period"},
+    "ev.col.source": {"zh-TW": "來源", "en": "Source"},
+    "ev.col.used_for": {"zh-TW": "使用於", "en": "Used for"},
+    "ev.col.status": {"zh-TW": "狀態", "en": "Status"},
+    "ev.col.data_origin": {"zh-TW": "資料來源類型", "en": "Data origin"},
+    "ev.status.demo": {"zh-TW": "示範資料", "en": "Demo data"},
+    "ev.status.imported": {"zh-TW": "已匯入", "en": "Imported"},
+    "ev.status.pending": {"zh-TW": "待確認", "en": "Pending review"},
+    "ev.status.needs_action": {"zh-TW": "需要處理", "en": "Needs attention"},
+    "ev.status.verified": {"zh-TW": "已驗證", "en": "Verified"},
+    "ev.origin.company": {"zh-TW": "公司提供", "en": "Company provided"},
+    "ev.reuse.none": {"zh-TW": "尚未連結使用", "en": "No linked uses yet"},
+    "ev.reuse.scope1": {
+        "zh-TW": "Scope 1 計算",
+        "en": "Scope 1 calculation",
+    },
+    "ev.reuse.scope2": {
+        "zh-TW": "Scope 2 計算",
+        "en": "Scope 2 calculation",
+    },
+    "ev.reuse.calculation": {
+        "zh-TW": "排放計算",
+        "en": "Emissions calculation",
+    },
+    "ev.reuse.ifrs": {
+        "zh-TW": "IFRS S2 指標證據",
+        "en": "IFRS S2 metrics evidence",
+    },
+    "ev.reuse.ghg": {
+        "zh-TW": "GHG 盤查工作底稿",
+        "en": "GHG inventory workpaper",
+    },
+    "ev.drill.title": {"zh-TW": "文件詳情", "en": "Document detail"},
+    "ev.drill.usage": {"zh-TW": "計算與使用情形", "en": "Calculation & usage"},
+    "ev.drill.source": {"zh-TW": "官方／資料來源", "en": "Source details"},
+    "ev.drill.audit": {"zh-TW": "稽核追溯資訊", "en": "Audit trace information"},
+    "ev.doc_type.other": {"zh-TW": "其他文件", "en": "Other document"},
+    "ev.doc_type.utility_bill": {"zh-TW": "電費帳單", "en": "Utility bill"},
+    "ev.doc_type.invoice": {"zh-TW": "發票", "en": "Invoice"},
+    "ev.doc_type.receipt": {"zh-TW": "收據", "en": "Receipt"},
+    "fw.sasb_title": {
+        "zh-TW": "系統建議的 SASB 產業分類",
+        "en": "Suggested SASB industry classification",
+    },
+    "fw.sasb_help": {
+        "zh-TW": "此分類屬 IFRS 準備細節，可稍後再確認，不必在公司設定時完成。",
+        "en": "SASB classification belongs to IFRS prep and can be set later.",
+    },
+    "fw.sasb_unset": {
+        "zh-TW": "尚未設定。可在準備 IFRS 揭露時再確認或修改。",
+        "en": "Not set yet. Confirm or edit later during IFRS preparation.",
+    },
+    "fw.sasb_current": {"zh-TW": "目前分類", "en": "Current classification"},
+    "fw.sasb_edit": {"zh-TW": "確認／修改", "en": "Confirm / edit"},
+    "fw.sasb_save": {"zh-TW": "儲存 SASB 分類", "en": "Save SASB classification"},
+    "cust.status.applicable": {"zh-TW": "適用", "en": "Applies"},
+    "cust.status.not_applicable": {
+        "zh-TW": "目前不適用",
+        "en": "Does not apply now",
+    },
+    "cust.status.future_applicable": {
+        "zh-TW": "未來將適用",
+        "en": "Will apply later",
+    },
+    "cust.status.needs_company_data": {
+        "zh-TW": "還需要一些資料",
+        "en": "A few details still needed",
+    },
+    "cust.status.system_review": {
+        "zh-TW": "正在確認中",
+        "en": "Being confirmed",
+    },
+    "cust.status.no_automatic_result": {
+        "zh-TW": "目前尚未提供自動判定",
+        "en": "Automatic result not available yet",
+    },
+    "cust.status.not_started": {"zh-TW": "尚未開始", "en": "Not started"},
+    "cust.status.unsupported": {
+        "zh-TW": "目前版本暫不支援",
+        "en": "Not supported in this version",
+    },
+    "cust.fact.taiwan_facility": {
+        "zh-TW": "台灣廠場／營運據點",
+        "en": "Taiwan sites / operations",
+    },
+    "cust.fact.authority_notice": {
+        "zh-TW": "是否收到主管機關盤查或查驗通知",
+        "en": "Whether an authority inventory or verification notice was received",
+    },
+    "cust.fact.reporting_scope": {
+        "zh-TW": "這次報告包含哪些公司",
+        "en": "Which companies this report includes",
+    },
+    "cust.fact.paid_in_capital": {"zh-TW": "實收資本額", "en": "Paid-in capital"},
+    "cust.fact.net_worth": {"zh-TW": "公司淨值", "en": "Net worth"},
+    "cust.fact.listing": {
+        "zh-TW": "公司是否上市／上櫃",
+        "en": "Whether the company is listed / OTC",
+    },
+    "cust.fact.entity_type": {"zh-TW": "公司類型", "en": "Company type"},
+    "cust.timing.start_year": {
+        "zh-TW": "{year} 年開始適用",
+        "en": "Applies from {year}",
+    },
+    "cust.timing.first_filing": {
+        "zh-TW": "{year} 年首次申報",
+        "en": "First filing in {year}",
+    },
+    "cust.explain.applicable": {
+        "zh-TW": "此要求適用於你的公司。",
+        "en": "This requirement applies to your company.",
+    },
+    "cust.explain.not_applicable": {
+        "zh-TW": "依目前資料，此要求目前不適用。",
+        "en": "Based on current information, this does not apply now.",
+    },
+    "cust.explain.future_applicable": {
+        "zh-TW": "此要求將於未來年度適用。",
+        "en": "This requirement will apply in a later year.",
+    },
+    "cust.explain.needs_company_data": {
+        "zh-TW": "還需要一些公司資料才能完成這項判定。",
+        "en": "A few company details are still needed to finish this result.",
+    },
+    "cust.explain.system_review": {
+        "zh-TW": "此項目前正在確認中，你現在不需要操作。",
+        "en": "This item is being confirmed. You do not need to act now.",
+    },
+    "cust.explain.no_automatic_result": {
+        "zh-TW": "目前尚未提供自動判定。",
+        "en": "An automatic determination is not available yet.",
+    },
+    "cust.explain.not_started": {
+        "zh-TW": "相關設定尚未完成。",
+        "en": "This workflow has not been completed yet.",
+    },
+    "cust.explain.unsupported": {
+        "zh-TW": "目前版本暫不支援此項。",
+        "en": "This version does not support this item yet.",
+    },
+    "cust.explain.ifrs.needs_company_data": {
+        "zh-TW": "還需要一些公司資料，才能確認適用時程。",
+        "en": "A few company details are still needed to confirm the timeline.",
+    },
+    "cust.explain.ifrs.applicable": {
+        "zh-TW": "你的公司屬於目前第一階段適用範圍。",
+        "en": "Your company is in the current first-phase scope.",
+    },
+    "cust.explain.ifrs_assurance.needs_company_data": {
+        "zh-TW": "IFRS 適用時程確認後，才能判斷 Scope 1/2 確信準備時點。",
+        "en": "Assurance timing follows the IFRS adoption timeline.",
+    },
+    "cust.explain.ifrs_assurance.applicable": {
+        "zh-TW": "永續揭露中的 Scope 1/2 排放資料需要準備第三方確信。",
+        "en": (
+            "Scope 1/2 emissions in the sustainability disclosure need "
+            "third-party assurance."
+        ),
+    },
+    "cust.explain.ghg_inventory.needs_company_data": {
+        "zh-TW": (
+            "我們還需要確認公司是否有台灣廠場，以及是否曾收到主管機關"
+            "要求盤查或登錄溫室氣體的通知。"
+        ),
+        "en": (
+            "We still need to confirm Taiwan sites and whether an authority "
+            "asked the company to inventory or register GHG."
+        ),
+    },
+    "cust.explain.env_verification.needs_company_data": {
+        "zh-TW": "特定受管制企業可能需要由第三方查驗排放資料。",
+        "en": "Some regulated companies may need third-party emission verification.",
+    },
+    "cust.explain.env_verification.received": {
+        "zh-TW": "你已表示收到查驗要求。",
+        "en": "You indicated that a verification requirement was received.",
+    },
+    "cust.explain.carbon_fee.needs_company_data": {
+        "zh-TW": "目前還無法確認是否涉及碳費。",
+        "en": "We cannot yet confirm whether a carbon fee applies.",
+    },
+    "cust.q.ghg_inventory": {
+        "zh-TW": "公司需要向環境部盤查／登錄溫室氣體嗎？",
+        "en": "Does the company need to inventory / register GHG with MOENV?",
+    },
+    "cust.q.env_verification": {
+        "zh-TW": "公司需要第三方查驗溫室氣體資料嗎？",
+        "en": "Does the company need third-party GHG verification?",
+    },
+    "cust.q.carbon_fee": {
+        "zh-TW": "公司可能需要繳碳費嗎？",
+        "en": "Might the company need to pay a carbon fee?",
+    },
+    "cust.meaning.ghg_inventory": {
+        "zh-TW": "如果適用，公司需要整理年度排放資料並依規定完成登錄。",
+        "en": (
+            "If this applies, the company must compile annual emissions "
+            "and complete registration."
+        ),
+    },
+    "cust.meaning.env_verification": {
+        "zh-TW": "如果適用，需要由合格第三方檢查公司的排放資料。",
+        "en": (
+            "If this applies, a qualified third party must check "
+            "the emissions data."
+        ),
+    },
+    "cust.meaning.carbon_fee": {
+        "zh-TW": "符合相關法規條件的排放來源，可能成為碳費徵收對象。",
+        "en": (
+            "Emissions that meet the legal conditions may be subject "
+            "to the carbon fee."
+        ),
+    },
+    "cust.answer.need": {"zh-TW": "需要", "en": "Yes, it is needed"},
+    "cust.answer.not_need": {"zh-TW": "目前不需要", "en": "Not needed now"},
+    "cust.answer.future": {"zh-TW": "未來年度再確認", "en": "Confirm in a later year"},
+    "cust.results.heading": {
+        "zh-TW": "你的公司目前需要做什麼？",
+        "en": "What does your company need to do now?",
+    },
+    "cust.results.outcomes": {"zh-TW": "判定結果", "en": "Results"},
+    "cust.action.missing_count": {
+        "zh-TW": "還差 {n} 項資料",
+        "en": "{n} more detail(s) needed",
+    },
+    "cust.action.after_answer": {
+        "zh-TW": "完成後，我們會更新下方的台灣要求判定。",
+        "en": "After this, we will update the Taiwan results below.",
+    },
+    "cust.q.missing_notice": {
+        "zh-TW": "公司是否曾收到主管機關要求盤查、登錄或查驗溫室氣體的通知？",
+        "en": (
+            "Has the company received an authority notice requiring GHG "
+            "inventory, registration, or verification?"
+        ),
+    },
+    "cust.q.missing_facilities": {
+        "zh-TW": "請先確認政府找到的台灣工廠今年是否仍由公司營運。",
+        "en": (
+            "Please confirm whether the found Taiwan factories "
+            "still operate this year."
+        ),
+    },
+    "cust.cta.confirm_notice": {
+        "zh-TW": "確認主管機關通知",
+        "en": "Confirm the authority notice",
+    },
+    "cust.cta.notice_yes": {"zh-TW": "有", "en": "Yes"},
+    "cust.cta.notice_no": {"zh-TW": "沒有", "en": "No"},
+    "cust.cta.notice_unsure": {"zh-TW": "不確定", "en": "Not sure"},
+    "cust.cta.provide_company_facts": {
+        "zh-TW": "補上公司資料",
+        "en": "Add company details",
+    },
+    "cust.cta.prepare_emissions": {
+        "zh-TW": "補上完整年度排放資料",
+        "en": "Prepare the full-year emissions data",
+    },
+    "cust.cta.confirm_facilities": {
+        "zh-TW": "確認台灣廠場",
+        "en": "Confirm Taiwan sites",
+    },
+    "cust.action.taiwan_missing": {
+        "zh-TW": "還差 {n} 項資料，就能完成 {m} 個台灣要求的判定",
+        "en": "{n} more detail(s) would complete {m} Taiwan requirement(s)",
+    },
+    "cust.action.missing": {
+        "zh-TW": "還差 {n} 項資料就能完成判定",
+        "en": "{n} more detail(s) would complete the results",
+    },
+    "cust.action.need_profile": {
+        "zh-TW": "先完成公司基本資料，才能整理適用要求。",
+        "en": "Complete company basics first so we can list related requirements.",
+    },
+    "setup.ubn.label": {"zh-TW": "統一編號", "en": "Unified business number"},
+    "setup.ubn.help": {
+        "zh-TW": "輸入統一編號，我們會從目前的官方公司資料中尋找。",
+        "en": (
+            "Enter the unified business number to search "
+            "the current official company data."
+        ),
+    },
+    "setup.lookup": {"zh-TW": "查詢公司", "en": "Look up company"},
+    "setup.found": {"zh-TW": "我們找到：", "en": "We found:"},
+    "setup.status": {"zh-TW": "公司狀態", "en": "Company status"},
+    "setup.address": {"zh-TW": "公司地址", "en": "Company address"},
+    "setup.capital": {"zh-TW": "實收資本額", "en": "Paid-in capital"},
+    "setup.listing": {"zh-TW": "公司類型 / 市場資訊", "en": "Market status"},
+    "setup.listing.TWSE": {"zh-TW": "上市", "en": "TWSE listed"},
+    "setup.listing.TPEX": {"zh-TW": "上櫃", "en": "TPEx listed"},
+    "setup.listing.PUBLIC": {"zh-TW": "公開發行", "en": "Public company"},
+    "setup.business_items": {
+        "zh-TW": "主要營業項目",
+        "en": "Registered business items",
+    },
+    "setup.source": {"zh-TW": "資料來源", "en": "Source"},
+    "setup.source.open_data": {
+        "zh-TW": "政府公開資料",
+        "en": "Government open data",
+    },
+    "setup.source.gcis": {
+        "zh-TW": "政府公開資料",
+        "en": "Government open data",
+    },
+    "setup.data_as_of": {"zh-TW": "資料更新至", "en": "Data current as of"},
+    "setup.last_lookup": {"zh-TW": "資料更新至", "en": "Data current as of"},
+    "setup.confirm_company": {"zh-TW": "這是我的公司", "en": "This is my company"},
+    "setup.confirm_company_ok": {
+        "zh-TW": "已確認公司資料。",
+        "en": "Company confirmed.",
+    },
+    "setup.data_wrong": {"zh-TW": "資料不正確", "en": "Some details are incorrect"},
+    "setup.data_wrong.help": {
+        "zh-TW": "你可以修正公司名稱或地址。官方登記資料仍會保留。",
+        "en": (
+            "You can correct the company name or address. "
+            "The official registered values are kept."
+        ),
+    },
+    "setup.retry": {"zh-TW": "稍後重試", "en": "Try again later"},
+    "setup.manual": {"zh-TW": "手動填寫公司資料", "en": "Enter company details"},
+    "setup.not_found": {
+        "zh-TW": "目前的官方公司資料庫沒有找到這個統編。",
+        "en": (
+            "This unified business number is not in the current "
+            "official company database."
+        ),
+    },
+    "setup.not_found.hint": {
+        "zh-TW": "目前資料庫以公開發行／上市櫃等官方公開公司資料為主。",
+        "en": (
+            "Coverage currently focuses on official public / listed "
+            "company open data."
+        ),
+    },
+    "setup.stale": {
+        "zh-TW": "目前的官方公司資料庫沒有找到這個統編。",
+        "en": (
+            "This unified business number is not in the current "
+            "official company database."
+        ),
+    },
+    "setup.capital_source": {
+        "zh-TW": "來源：政府公開資料",
+        "en": "Source: government open data",
+    },
+    "setup.capital_edit": {"zh-TW": "修改", "en": "Edit"},
+    "setup.listing_source": {
+        "zh-TW": "依證交所／櫃買中心公開資料建議。",
+        "en": "Suggested from TWSE / TPEx open data.",
+    },
+    "setup.net_worth_help": {
+        "zh-TW": "公司淨值通常可在最新資產負債表的「權益總額」找到。",
+        "en": "Net worth is usually total equity on the latest balance sheet.",
+    },
+    "setup.group.label": {
+        "zh-TW": "這次報告包含哪些公司？",
+        "en": "Which companies does this report include?",
+    },
+    "setup.group.SELF_ONLY": {"zh-TW": "僅本公司", "en": "This company only"},
+    "setup.group.WITH_SUBSIDIARIES": {
+        "zh-TW": "還包含子公司",
+        "en": "Includes subsidiaries",
+    },
+    "setup.group.UNKNOWN": {"zh-TW": "還不確定", "en": "Not sure yet"},
+    "setup.group.help": {
+        "zh-TW": "這與廠場不同：這裡問的是公司／子公司，不是工廠地址。",
+        "en": "This is about companies, not physical sites.",
+    },
+    "setup.facilities.aligned": {
+        "zh-TW": "我們找到 {n} 個據點，資料一致。",
+        "en": "We found {n} sites, and the sources agree.",
+    },
+    "setup.facilities.review": {
+        "zh-TW": "我們找到 {n} 個可能的台灣廠場，請確認。",
+        "en": "We found {n} possible Taiwan sites. Please confirm.",
+    },
+    "setup.facilities.confirm_include": {
+        "zh-TW": (
+            "我們找到以下可能的廠場，請確認這次是否需要納入。"
+            "這會用來建立本次盤查範圍（報導邊界）。"
+        ),
+        "en": (
+            "Please confirm which discovered sites belong in this year's data. "
+            "This builds the inventory boundary."
+        ),
+    },
+    "setup.facilities.title": {"zh-TW": "確認台灣廠場", "en": "Confirm Taiwan sites"},
+    "setup.facilities.found_official": {
+        "zh-TW": "根據政府公開資料，我們找到 {n} 個登記工廠。",
+        "en": "Official public records show {n} registered factories.",
+    },
+    "setup.facilities.still_operating": {
+        "zh-TW": "這些工廠在 {year} 年是否都仍由公司營運？",
+        "en": "Are these factories still operated by the company in {year}?",
+    },
+    "setup.facilities.confirm_all": {
+        "zh-TW": "是，{n} 個都正確",
+        "en": "Yes, all {n} are correct",
+    },
+    "setup.facilities.exceptions": {
+        "zh-TW": "有廠場已停用、出售或資料不正確",
+        "en": "Some sites are closed, sold, or incorrect",
+    },
+    "setup.facilities.view_list": {
+        "zh-TW": "查看找到的 {n} 個廠場",
+        "en": "View the {n} found sites",
+    },
+    "setup.facilities.source_once": {
+        "zh-TW": "資料來源：政府登記工廠公開資料",
+        "en": "Source: official registered-factory public data",
+    },
+    "setup.facilities.as_of": {
+        "zh-TW": "資料更新至：{date}",
+        "en": "Data as of: {date}",
+    },
+    "setup.facilities.discrepancy_n": {
+        "zh-TW": "有 {n} 個據點需要確認",
+        "en": "{n} site(s) need confirmation",
+    },
+    "setup.facilities.diff.official_only": {
+        "zh-TW": "政府資料有此工廠，但這次上傳資料沒有出現。",
+        "en": "In government data, but not in this upload.",
+    },
+    "setup.facilities.diff.upload_only": {
+        "zh-TW": "上傳資料有此據點，但政府工廠名錄沒有。",
+        "en": "In the upload, but not in the official factory list.",
+    },
+    "setup.facilities.none_found": {
+        "zh-TW": "目前政府公開資料沒有找到登記工廠。",
+        "en": "No registered factories were found in the official public data.",
+    },
+    "setup.facilities.confirm_none": {
+        "zh-TW": "確認公司沒有台灣廠場",
+        "en": "Confirm the company has no Taiwan sites",
+    },
+    "setup.facilities.confirm_statuses": {
+        "zh-TW": "確認這些廠場狀態",
+        "en": "Confirm these site statuses",
+    },
+    "setup.facilities.exception_need_confirm": {
+        "zh-TW": (
+            "請先確認各廠場狀態後再繼續。"
+            "開啟編輯不會自動把未改的廠場當成已確認。"
+        ),
+        "en": (
+            "Confirm the site statuses before continuing. "
+            "Opening edit does not confirm untouched rows."
+        ),
+    },
+    "setup.identity.operating": {"zh-TW": "營運中", "en": "Operating"},
+    "setup.identity.inactive": {"zh-TW": "已停用", "en": "Closed"},
+    "setup.identity.sold": {"zh-TW": "已出售", "en": "Sold"},
+    "setup.identity.not_ours": {"zh-TW": "不是本公司據點", "en": "Not our site"},
+    "setup.identity.incorrect": {"zh-TW": "資料不正確", "en": "Data is incorrect"},
+    "setup.identity.status": {
+        "zh-TW": "這個據點目前的狀態",
+        "en": "Status of this site",
+    },
+    "setup.coverage.question": {
+        "zh-TW": "這次上傳的排放資料有包含所有營運中的台灣廠場嗎？",
+        "en": "Does this upload include every operating Taiwan site?",
+    },
+    "setup.coverage.all": {"zh-TW": "全部都有", "en": "Yes, all of them"},
+    "setup.coverage.some": {"zh-TW": "有些還沒包含", "en": "Some are missing"},
+    "setup.coverage.unsure": {"zh-TW": "不確定", "en": "Not sure"},
+    "setup.facilities.empty": {
+        "zh-TW": "目前還沒找到廠場。你可以新增據點，或先上傳營運資料。",
+        "en": "No sites found yet. Add one, or upload activity data first.",
+    },
+    "setup.all_correct": {"zh-TW": "全部正確", "en": "All correct"},
+    "setup.need_adjust": {"zh-TW": "需要調整", "en": "Need to adjust"},
+    "setup.include_all": {
+        "zh-TW": "全部納入本次資料",
+        "en": "Include all in this year's data",
+    },
+    "setup.include_this": {
+        "zh-TW": "納入本次資料",
+        "en": "Include in this year's data",
+    },
+    "setup.add_site": {"zh-TW": "＋ 新增據點", "en": "+ Add a site"},
+    "setup.add_site_confirm": {"zh-TW": "新增", "en": "Add"},
+    "setup.site_name": {"zh-TW": "據點名稱", "en": "Site name"},
+    "setup.site_address": {"zh-TW": "地址（若方便）", "en": "Address (optional)"},
+    "setup.site_kind": {"zh-TW": "類型", "en": "Type"},
+    "setup.kind.factory": {"zh-TW": "工廠", "en": "Factory"},
+    "setup.kind.office": {"zh-TW": "辦公室", "en": "Office"},
+    "setup.kind.warehouse": {"zh-TW": "倉庫", "en": "Warehouse"},
+    "setup.kind.other": {"zh-TW": "其他", "en": "Other"},
+    "setup.deactivate": {"zh-TW": "這次如何處理？", "en": "What should we do?"},
+    "setup.inactive.keep": {"zh-TW": "維持使用", "en": "Keep active"},
+    "setup.inactive.year_out": {
+        "zh-TW": "本年度不納入",
+        "en": "Exclude this year",
+    },
+    "setup.inactive.sold": {"zh-TW": "已出售", "en": "Sold"},
+    "setup.inactive.inactive": {"zh-TW": "已停用", "en": "Inactive"},
+    "setup.historical": {
+        "zh-TW": "已停用或本年度不納入的據點",
+        "en": "Inactive or excluded sites",
+    },
+    "setup.year_reuse": {
+        "zh-TW": "與去年相比，公司廠場有變動嗎？",
+        "en": "Have the company's sites changed since last year?",
+    },
+    "setup.year_reuse.reuse": {
+        "zh-TW": "沒有，沿用去年資料",
+        "en": "No change — reuse last year",
+    },
+    "setup.year_reuse.changed": {
+        "zh-TW": "有新增／停用廠場",
+        "en": "Yes — sites were added or closed",
+    },
+    "setup.full_year_all": {
+        "zh-TW": "所有台灣廠場都包含在本次完整年度資料中",
+        "en": "All Taiwan sites are covered by this full-year dataset",
+    },
+    "setup.match.aligned": {"zh-TW": "資料一致", "en": "Sources agree"},
+    "setup.match.official_only": {
+        "zh-TW": "僅在政府資料找到",
+        "en": "Found only in government data",
+    },
+    "setup.match.upload_only": {
+        "zh-TW": "僅在上傳資料找到",
+        "en": "Found only in the uploaded file",
+    },
+    "setup.match.previous_only": {
+        "zh-TW": "僅在去年已確認資料找到",
+        "en": "Found only in last year's confirmed list",
+    },
+    "setup.match.needs_review": {"zh-TW": "需要確認", "en": "Needs confirmation"},
+    "setup.source.official": {"zh-TW": "政府資料", "en": "Government data"},
+    "setup.source.upload": {"zh-TW": "上傳資料", "en": "Uploaded data"},
+    "setup.source.previous": {"zh-TW": "去年已確認", "en": "Confirmed last year"},
 }
 
 

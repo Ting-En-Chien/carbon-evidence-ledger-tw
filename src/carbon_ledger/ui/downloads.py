@@ -17,12 +17,16 @@ from carbon_ledger.export import export_run_bundle
 from carbon_ledger.pipeline import PipelineRunResult
 
 
-def build_audit_bundle_zip(result: PipelineRunResult) -> bytes:
+def build_audit_bundle_zip(
+    result: PipelineRunResult,
+    *,
+    synthetic_demo: bool = False,
+) -> bytes:
     """Create a ZIP of the deterministic export bundle in memory."""
     buffer = io.BytesIO()
     with TemporaryDirectory(prefix="cel_ui_export_") as tmp:
         output_dir = Path(tmp) / "bundle"
-        export_run_bundle(result, output_dir)
+        export_run_bundle(result, output_dir, synthetic_demo=synthetic_demo)
         archive_file = zipfile.ZipFile(
             buffer,
             mode="w",

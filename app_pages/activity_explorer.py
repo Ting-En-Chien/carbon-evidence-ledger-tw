@@ -1,6 +1,8 @@
-"""Activity Explorer — beginner-first evidence drill-down."""
+"""Activity Explorer — three information layers (operational / basis / audit)."""
 
 from __future__ import annotations
+
+import json
 
 import streamlit as st
 
@@ -41,7 +43,10 @@ render_section_header(t("act.title", lang), t("act.subtitle", lang))
 render_page_help(t("act.help", lang))
 
 if result is None:
-    st.error(t("error.analysis_failed", lang))
+    render_empty_state(
+        t("empty.no_analysis_title", lang),
+        t("empty.no_analysis_body", lang),
+    )
     st.stop()
 
 overview = build_activity_overview(result, lang)
@@ -56,7 +61,7 @@ with filter_cols[0]:
     search = st.text_input(t("act.filter_search", lang), value="")
 with filter_cols[1]:
     type_options = [t("act.filter_all", lang)] + sorted(
-        overview["activity_type"].dropna().unique().tolist()
+        overview["activity_name"].dropna().unique().tolist()
     )
     selected_type = st.selectbox(t("act.filter_type", lang), type_options)
 with filter_cols[2]:
@@ -83,7 +88,7 @@ if search.strip():
         | filtered["activity_type"].str.lower().str.contains(needle, na=False)
     ]
 if selected_type != all_label:
-    filtered = filtered[filtered["activity_type"] == selected_type]
+    filtered = filtered[filtered["activity_name"] == selected_type]
 if selected_status != all_label:
     filtered = filtered[filtered["calculation_label"] == selected_status]
 if attention_filter == t("act.filter_yes", lang):
@@ -95,7 +100,8 @@ if filtered.empty:
     render_empty_state(t("act.title", lang), t("act.select_hint", lang))
     st.stop()
 
-table = filtered[
+# Layer 1 — customer/operational default (record_id kept off-display for selection)
+display = filtered[
     [
         "activity_name",
         "activity_amount",
@@ -104,23 +110,21 @@ table = filtered[
         "ghg_label",
         "ifrs_s2_label",
         "attention_required",
-        "record_id",
     ]
 ].rename(
     columns={
         "activity_name": t("dash.col.activity", lang),
         "activity_amount": t("dash.col.amount", lang),
-        "activity_unit": "Unit",
+        "activity_unit": t("act.col.unit", lang),
         "calculation_label": t("dash.col.calc", lang),
         "ghg_label": t("dash.col.ghg", lang),
         "ifrs_s2_label": t("dash.col.ifrs", lang),
         "attention_required": t("act.filter_attention", lang),
-        "record_id": "record_id",
     }
 )
 
 event = st.dataframe(
-    table,
+    display,
     hide_index=True,
     width="stretch",
     on_select="rerun",
@@ -133,12 +137,13 @@ selected_rows = []
 if event is not None and getattr(event, "selection", None) is not None:
     selected_rows = list(event.selection.rows)
 
+record_ids = filtered["record_id"].astype(str).tolist()
 if selected_rows:
-    selected_record_id = str(table.iloc[selected_rows[0]]["record_id"])
-elif focus and focus in set(table["record_id"].astype(str)):
+    selected_record_id = record_ids[selected_rows[0]]
+elif focus and focus in set(record_ids):
     selected_record_id = focus
 else:
-    selected_record_id = str(table.iloc[0]["record_id"])
+    selected_record_id = record_ids[0]
 
 detail = activity_detail_context(result, selected_record_id, lang)
 if not detail:
@@ -180,8 +185,9 @@ with strip[3]:
     )
     render_status_badge(qa_label, kind=qa_kind)
 
+# Layer 1 detail summary
 st.write("")
-render_section_header(t("act.title", lang))
+render_section_header(t("act.layer.operational", lang))
 summary_cols = st.columns(3)
 with summary_cols[0]:
     st.markdown(f"**{t('dash.col.activity', lang)}**")
@@ -192,44 +198,35 @@ with summary_cols[0]:
         f"{overview_row.get('activity_unit', '')}"
     )
 with summary_cols[1]:
+    st.markdown(f"**{t('act.col.period', lang)}**")
+    st.write(
+        f"{activity.get('activity_start_date', '—')} → "
+        f"{activity.get('activity_end_date', '—')}"
+    )
     st.markdown(f"**{t('dash.col.calc', lang)}**")
     render_status_badge(
         str(overview_row.get("calculation_label", "—")),
         kind=status_kind_for_calculation(calc_status),
     )
-    can_calc = (
-        t("act.can_calculate", lang)
-        if calc_status == "calculated"
-        else t("act.cannot_calculate", lang)
-    )
-    st.write(can_calc)
 with summary_cols[2]:
     if calc_status == "calculated" and overview_row.get("calculated_tco2e") is not None:
-        st.markdown("**tCO₂e**")
-        st.write(f"{float(overview_row['calculated_tco2e']):.6g}")
+        st.markdown(f"**{t('dash.col.emissions', lang)}**")
+        st.write(f"{float(overview_row['calculated_tco2e']):.6g} tCO₂e")
     else:
         st.markdown(t("act.no_zero", lang))
         st.caption(detail["calculation_next_action"])
+    docs = result.source_documents_accepted
+    doc_id = str(activity.get("source_document_id") or "")
+    doc_name = "—"
+    if not docs.empty and doc_id:
+        match = docs[docs["source_document_id"].astype(str) == doc_id]
+        if not match.empty:
+            doc_name = str(match.iloc[0].get("file_name") or "—")
+    st.markdown(f"**{t('act.col.source_doc', lang)}**")
+    st.write(doc_name)
 
-tab_summary, tab_calc, tab_evidence, tab_frameworks, tab_tech = st.tabs(
-    [
-        t("act.tab.summary", lang),
-        t("act.tab.calc", lang),
-        t("act.tab.evidence", lang),
-        t("act.tab.frameworks", lang),
-        t("act.tab.tech", lang),
-    ]
-)
-
-with tab_summary:
-    name = overview_row.get("activity_name", "—")
-    st.write(
-        f"{name} · {overview_row.get('calculation_label', '—')} · "
-        f"GHG: {overview_row.get('ghg_label', '—')} · "
-        f"IFRS S2: {overview_row.get('ifrs_s2_label', '—')}"
-    )
-
-with tab_calc:
+# Layer 2 — calculation basis (business names, not raw IDs)
+with st.expander(t("act.layer.basis", lang), expanded=False):
     st.markdown(f"**{t('dash.col.calc', lang)}:** {detail['calculation_label']}")
     if calc_status == "calculated":
         amount = overview_row.get("activity_amount")
@@ -239,86 +236,174 @@ with tab_calc:
         tco2e = calc.get("calculated_tco2e")
         registry = factor_registry_row(str(calc.get("factor_id") or "")) or {}
         factor_year = registry.get("factor_year") or "—"
-        st.markdown(f"**{t('act.trace_activity', lang)}**")
+        factor_desc = (
+            registry.get("factor_name")
+            or registry.get("description")
+            or registry.get("source_name")
+            or t("act.trace_factor", lang)
+        )
+        activity_type = str(activity.get("activity_type") or "")
+        is_combustion = activity_type in {"natural_gas", "diesel"}
+        trace: dict = {}
+        raw_trace = calc.get("calculation_trace")
+        if isinstance(raw_trace, dict):
+            trace = raw_trace
+        elif raw_trace not in (None, "", "nan"):
+            try:
+                parsed = json.loads(str(raw_trace))
+                if isinstance(parsed, dict):
+                    trace = parsed
+            except (TypeError, ValueError, json.JSONDecodeError):
+                trace = {}
+        st.markdown(f"**{t('act.basis.quantity', lang)}**")
         st.write(f"{amount} {unit}" if amount is not None else "—")
-        st.markdown(f"**{t('act.trace_factor', lang)}**")
-        if factor_value is not None and str(factor_value) not in {"", "nan"}:
-            st.write(f"{float(factor_value):.6g} kgCO2e/{unit or 'unit'}")
-        else:
-            st.write("—")
-        st.markdown(f"**{t('act.trace_factor_year', lang)}**")
-        st.write(factor_year)
-        st.markdown(f"**{t('act.trace_calc', lang)}**")
-        if (
-            amount is not None
-            and factor_value is not None
-            and kg is not None
-            and tco2e is not None
-        ):
+        if is_combustion:
+            if activity_type == "natural_gas":
+                st.markdown(f"**{t('act.basis.ng_type', lang)}**")
+                st.write(str(activity.get("fuel_subtype") or "—"))
+            else:
+                st.markdown(f"**{t('act.basis.diesel_use', lang)}**")
+                diesel_use = str(activity.get("process_use") or "")
+                st.write(
+                    t("intake.diesel_company_vehicle", lang)
+                    if diesel_use == "company_vehicle"
+                    else t("intake.ng_type_unknown", lang)
+                )
+            heating_value = calc.get("heating_value")
+            heating_unit = calc.get("heating_value_unit") or ""
+            hv_trace = trace.get("heating_value") or {}
+            if isinstance(hv_trace, dict) and not heating_value:
+                heating_value = hv_trace.get("value")
+                heating_unit = hv_trace.get("unit") or heating_unit
+            st.markdown(f"**{t('act.basis.heating_value', lang)}**")
+            if heating_value is not None and str(heating_value) not in {
+                "",
+                "nan",
+            }:
+                st.write(f"{float(heating_value):,.6g} {heating_unit}".strip())
+            else:
+                st.write("—")
+            energy_tj = calc.get("energy_tj")
+            energy_trace = trace.get("energy") or {}
+            if (
+                isinstance(energy_trace, dict)
+                and energy_tj in (None, "", "nan")
+            ):
+                energy_tj = energy_trace.get("tj")
+            st.markdown(f"**{t('act.basis.energy', lang)}**")
+            if energy_tj is not None and str(energy_tj) not in {"", "nan"}:
+                st.write(f"{float(energy_tj):.6g} TJ")
+            else:
+                st.write("—")
+            gases = trace.get("gases") if isinstance(trace.get("gases"), dict) else {}
+            st.markdown(f"**{t('act.basis.gas_factors', lang)}**")
+            gas_bits = []
+            for gas_name in ("CO2", "CH4", "N2O"):
+                gas_row = gases.get(gas_name) if isinstance(gases, dict) else None
+                factor_val = ""
+                if isinstance(gas_row, dict):
+                    factor_val = str(gas_row.get("factor_value") or "")
+                gas_bits.append(
+                    f"{gas_name} {factor_val}".strip() if factor_val else gas_name
+                )
+            st.write(" · ".join(gas_bits) if gas_bits else "—")
+            st.markdown(f"**{t('act.basis.gwp', lang)}**")
             st.write(
-                f"{float(amount):,.6g} × {float(factor_value):.6g}\n\n"
-                f"= {float(kg):,.6g} kgCO2e\n\n"
-                f"= {float(tco2e):.6g} tCO2e"
+                f"CO2 {calc.get('co2_gwp') or '—'} · "
+                f"CH4 {calc.get('ch4_gwp') or '—'} · "
+                f"N2O {calc.get('n2o_gwp') or '—'}"
+            )
+            st.markdown(f"**{t('act.basis.result', lang)}**")
+            st.write(
+                f"{float(tco2e):.6g} tCO₂e" if tco2e is not None else "—"
+            )
+            st.markdown(f"**{t('act.basis.source', lang)}**")
+            hv_source = calc.get("heating_value_source_reference_id")
+            gwp_source = calc.get("gwp_source_reference_id")
+            factor_source = (
+                calc.get("source_reference_id")
+                or registry.get("source_reference_id")
+            )
+            st.write(
+                " · ".join(
+                    str(item)
+                    for item in (hv_source, factor_source, gwp_source)
+                    if item not in (None, "", "nan")
+                )
+                or t("act.trace_source_official", lang)
             )
         else:
-            st.write(f"{float(tco2e):.6g} tCO₂e" if tco2e is not None else "—")
+            st.markdown(f"**{t('act.trace_activity', lang)}**")
+            st.write(f"{amount} {unit}" if amount is not None else "—")
+            if calc.get("normalized_value") not in (None, "", "nan"):
+                st.markdown(f"**{t('act.trace_normalized', lang)}**")
+                st.write(
+                    f"{calc.get('normalized_value')} "
+                    f"{calc.get('normalized_unit') or ''}".strip()
+                )
+            st.markdown(f"**{t('act.trace_factor', lang)}**")
+            st.write(str(factor_desc))
+            if factor_value is not None and str(factor_value) not in {"", "nan"}:
+                st.write(f"{float(factor_value):.6g} kgCO2e/{unit or 'unit'}")
+            st.markdown(f"**{t('act.trace_factor_year', lang)}**")
+            st.write(factor_year)
+            authority = registry.get("issuing_authority") or registry.get(
+                "authority"
+            )
+            if authority:
+                st.markdown(f"**{t('act.trace_authority', lang)}**")
+                st.write(str(authority))
+            st.markdown(f"**{t('act.trace_calc', lang)}**")
+            if (
+                amount is not None
+                and factor_value is not None
+                and kg is not None
+                and tco2e is not None
+            ):
+                st.write(
+                    f"{float(amount):,.6g} × {float(factor_value):.6g}\n\n"
+                    f"= {float(kg):,.6g} kgCO2e\n\n"
+                    f"= {float(tco2e):.6g} tCO2e"
+                )
+            else:
+                st.write(
+                    f"{float(tco2e):.6g} tCO₂e" if tco2e is not None else "—"
+                )
         source_key = (
             "act.trace_source_official"
             if is_uploaded_analysis(st.session_state)
             else "act.trace_source_demo"
         )
         st.caption(f"{t('act.trace_source', lang)}：{t(source_key, lang)}")
-        with st.expander(t("common.advanced", lang), expanded=False):
-            st.markdown(f"**normalized_value:** {calc.get('normalized_value', '—')}")
-            st.markdown(f"**normalized_unit:** {calc.get('normalized_unit', '—')}")
-            st.markdown(f"**factor_id:** `{calc.get('factor_id', '—') or '—'}`")
     else:
         st.markdown(t("act.no_zero", lang))
         st.warning(t("act.why_blocked", lang))
         st.write(detail["calculation_explanation"])
         st.info(t("act.what_next", lang))
         st.write(detail["calculation_next_action"])
-        st.markdown(f"**{t('dash.uncalculable_title', lang)}**")
-        st.markdown(
-            f"{t('dash.uncalculable_missing', lang)} "
-            f"{detail['calculation_explanation']}"
-        )
-        st.markdown(
-            f"{t('dash.uncalculable_next', lang)} "
-            f"{detail['calculation_next_action']}"
-        )
 
-with tab_evidence:
-    st.markdown(f"**source_document_id:** `{activity.get('source_document_id', '—')}`")
-    st.markdown(f"**source_locator:** `{activity.get('source_locator', '—')}`")
-    st.markdown(f"**measurement_method:** {activity.get('measurement_method', '—')}")
-    st.markdown(f"**data_quality_tier:** {activity.get('data_quality_tier', '—')}")
-    st.markdown(
-        f"**period:** {activity.get('activity_start_date', '—')} → "
-        f"{activity.get('activity_end_date', '—')}"
+# Layer 3 — audit trace (raw IDs only when expanded)
+with st.expander(t("act.layer.audit", lang), expanded=False):
+    st.write(
+        {
+            "record_id": overview_row.get("record_id"),
+            "source_document_id": activity.get("source_document_id"),
+            "source_locator": activity.get("source_locator"),
+            "measurement_method": activity.get("measurement_method"),
+            "data_quality_tier": activity.get("data_quality_tier"),
+            "calculation_status": overview_row.get("calculation_status"),
+            "calculation_label": calculation_label(
+                str(overview_row.get("calculation_status", "")), lang
+            ),
+            "calculation_id": calc.get("calculation_id"),
+            "factor_id": calc.get("factor_id"),
+            "normalized_value": calc.get("normalized_value"),
+            "normalized_unit": calc.get("normalized_unit"),
+            "evaluation_id_ghg": detail["ghg"].get("evaluation_id"),
+            "rule_id_ghg": detail["ghg"].get("rule_id"),
+            "reference_id_ghg": detail["ghg"].get("reference_id"),
+            "evaluation_id_ifrs": detail["ifrs_s2"].get("evaluation_id"),
+            "rule_id_ifrs": detail["ifrs_s2"].get("rule_id"),
+            "calculation_trace": calc.get("calculation_trace"),
+        }
     )
-
-with tab_frameworks:
-    st.markdown("#### GHG Protocol")
-    st.write(overview_row.get("ghg_label", t("common.not_run", lang)))
-    st.markdown("#### IFRS S2")
-    st.write(overview_row.get("ifrs_s2_label", t("common.not_run", lang)))
-
-with tab_tech:
-    with st.expander(t("common.advanced", lang), expanded=False):
-        st.write(
-            {
-                "record_id": overview_row.get("record_id"),
-                "calculation_status": overview_row.get("calculation_status"),
-                "calculation_label": calculation_label(
-                    str(overview_row.get("calculation_status", "")), lang
-                ),
-                "calculation_id": calc.get("calculation_id"),
-                "factor_id": calc.get("factor_id"),
-                "evaluation_id_ghg": detail["ghg"].get("evaluation_id"),
-                "rule_id_ghg": detail["ghg"].get("rule_id"),
-                "reference_id_ghg": detail["ghg"].get("reference_id"),
-                "evaluation_id_ifrs": detail["ifrs_s2"].get("evaluation_id"),
-                "rule_id_ifrs": detail["ifrs_s2"].get("rule_id"),
-            }
-        )

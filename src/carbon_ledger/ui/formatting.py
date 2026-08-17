@@ -58,6 +58,17 @@ def format_tco2e_parts(value: Any) -> tuple[str, str]:
     return amount, "tCO₂e"
 
 
+RESULT_TCO2E_DECIMALS = 2
+
+
+def format_result_tco2e_amount(value: Any) -> str:
+    """Always two decimal places for analysis-result tCO2e KPIs."""
+    number = _as_float(value)
+    if number is None:
+        return "—"
+    return f"{number:,.{RESULT_TCO2E_DECIMALS}f}"
+
+
 def format_tco2e(value: Any) -> str:
     """Single-line emissions label such as ``5,311 tCO₂e``."""
     amount, unit = format_tco2e_parts(value)

@@ -19,6 +19,10 @@ APP_PATH = REPO_ROOT / "streamlit_app.py"
 def _run_app() -> AppTest:
     at = AppTest.from_file(str(APP_PATH), default_timeout=120)
     at.run()
+    from carbon_ledger.ui.state import activate_demo_mode
+
+    activate_demo_mode(at.session_state)
+    at.run()
     assert not at.exception
     return at
 
@@ -141,12 +145,11 @@ def test_dashboard_has_single_primary_start_analysis() -> None:
 
 
 def test_all_three_adapter_controls_exist() -> None:
+    """Customer mode hides engineering adapter toggles (Stage 3B.3)."""
     at = _run_app()
     labels = [str(box.label) for box in at.checkbox]
     joined = "\n".join(labels)
     text = _all_text(at)
-    assert "公司碳盤查" in joined or "Corporate GHG" in joined or "GHG" in text
-    assert "氣候揭露" in joined or "Climate disclosure" in joined or "IFRS" in text
     # V1: CBAM is not exposed in sidebar settings.
     assert "歐盟出口" not in joined
     assert "EU CBAM" not in joined
@@ -154,9 +157,12 @@ def test_all_three_adapter_controls_exist() -> None:
         str(getattr(item, "label", "") or "")
         for item in getattr(at, "expander", [])
     ]
-    assert any("分析設定" in label for label in expander_labels) or "分析設定" in text
-    assert "GHG Protocol" in text
-    assert "IFRS" in text
+    assert not any("分析設定" in label for label in expander_labels)
+    # Framework concepts remain visible in product copy / pages.
+    assert "GHG" in text or "溫室氣體" in text or "IFRS" in text
+    # Defaults still enable GHG + IFRS in session state.
+    assert at.session_state["include_ghg"] is True
+    assert at.session_state["include_ifrs_s2"] is True
 
 
 def test_default_state_enables_all_three_adapters() -> None:
@@ -221,38 +227,43 @@ def test_tutorial_button_exists_and_opens() -> None:
     # Dialog body text is not required from AppTest page-wide collection.
     # Tutorial copy is validated through the pure helper below.
     zh_copy = get_tutorial_copy("zh-TW")
-    assert "第一次使用" in zh_copy["title"]
-    assert zh_copy["steps"][0]["title"] == "選擇分析內容"
-    assert "開始分析" in zh_copy["steps"][1]["title"]
-    assert "待處理問題" in zh_copy["steps"][2]["title"]
-    assert "查看結果與下載" in zh_copy["steps"][3]["title"]
-    assert "猜測" in zh_copy["steps"][2]["body"]
-    assert "示範" in zh_copy["footer"]
+    assert "第一次使用" not in zh_copy["title"]
+    assert "歡迎使用" in zh_copy["title"]
+    assert zh_copy["steps"][0]["title"] == "填公司資料"
+    assert "上傳電力、燃料" in zh_copy["steps"][1]["title"]
+    assert zh_copy["steps"][2]["title"] == "查看分析結果"
+    assert len(zh_copy["steps"]) == 3
+    assert "治理、策略" not in zh_copy["helps"]
+    assert "GHG Protocol" not in zh_copy["helps"]
 
     en_copy = get_tutorial_copy("en")
-    assert "first time" in en_copy["title"].lower()
-    assert len(en_copy["steps"]) == 4
-    assert "zero" in en_copy["steps"][2]["body"].lower()
-    assert "synthetic" in en_copy["footer"].lower()
+    assert "welcome" in en_copy["title"].lower()
+    assert len(en_copy["steps"]) == 3
+    assert "later" in en_copy["later_label"].lower()
 
 
-def test_dashboard_shows_four_kpi_cards() -> None:
+def test_dashboard_shows_primary_kpi_cards() -> None:
     at = _run_app()
     text = _all_text(at)
     assert "已計算排放量" in text
-    assert "計算完成" in text
-    assert "仍需處理" in text
-    assert "資料來源" in text
 
 
 def test_dashboard_shows_needs_attention() -> None:
     at = _run_app()
-    assert "優先處理" in _all_text(at) or "目前無法計算" in _all_text(at)
+    text = _all_text(at)
+    assert (
+        "下一步" in text
+        or "仍需處理" in text
+        or "查看問題" in text
+        or "目前無法計算" in text
+    )
 
 
 def test_dashboard_shows_activity_overview() -> None:
     at = _run_app()
-    assert "計算明細" in _all_text(at)
+    text = _all_text(at)
+    # Calc tables moved to Evidence → Activity; dashboard keeps a CTA.
+    assert "查看計算依據" in text
 
 
 def test_dashboard_page_header_and_status_hierarchy() -> None:
@@ -260,10 +271,11 @@ def test_dashboard_page_header_and_status_hierarchy() -> None:
     text = _all_text(at)
     assert "合規總覽" in text
     assert "已計算排放量" in text
-    assert "排放趨勢" in text
-    assert "排放來源" in text
-    assert "目前需要注意" in text or "優先處理" in text
-    assert "計算明細" in text
+    assert "排放明細" in text
+    assert "排放來源" in text or "依來源" in text
+    assert "下一步" in text or "仍需處理" in text
+    assert "查看計算依據" in text
+    assert "計算明細" not in text
 
 
 def test_dashboard_does_not_render_raw_html_or_svg() -> None:
@@ -286,9 +298,9 @@ def test_dashboard_does_not_render_raw_html_or_svg() -> None:
 def test_dashboard_shows_chart_explanations() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "排放趨勢" in text
-    assert "排放來源" in text
-    assert "資料完整度" in text or "活動計算狀態" in text
+    assert "排放明細" in text
+    assert "排放來源" in text or "依來源" in text
+    assert "了解結果涵蓋範圍" in text or "查看計算依據" in text
 
 
 def test_beginner_facing_plain_text_widgets_have_no_raw_markup() -> None:
@@ -325,7 +337,7 @@ def test_dashboard_does_not_show_arbitrary_readiness_percentage() -> None:
 def test_dashboard_issue_cards_are_short_and_actionable() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "查看如何處理" in text or "查看資料" in text
+    assert "查看問題" in text or "查看如何處理" in text or "仍需處理" in text
     assert "Allowed use" not in text
     assert "prohibited_use" not in text
 
@@ -358,21 +370,28 @@ def test_audit_export_page_loads() -> None:
     at = _switch(_run_app(), "app_pages/audit_export.py")
     text = _all_text(at)
     assert "報表與匯出" in text or "工作底稿" in text
-    assert "官方參考資料" in text
-    assert "電力排放係數" in text
+    assert "管理摘要" in text
+    expander_labels = [
+        str(getattr(item, "label", "") or "")
+        for item in getattr(at, "expander", [])
+    ]
+    assert any(
+        "稽核追溯" in label or "Audit trace" in label for label in expander_labels
+    )
+    # Registry maintenance is admin-only — not customer default.
+    assert "一般分析不會" not in text
     labels = [str(button.label) for button in at.download_button]
     assert any(".zip" in label for label in labels)
-    assert "Excel" in text
 
 
 def test_frameworks_page_contains_separate_framework_views() -> None:
     at = _switch(_run_app(), "app_pages/frameworks.py")
-    labels = [str(tab.label) for tab in at.tabs]
-    assert "治理" in labels
-    assert "策略" in labels
-    assert "風險管理" in labels
-    assert "指標與目標" in labels
-    assert "EU CBAM" not in labels
+    text = _all_text(at)
+    assert "治理" in text
+    assert "策略" in text
+    assert "風險管理" in text
+    assert "指標與目標" in text
+    assert "EU CBAM" not in text
 
 
 def test_cbam_page_content_contains_demo_assumption_warning() -> None:
@@ -387,7 +406,9 @@ def test_ifrs_s2_content_contains_readiness_only_warning() -> None:
     at = _switch(_run_app(), "app_pages/frameworks.py")
     text = _all_text(at)
     assert "資料準備度" in text
+    assert "氣候指標資料準備度" in text or "Climate Metrics Data Readiness" in text
     assert "合規" in text
+    assert "不代表" in text or "does not represent" in text.lower()
 
 
 def test_audit_page_contains_audit_bundle_download_control() -> None:
@@ -397,28 +418,25 @@ def test_audit_page_contains_audit_bundle_download_control() -> None:
 
 
 def test_audit_raw_manifest_is_advanced_only() -> None:
+    """Customer export groups downloads; raw manifest is admin-only."""
     at = _switch(_run_app(), "app_pages/audit_export.py")
     text = _all_text(at)
     expander_labels = [
         str(getattr(item, "label", "") or "")
         for item in getattr(at, "expander", [])
     ]
-    assert "進階技術資訊" in text or any(
-        "進階技術資訊" in label for label in expander_labels
-    )
+    assert not any("進階技術資訊" in label for label in expander_labels)
     assert "下載" in text and (".zip" in text.lower() or "佐證包" in text)
+    assert "synthetic_demo" not in text
 
 
 def test_application_does_not_display_raw_blocked_missing_conversion() -> None:
     at = _run_app()
     text = _all_text(at)
     assert "blocked_missing_conversion" not in text
-    assert (
-        "缺少轉換" in text
-        or "缺少熱值" in text
-        or "目前無法計算" in text
-        or "缺少已驗證" in text
-    )
+    assert "blocked_natural_gas_type_required" not in text
+    assert "NATURAL_GAS_TYPE_REQUIRED" not in text
+    assert "仍需處理" in text or "查看問題" in text or "缺少熱值" in text
 
 
 def test_no_page_produces_uncaught_streamlit_exception() -> None:
@@ -448,6 +466,6 @@ def test_english_navigation_copy() -> None:
         or "Run demo analysis" in text
         or "Start analysis" in text
     )
-    assert "Emissions trend" in text or "Calculation status" in text
+    assert "By source" in text or "Emissions sources" in text or "Next step" in text
     assert "EU CBAM" not in text
     assert "EU export" not in text

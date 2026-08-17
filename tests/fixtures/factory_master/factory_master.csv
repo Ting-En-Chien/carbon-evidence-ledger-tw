@@ -1,0 +1,5 @@
+unified_business_number,factory_name,address,registration_number,industry_code,main_products,source_id,source_authority,source_dataset,source_data_date
+00000016,合法前導零廠,台北市,F-LZ-016,25金屬製品,x,src_tw_factory_open_data,經濟部產業發展署,登記工廠名錄（生產中工廠清冊）,2026-06-01
+00004131,川盛信記企業股份有限公司,桃園市平鎮區北興里金陵路二段356號,99622389,25金屬製品,x,src_tw_factory_open_data,經濟部產業發展署,登記工廠名錄（生產中工廠清冊）,2026-06-01
+11913502,高雄一廠,高雄市大寮區,F-KH-001,25金屬製品,鋼構,src_tw_factory_open_data,經濟部產業發展署,登記工廠名錄（生產中工廠清冊）,2026-06-01
+11913502,高雄二廠,高雄市林園區,F-KH-002,25金屬製品,鋼構,src_tw_factory_open_data,經濟部產業發展署,登記工廠名錄（生產中工廠清冊）,2026-06-01

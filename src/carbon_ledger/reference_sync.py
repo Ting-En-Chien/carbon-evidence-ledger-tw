@@ -198,8 +198,11 @@ RULE_COLUMNS = [
 HEATING_VALUE_COLUMNS = [
     "heating_value_id",
     "fuel_type",
+    "fuel_subtype",
     "heating_value",
     "unit",
+    "high_heating_value",
+    "high_heating_value_unit",
     "factor_year",
     "geography",
     "authority",
@@ -208,6 +211,8 @@ HEATING_VALUE_COLUMNS = [
     "source_reference_id",
     "source_locator",
     "snapshot_id",
+    "snapshot_sha256",
+    "snapshot_local_path",
     "status",
     "notes",
 ]
@@ -2400,8 +2405,11 @@ def activate_candidate(
         heating_row = {
             "heating_value_id": heating_id,
             "fuel_type": fuel,
+            "fuel_subtype": "",
             "heating_value": _text(candidate.get("factor_value")),
             "unit": _text(candidate.get("numerator_unit")),
+            "high_heating_value": "",
+            "high_heating_value_unit": "",
             "factor_year": year,
             "geography": _text(candidate.get("geography")) or "TW",
             "authority": _text(snapshot_row.get("authority")),
@@ -2410,6 +2418,8 @@ def activate_candidate(
             "source_reference_id": f"ref_sync_{_text(candidate.get('source_id'))}",
             "source_locator": _text(candidate.get("source_locator")),
             "snapshot_id": _text(candidate.get("snapshot_id")),
+            "snapshot_sha256": sha256,
+            "snapshot_local_path": _text(snapshot_row.get("local_path")),
             "status": "registered",
             "notes": (
                 "Versioned heating-value reference. Does not automatically "
