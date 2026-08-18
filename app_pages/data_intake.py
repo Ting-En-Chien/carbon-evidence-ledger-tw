@@ -20,7 +20,6 @@ from carbon_ledger.intake import (
     blank_template_csv_bytes,
     blank_template_xlsx_bytes,
     build_and_validate_intake,
-    context_confirmations_needed,
     default_value_maps,
     detect_header_row,
     extract_natural_gas_subtype_from_text,
@@ -33,6 +32,25 @@ from carbon_ledger.intake import (
     summarize_pre_analysis_readiness,
     worksheet_detection_labels,
     year_month_transform_preview,
+)
+from carbon_ledger.intake_exceptions import (
+    ISSUE_HELD_DIESEL_CONTEXT,
+    ISSUE_HELD_ELEC_CONTEXT,
+    ISSUE_HELD_NG_CONTEXT,
+    KIND_ACTIVITY_VALUE,
+    KIND_COLUMN,
+    KIND_CONTEXT,
+    KIND_DATES,
+    KIND_UNIT_VALUE,
+    KIND_YEAR_MONTH,
+    IntakeException,
+    apply_exception,
+    can_validate,
+    hold_unknown_context_rows,
+    initialize_committed,
+    list_exceptions,
+    mapping_from_committed,
+    summary_counts,
 )
 from carbon_ledger.potential_duplicates import (
     DECISION_EXCLUDE_DUPLICATES,
@@ -54,6 +72,7 @@ from carbon_ledger.ui.evidence_workspace import (
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.state import (
     STATE_INTAKE_BYTES,
+    STATE_INTAKE_COMMITTED,
     STATE_INTAKE_DUPLICATE_REVIEW,
     STATE_INTAKE_FILE_HASH,
     STATE_INTAKE_FILE_NAME,
@@ -352,14 +371,6 @@ def _activity_select_label(code: str) -> str:
     return t(f"activity.{code}", lang)
 
 
-def _confidence_caption(confidence: str) -> str:
-    if confidence == CONFIDENCE_HIGH:
-        return t("intake.confidence_high", lang)
-    if confidence == CONFIDENCE_MEDIUM:
-        return t("intake.confidence_medium", lang)
-    return t("intake.confidence_low", lang)
-
-
 def _column_index(options: list[str], preferred: str, *, allow_preselect: bool) -> int:
     if allow_preselect and preferred and preferred in options:
         return options.index(preferred)
@@ -403,32 +414,17 @@ def _field_label(field_name: str) -> str:
 def _proposal_counts(
     table: Any,
     detailed: dict[str, FieldSuggestion],
-) -> tuple[int, int]:
-    mapped = sum(
-        1
-        for name in INTERPRET_FIELD_ORDER
-        if _usable_suggestion(_suggestion(detailed, name))
-    )
-    missing_required = sum(
-        1
-        for name in ("activity_type", "activity_value", "unit")
-        if not _usable_suggestion(_suggestion(detailed, name))
-    )
-    confirm = missing_required
-    if _required_suggestions_ready(detailed):
-        draft = _mapping_from_suggestions(table, detailed)
-        needed = context_confirmations_needed(table, draft)
-        confirm += sum(1 for flag in needed.values() if flag)
-    if confirm == 0:
-        confirm = 1
-    return mapped, confirm
+    committed: dict[str, Any],
+) -> dict[str, int]:
+    return summary_counts(table, detailed, committed)
 
 
 def _render_read_summary(
     table: Any,
     detailed: dict[str, FieldSuggestion],
-) -> None:
-    mapped, confirm = _proposal_counts(table, detailed)
+    committed: dict[str, Any],
+) -> dict[str, int]:
+    counts = _proposal_counts(table, detailed, committed)
     rows: list[str] = [
         f'<p class="cel-read-file">{html_escape(table.file_name)}</p>',
         f"<p>{html_escape(t('intake.read_found', lang, n=len(table.frame)))}</p>",
@@ -441,12 +437,35 @@ def _render_read_summary(
         )
     rows.append(
         "<p>"
-        + html_escape(t("intake.read_mapped", lang, mapped=mapped))
+        + html_escape(t("intake.read_recognized", lang, n=counts["recognized"]))
         + "</p>"
     )
+    confirm = int(counts["confirm"])
+    held = int(counts["waiting_rows"])
+    if confirm > 0:
+        rows.append(
+            "<p>"
+            + html_escape(t("intake.read_confirm_count", lang, confirm=confirm))
+            + "</p>"
+        )
+    elif held > 0:
+        rows.append(
+            "<p>"
+            + html_escape(t("intake.status.deferred", lang, n=held))
+            + "</p>"
+        )
+    else:
+        rows.append("<p>" + html_escape(t("intake.status.ready", lang)) + "</p>")
     rows.append(
         "<p>"
-        + html_escape(t("intake.read_confirm_count", lang, confirm=confirm))
+        + html_escape(
+            t(
+                "intake.read_rows",
+                lang,
+                ready=counts["ready_rows"],
+                held=held,
+            )
+        )
         + "</p>"
     )
     st.markdown(f"### {t('intake.read_title', lang)}")
@@ -454,13 +473,7 @@ def _render_read_summary(
         f'<div class="cel-read-summary">{"".join(rows)}</div>',
         unsafe_allow_html=True,
     )
-    for field_name in INTERPRET_FIELD_ORDER:
-        suggestion = _suggestion(detailed, field_name)
-        if not _usable_suggestion(suggestion):
-            continue
-        st.caption(
-            f"{_field_label(field_name)} ← {suggestion.source_column}"
-        )
+    return counts
 
 
 def _suggestion(
@@ -478,13 +491,6 @@ def _usable_suggestion(suggestion: FieldSuggestion) -> bool:
         CONFIDENCE_HIGH,
         CONFIDENCE_MEDIUM,
     }
-
-
-def _required_suggestions_ready(detailed: dict[str, FieldSuggestion]) -> bool:
-    return all(
-        _usable_suggestion(_suggestion(detailed, field_name))
-        for field_name in ("activity_type", "activity_value", "unit")
-    )
 
 
 def _sample_year_month_value(table: Any, column: str) -> Any | None:
@@ -513,50 +519,6 @@ def _default_date_mode(detailed: dict[str, FieldSuggestion]) -> str:
     return "period"
 
 
-def _mapping_from_suggestions(
-    table: Any,
-    detailed: dict[str, FieldSuggestion],
-) -> ColumnMapping:
-    date_mode = _default_date_mode(detailed)
-    activity_type_column = _suggestion(detailed, "activity_type").source_column
-    activity_value_column = _suggestion(detailed, "activity_value").source_column
-    unit_column = _suggestion(detailed, "unit").source_column
-    site_column = _suggestion(detailed, "site_id").source_column
-    year_month_column = _suggestion(detailed, "year_month").source_column
-    start_date_column = _suggestion(detailed, "activity_start_date").source_column
-    end_date_column = _suggestion(detailed, "activity_end_date").source_column
-
-    use_year_month = date_mode == "year_month"
-    use_file_dates = date_mode == "file"
-    # Never invent demo-era period dates; period mode must be set by the user.
-    period_start = None
-    period_end = None
-
-    draft = ColumnMapping(
-        activity_type_column=activity_type_column,
-        activity_value_column=activity_value_column,
-        unit_column=unit_column,
-        site_column=site_column if _usable_suggestion(
-            _suggestion(detailed, "site_id")
-        ) else "",
-        use_file_dates=use_file_dates,
-        use_year_month=use_year_month,
-        year_month_column=year_month_column if use_year_month else "",
-        year_month_confirmed=use_year_month,
-        start_date_column=start_date_column if use_file_dates else "",
-        end_date_column=end_date_column if use_file_dates else "",
-        period_start=period_start,
-        period_end=period_end,
-    )
-    activity_map, unit_map = default_value_maps(table, draft)
-    draft.activity_type_value_map = activity_map
-    draft.unit_value_map = unit_map
-    fuel_suggestion = _suggestion(detailed, "fuel_subtype")
-    if _usable_suggestion(fuel_suggestion):
-        draft.natural_gas_subtype_column = fuel_suggestion.source_column
-    return draft
-
-
 def _default_metadata(table: Any) -> IntakeMetadata:
     return IntakeMetadata(
         source_name=table.file_name,
@@ -566,6 +528,238 @@ def _default_metadata(table: Any) -> IntakeMetadata:
         intake_run_id="ui_intake",
         ingested_at=pd.Timestamp.now(tz="UTC"),
     )
+
+
+def _ensure_committed(
+    table: Any,
+    detailed: dict[str, FieldSuggestion],
+) -> dict[str, Any]:
+    existing = st.session_state.get(STATE_INTAKE_COMMITTED)
+    if isinstance(existing, dict) and existing.get("columns") is not None:
+        return existing
+    committed = initialize_committed(table, detailed)
+    st.session_state[STATE_INTAKE_COMMITTED] = committed
+    return committed
+
+
+def _metadata_from_committed(table: Any, committed: dict[str, Any]) -> IntakeMetadata:
+    meta = _default_metadata(table)
+    raw = committed.get("document_date")
+    if raw:
+        try:
+            meta.document_date = date.fromisoformat(str(raw)[:10])
+        except ValueError:
+            meta.document_date = None
+    source_name = str(committed.get("source_name") or "").strip()
+    if source_name:
+        meta.source_name = source_name
+    site_id = str(committed.get("fallback_site_id") or "")
+    meta.site_id = site_id.strip() or "UNKNOWN"
+    quality = str(committed.get("data_quality_tier") or "").strip()
+    if quality:
+        meta.data_quality_tier = quality
+    return meta
+
+
+def _safe_issue_message(issue_code: str, fallback: str) -> str:
+    if issue_code == "UNMAPPED_ACTIVITY_TYPE":
+        return t("intake.rej.held_activity", lang)
+    if issue_code == "UNMAPPED_UNIT":
+        return t("intake.rej.held_unit", lang)
+    if issue_code == ISSUE_HELD_NG_CONTEXT:
+        return t("intake.rej.held_ng", lang)
+    if issue_code == ISSUE_HELD_DIESEL_CONTEXT:
+        return t("intake.rej.held_diesel", lang)
+    if issue_code == ISSUE_HELD_ELEC_CONTEXT:
+        return t("intake.rej.held_elec", lang)
+    return fallback
+
+
+def _render_exception_card(
+    item: IntakeException,
+    table: Any,
+    committed: dict[str, Any],
+) -> None:
+    label = _field_label(item.field) if item.field in FIELD_LABEL_KEYS else ""
+    question = ""
+    why = t("intake.ex.column_why", lang)
+    if item.kind == KIND_COLUMN:
+        if item.proposed:
+            question = t("intake.ex.column_q", lang, column=item.proposed)
+            why = t("intake.ex.column_why_medium", lang, label=label)
+        else:
+            question = t("intake.ex.column_q_blank", lang, label=label)
+    elif item.kind == KIND_YEAR_MONTH:
+        question = t("intake.ex.ym_q", lang, column=item.proposed or item.source_label)
+    elif item.kind == KIND_DATES:
+        question = t("intake.ex.dates_q", lang)
+    elif item.kind == KIND_CONTEXT and item.field == "natural_gas":
+        question = t("intake.ex.ng_q", lang)
+        why = t("intake.ex.ng_why", lang)
+    elif item.kind == KIND_CONTEXT and item.field == "diesel":
+        question = t("intake.ex.diesel_q", lang)
+        why = t("intake.ex.diesel_why", lang)
+    elif item.kind == KIND_CONTEXT and item.field == "electricity":
+        question = t("intake.ex.elec_q", lang)
+        why = t("intake.ex.elec_why", lang)
+    elif item.kind == KIND_ACTIVITY_VALUE:
+        question = t("intake.ex.activity_q", lang, value=item.source_label)
+        why = t("intake.ex.why_activity", lang)
+    elif item.kind == KIND_UNIT_VALUE:
+        question = t("intake.ex.unit_q", lang, value=item.source_label)
+        why = t("intake.ex.why_activity", lang)
+    st.markdown(
+        f'<div class="cel-exception-card"><p><strong>'
+        f"{html_escape(question)}</strong></p></div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(why)
+    if item.proposed and item.kind not in {KIND_COLUMN}:
+        st.caption(t("intake.ex.proposed", lang, value=item.proposed))
+
+    payload: dict[str, Any] = {"table": table}
+    choose_label = t("intake.choose", lang)
+    unknown_label = t("intake.ex.unknown_rows", lang)
+    draft_key = f"intake_ex_draft_{item.item_id}"
+    apply_key = f"intake_ex_apply_{item.item_id}"
+
+    if item.kind == KIND_COLUMN:
+        options = [choose_label] + list(table.columns)
+        index = options.index(item.proposed) if item.proposed in options else 0
+        selected = st.selectbox(
+            t("intake.ex.column_control", lang),
+            options=options,
+            index=index,
+            key=draft_key,
+        )
+        payload["column"] = "" if selected == choose_label else selected
+    elif item.kind == KIND_YEAR_MONTH:
+        st.checkbox(
+            t("intake.year_month_confirm", lang),
+            value=False,
+            key=draft_key,
+        )
+        payload["confirmed"] = bool(st.session_state.get(draft_key))
+        payload["column"] = item.proposed
+    elif item.kind == KIND_DATES:
+        mode_labels = {
+            t("intake.dates_in_file", lang): "file",
+            t("intake.dates_year_month", lang): "year_month",
+            t("intake.dates_period", lang): "period",
+        }
+        selected_mode = st.radio(
+            t("intake.ex.dates_q", lang),
+            options=list(mode_labels),
+            index=None,
+            key=draft_key,
+        )
+        payload["date_mode"] = mode_labels.get(selected_mode or "", "")
+        cols = [choose_label] + list(table.columns)
+        date_mode = payload["date_mode"]
+        if date_mode == "file":
+            payload["start_column"] = st.selectbox(
+                t("intake.map_start", lang), cols, key=f"{draft_key}_start"
+            )
+            payload["end_column"] = st.selectbox(
+                t("intake.map_end", lang), cols, key=f"{draft_key}_end"
+            )
+            if payload["start_column"] == choose_label:
+                payload["start_column"] = ""
+            if payload["end_column"] == choose_label:
+                payload["end_column"] = ""
+        elif date_mode == "year_month":
+            picked = st.selectbox(
+                t("intake.map_year_month", lang), cols, key=f"{draft_key}_ym"
+            )
+            payload["year_month_column"] = (
+                "" if picked == choose_label else picked
+            )
+            payload["confirmed"] = st.checkbox(
+                t("intake.year_month_confirm", lang),
+                key=f"{draft_key}_ym_ok",
+            )
+        elif date_mode == "period":
+            payload["period_start"] = st.date_input(
+                t("intake.period_start", lang),
+                value=None,
+                key=f"{draft_key}_pstart",
+            )
+            payload["period_end"] = st.date_input(
+                t("intake.period_end", lang),
+                value=None,
+                key=f"{draft_key}_pend",
+            )
+    elif item.kind == KIND_CONTEXT and item.field == "natural_gas":
+        options = [
+            t("intake.ng_option_1", lang),
+            t("intake.ng_option_2", lang),
+            unknown_label,
+        ]
+        selected = st.radio(
+            t("intake.ng_type", lang),
+            options=options,
+            index=None,
+            key=draft_key,
+        )
+        if selected == t("intake.ng_option_1", lang):
+            payload["value"] = "NG1"
+        elif selected == t("intake.ng_option_2", lang):
+            payload["value"] = "NG2"
+        elif selected == unknown_label:
+            payload["value"] = "unknown"
+    elif item.kind == KIND_CONTEXT and item.field == "diesel":
+        options = [t("intake.diesel_company_vehicle", lang), unknown_label]
+        selected = st.radio(
+            t("intake.diesel_context", lang),
+            options=options,
+            index=None,
+            key=draft_key,
+        )
+        if selected == t("intake.diesel_company_vehicle", lang):
+            payload["value"] = "company_vehicle"
+        elif selected == unknown_label:
+            payload["value"] = "unknown"
+    elif item.kind == KIND_CONTEXT and item.field == "electricity":
+        options = [t("intake.electricity_enterprise", lang), unknown_label]
+        selected = st.radio(
+            t("intake.electricity_context", lang),
+            options=options,
+            index=None,
+            key=draft_key,
+        )
+        if selected == t("intake.electricity_enterprise", lang):
+            payload["value"] = "enterprise"
+        elif selected == unknown_label:
+            payload["value"] = "unknown"
+    elif item.kind == KIND_ACTIVITY_VALUE:
+        options = [choose_label] + [
+            t(f"activity.{code}", lang) for code in ACTIVITY_TYPES
+        ] + [unknown_label]
+        selected = st.selectbox(
+            item.source_label, options=options, key=draft_key
+        )
+        if selected == unknown_label:
+            payload["value"] = "unknown"
+        elif selected == choose_label:
+            payload["value"] = ""
+        else:
+            payload["value"] = ACTIVITY_LABEL_TO_CODE.get(selected, "")
+    elif item.kind == KIND_UNIT_VALUE:
+        options = [choose_label] + list(SUPPORTED_UNITS) + [unknown_label]
+        selected = st.selectbox(
+            item.source_label, options=options, key=draft_key
+        )
+        if selected == unknown_label:
+            payload["value"] = "unknown"
+        elif selected == choose_label:
+            payload["value"] = ""
+        else:
+            payload["value"] = selected
+
+    if st.button(t("intake.ex.apply", lang), key=apply_key):
+        updated = apply_exception(committed, item, payload)
+        st.session_state[STATE_INTAKE_COMMITTED] = updated
+        st.rerun()
 
 
 step = int(st.session_state.get(STATE_INTAKE_STEP, 1) or 1)
@@ -876,52 +1070,54 @@ elif step in {2, 3} or result is None:
 # Confirmation / editor only while there is no validated result yet.
 if result is None and step <= 3:
     st.write("")
-    ready = _required_suggestions_ready(detailed)
+    committed = _ensure_committed(table, detailed)
+    exceptions = list_exceptions(table, detailed, committed)
+    _render_read_summary(table, detailed, committed)
+    ref_cols = reference_only_columns(list(table.columns))
+    if ref_cols:
+        st.caption(t("intake.reference_only_note", lang))
     if not show_editor:
-        _render_read_summary(table, detailed)
-        ref_cols = reference_only_columns(list(table.columns))
-        if ref_cols:
-            st.caption(t("intake.reference_only_note", lang))
-        st.markdown(f"**{t('intake.read_ask', lang)}**")
-        if not ready:
-            st.warning(t("intake.interpret.need_help", lang))
+        if exceptions:
+            st.markdown(f"**{t('intake.ex.queue_title', lang)}**")
+            for item in exceptions:
+                _render_exception_card(item, table, committed)
+            st.info(t("intake.btn.continue_blocked", lang))
+        else:
+            held = int(summary_counts(table, detailed, committed)["waiting_rows"])
+            if held > 0:
+                st.info(t("intake.status.deferred", lang, n=held))
+            else:
+                st.success(t("intake.status.ready", lang))
             if _action_button(
-                t("intake.btn.fix", lang),
-                t("intake.btn.fix_help", lang),
-                key="intake_fix_required",
+                t("intake.btn.continue_ready", lang),
+                t("intake.btn.accept_help", lang),
+                key="intake_accept_interpretation",
                 primary=True,
             ):
-                st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
+                if not can_validate(table, detailed, committed):
+                    st.warning(t("intake.btn.continue_blocked", lang))
+                    st.stop()
+                mapping = mapping_from_committed(table, committed)
+                metadata = _metadata_from_committed(table, committed)
+                if metadata.document_date is None:
+                    st.error(t("intake.document_date_required", lang))
+                    st.stop()
+                st.session_state[STATE_INTAKE_MAPPING] = mapping
+                st.session_state[STATE_INTAKE_METADATA] = metadata
+                st.session_state[STATE_INTAKE_YEAR_MONTH_CONFIRMED] = (
+                    mapping.year_month_confirmed
+                )
+                try:
+                    validated = build_and_validate_intake(
+                        table, mapping, metadata
+                    )
+                except IntakeError as exc:
+                    st.error(exc.message)
+                    st.stop()
+                validated = hold_unknown_context_rows(validated, mapping)
+                st.session_state[STATE_INTAKE_RESULT] = validated
+                st.session_state[STATE_INTAKE_STEP] = 4
                 st.rerun()
-            st.stop()
-
-        if _action_button(
-            t("intake.btn.accept", lang),
-            t("intake.btn.accept_help", lang),
-            key="intake_accept_interpretation",
-            primary=True,
-        ):
-            mapping = _mapping_from_suggestions(table, detailed)
-            metadata = _default_metadata(table)
-            st.session_state[STATE_INTAKE_MAPPING] = mapping
-            st.session_state[STATE_INTAKE_METADATA] = metadata
-            st.session_state[STATE_INTAKE_YEAR_MONTH_CONFIRMED] = (
-                mapping.year_month_confirmed
-            )
-            needed = context_confirmations_needed(table, mapping)
-            if any(needed.values()):
-                st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
-                st.session_state[STATE_INTAKE_STEP] = 3
-                st.rerun()
-            try:
-                validated = build_and_validate_intake(table, mapping, metadata)
-            except IntakeError as exc:
-                st.error(exc.message)
-                st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
-                st.stop()
-            st.session_state[STATE_INTAKE_RESULT] = validated
-            st.session_state[STATE_INTAKE_STEP] = 4
-            st.rerun()
         if _action_button(
             t("intake.btn.fix", lang),
             t("intake.btn.fix_help", lang),
@@ -931,6 +1127,13 @@ if result is None and step <= 3:
             st.rerun()
         st.stop()
 
+    st.warning(t("intake.draft_unapplied", lang))
+    if _action_button(
+        t("intake.btn.continue_ready", lang),
+        t("intake.draft_unapplied", lang),
+        key="intake_continue_with_editor_open",
+    ):
+        st.warning(t("intake.draft_unapplied", lang))
     st.markdown(f"**{t('intake.editor.required', lang)}**")
 
     # Technical mapping controls — only after the beginner asks to fix.
@@ -958,7 +1161,6 @@ if result is None and step <= 3:
                 allow_preselect=allow_preselect,
             ),
             key=widget_key,
-            help=_confidence_caption(confidence),
         )
         choose_label = t("intake.choose", lang)
         return "" if selected == choose_label else selected
@@ -1275,9 +1477,16 @@ if result is None and step <= 3:
                 help=t("intake.site_unknown_help", lang),
             )
     with meta_cols[1]:
+        existing_doc = None
+        raw_doc = committed.get("document_date")
+        if raw_doc:
+            try:
+                existing_doc = date.fromisoformat(str(raw_doc)[:10])
+            except ValueError:
+                existing_doc = None
         document_date = st.date_input(
             t("intake.document_date", lang),
-            value=None,
+            value=existing_doc,
             key="intake_document_date",
         )
         quality_label = st.selectbox(
@@ -1287,59 +1496,56 @@ if result is None and step <= 3:
             key="intake_data_quality",
         )
 
-    mapping = ColumnMapping(
-        activity_type_column=activity_type_column,
-        activity_value_column=activity_value_column,
-        unit_column=unit_column,
-        site_column=site_column,
-        use_file_dates=use_file_dates,
-        use_year_month=use_year_month,
-        year_month_column=year_month_column,
-        year_month_confirmed=year_month_confirmed,
-        start_date_column=start_date_column,
-        end_date_column=end_date_column,
-        period_start=period_start if isinstance(period_start, date) else None,
-        period_end=period_end if isinstance(period_end, date) else None,
-        activity_type_value_map=activity_type_value_map,
-        unit_value_map=unit_value_map,
-        natural_gas_subtype=natural_gas_subtype,
-        natural_gas_subtype_column=fuel_subtype_column,
-        diesel_context=diesel_context,
-        electricity_context=electricity_context,
-    )
     confirmed_document_date = (
-        document_date if isinstance(document_date, date) else None
+        document_date if isinstance(document_date, date) else existing_doc
     )
-    metadata = IntakeMetadata(
-        source_name=source_name.strip() or table.file_name,
-        site_id=site_id.strip() or "UNKNOWN",
-        document_date=confirmed_document_date,
-        data_quality_tier=QUALITY_LABEL_TO_CODE.get(quality_label, "unknown"),
-        intake_run_id="ui_intake",
-        ingested_at=pd.Timestamp.now(tz="UTC"),
-    )
-    st.session_state[STATE_INTAKE_MAPPING] = mapping
-    st.session_state[STATE_INTAKE_METADATA] = metadata
     if confirmed_document_date is None:
         st.info(t("intake.document_date_required", lang))
 
     if _action_button(
-        t("intake.run_validation", lang),
-        t("intake.btn.validate_help", lang),
-        key="intake_run_validation",
+        t("intake.ex.editor_apply", lang),
+        t("intake.draft_unapplied", lang),
+        key="intake_apply_editor",
         primary=True,
     ):
         if confirmed_document_date is None:
             st.error(t("intake.document_date_required", lang))
             st.stop()
-        try:
-            validated = build_and_validate_intake(table, mapping, metadata)
-        except IntakeError as exc:
-            st.error(exc.message)
-            st.stop()
-        st.session_state[STATE_INTAKE_RESULT] = validated
-        clear_duplicate_review_state(st.session_state)
-        st.session_state[STATE_INTAKE_STEP] = 4
+        next_committed = dict(_ensure_committed(table, detailed))
+        next_committed["columns"] = dict(next_committed.get("columns") or {})
+        next_committed["columns"]["activity_type"] = activity_type_column
+        next_committed["columns"]["activity_value"] = activity_value_column
+        next_committed["columns"]["unit"] = unit_column
+        if site_column:
+            next_committed["columns"]["site_id"] = site_column
+        if fuel_subtype_column:
+            next_committed["columns"]["fuel_subtype"] = fuel_subtype_column
+        next_committed["date_mode"] = date_mode
+        next_committed["year_month_confirmed"] = year_month_confirmed
+        if year_month_column:
+            next_committed["columns"]["year_month"] = year_month_column
+        if start_date_column:
+            next_committed["columns"]["activity_start_date"] = start_date_column
+        if end_date_column:
+            next_committed["columns"]["activity_end_date"] = end_date_column
+        if period_start:
+            next_committed["period_start"] = period_start.isoformat()
+        if period_end:
+            next_committed["period_end"] = period_end.isoformat()
+        next_committed["activity_type_value_map"] = activity_type_value_map
+        next_committed["unit_value_map"] = unit_value_map
+        next_committed["natural_gas_subtype"] = natural_gas_subtype
+        next_committed["diesel_context"] = diesel_context
+        next_committed["electricity_context"] = electricity_context
+        next_committed["source_name"] = source_name.strip() or table.file_name
+        next_committed["fallback_site_id"] = site_id.strip()
+        next_committed["data_quality_tier"] = QUALITY_LABEL_TO_CODE.get(
+            quality_label, "unknown"
+        )
+        if confirmed_document_date is not None:
+            next_committed["document_date"] = confirmed_document_date.isoformat()
+        st.session_state[STATE_INTAKE_COMMITTED] = next_committed
+        st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = False
         st.rerun()
     st.stop()
 
@@ -1419,6 +1625,15 @@ if step == 4:
     with tab_bad:
         if result.rejected_count > 0:
             rejected = result.rejected_rows.copy()
+            if "issue_code" in rejected.columns:
+                rejected["issue_message"] = [
+                    _safe_issue_message(str(code), str(message))
+                    for code, message in zip(
+                        rejected["issue_code"].tolist(),
+                        rejected["issue_message"].tolist(),
+                        strict=True,
+                    )
+                ]
             if "field" in rejected.columns:
                 rejected["field"] = rejected["field"].map(
                     lambda name: customer_schema_label(str(name), lang)

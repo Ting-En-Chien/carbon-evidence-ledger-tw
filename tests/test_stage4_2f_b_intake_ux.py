@@ -7,12 +7,10 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 from carbon_ledger.intake import (
-    CONFIDENCE_HIGH,
-    CONFIDENCE_MEDIUM,
-    context_confirmations_needed,
     parse_uploaded_table,
     suggest_column_mapping_with_confidence,
 )
+from carbon_ledger.intake_exceptions import initialize_committed, summary_counts
 from carbon_ledger.ui.i18n import STATE_LANGUAGE, t
 from carbon_ledger.ui.state import (
     STATE_INTAKE_SHOW_MAPPING_EDITOR,
@@ -44,9 +42,9 @@ RAW_KEYS = (
     "ev.landing.title",
     "intake.read_title",
     "intake.read_found",
-    "intake.read_mapped",
+    "intake.read_recognized",
     "intake.read_confirm_count",
-    "intake.btn.accept",
+    "intake.btn.continue_ready",
     "intake.ng_option_1",
 )
 
@@ -130,56 +128,9 @@ def _seed_read_result(at: AppTest, data: bytes, *, editor: bool = False) -> AppT
 
 def _expected_counts(table) -> tuple[int, int]:
     detailed = suggest_column_mapping_with_confidence(list(table.columns))
-    mapped = 0
-    for name in (
-        "activity_type",
-        "activity_value",
-        "unit",
-        "site_id",
-        "year_month",
-        "activity_start_date",
-        "activity_end_date",
-        "fuel_subtype",
-    ):
-        suggestion = detailed.get(name)
-        if (
-            suggestion is not None
-            and suggestion.source_column
-            and suggestion.confidence in {CONFIDENCE_HIGH, CONFIDENCE_MEDIUM}
-        ):
-            mapped += 1
-    from carbon_ledger.intake import ColumnMapping, default_value_maps
-
-    suggestions = {
-        name: detailed[name].source_column
-        if name in detailed and detailed[name].source_column
-        else ""
-        for name in (
-            "activity_type",
-            "activity_value",
-            "unit",
-            "site_id",
-            "activity_start_date",
-            "activity_end_date",
-        )
-    }
-    draft = ColumnMapping(
-        activity_type_column=suggestions["activity_type"],
-        activity_value_column=suggestions["activity_value"],
-        unit_column=suggestions["unit"],
-        site_column=suggestions["site_id"],
-        use_file_dates=True,
-        start_date_column=suggestions["activity_start_date"],
-        end_date_column=suggestions["activity_end_date"],
-    )
-    activity_map, unit_map = default_value_maps(table, draft)
-    draft.activity_type_value_map = activity_map
-    draft.unit_value_map = unit_map
-    needed = context_confirmations_needed(table, draft)
-    confirm = sum(1 for flag in needed.values() if flag)
-    if confirm == 0:
-        confirm = 1
-    return mapped, confirm
+    committed = initialize_committed(table, detailed)
+    counts = summary_counts(table, detailed, committed)
+    return counts["recognized"], counts["confirm"]
 
 
 def test_default_entry_emphasizes_existing_company_file() -> None:
@@ -233,8 +184,9 @@ def test_recognition_result_uses_real_available_counts() -> None:
     at = _seed_read_result(at, data)
     text = _all_text(at)
     assert t("intake.read_found", ZH, n=len(table.frame)) in text
-    assert t("intake.read_mapped", ZH, mapped=mapped) in text
+    assert t("intake.read_recognized", ZH, n=mapped) in text
     assert t("intake.read_confirm_count", ZH, confirm=confirm) in text
+    assert confirm >= 1
     assert "可計算" not in text
     assert "ready to calculate" not in text.lower()
 
@@ -242,7 +194,10 @@ def test_recognition_result_uses_real_available_counts() -> None:
 def test_explicit_confirmation_still_required() -> None:
     at = _seed_read_result(_run_customer(), _company_csv())
     labels = [str(button.label) for button in at.button]
-    assert t("intake.btn.accept", ZH) in labels
+    assert t("intake.btn.accept", ZH) not in labels
+    assert t("intake.btn.continue_ready", ZH) not in labels
+    assert t("intake.ex.apply", ZH) in labels
+    assert t("intake.btn.continue_blocked", ZH) in _all_text(at)
     assert at.session_state[STATE_INTAKE_STEP] == 2
     assert at.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] is False
 
@@ -304,6 +259,7 @@ def test_chinese_and_english_render_without_raw_keys() -> None:
     at = _seed_read_result(at, _company_csv())
     en_read = _all_text(at)
     assert t("intake.read_title", EN) in en_read
-    assert t("intake.btn.accept", EN) in en_read
+    assert t("intake.ex.apply", EN) in en_read
+    assert t("intake.btn.accept", EN) not in en_read
     for key in RAW_KEYS:
         assert key not in en_read

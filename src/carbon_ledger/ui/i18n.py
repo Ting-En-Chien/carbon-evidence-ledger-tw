@@ -1450,8 +1450,168 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "{mapped} column matches proposed",
     },
     "intake.read_confirm_count": {
-        "zh-TW": "還有 {confirm} 個項目需要確認",
-        "en": "{confirm} items still need confirmation",
+        "zh-TW": "{confirm} 個項目需要確認",
+        "en": "{confirm} questions still need answers",
+    },
+    "intake.read_recognized": {
+        "zh-TW": "系統已自動辨識 {n} 個欄位",
+        "en": "{n} fields recognized automatically",
+    },
+    "intake.read_rows": {
+        "zh-TW": "可繼續 {ready} 筆；{held} 筆暫緩處理",
+        "en": "{ready} rows can continue; {held} rows are deferred",
+    },
+    "intake.status.ready": {
+        "zh-TW": "資料已可繼續",
+        "en": "This file is ready to continue",
+    },
+    "intake.status.deferred": {
+        "zh-TW": "已完成目前確認；另有 {n} 筆暫緩處理，不納入本次計算",
+        "en": (
+            "All current questions are complete; {n} rows are deferred "
+            "and will not be calculated this time"
+        ),
+    },
+    "intake.ex.queue_title": {
+        "zh-TW": "需要你確認的項目",
+        "en": "Items that need your answer",
+    },
+    "intake.ex.none": {
+        "zh-TW": "資料已可繼續",
+        "en": "This file is ready to continue",
+    },
+    "intake.ex.apply": {
+        "zh-TW": "採用這個選擇",
+        "en": "Use this choice",
+    },
+    "intake.ex.editor_apply": {
+        "zh-TW": "套用這些調整",
+        "en": "Apply these adjustments",
+    },
+    "intake.ex.column_q": {
+        "zh-TW": "請確認「{column}」欄位",
+        "en": "Please confirm the “{column}” column",
+    },
+    "intake.ex.column_q_blank": {
+        "zh-TW": "請選擇哪一欄是{label}。",
+        "en": "Please choose which column is {label}.",
+    },
+    "intake.ex.column_why": {
+        "zh-TW": "沒有這個對應，系統無法正確讀取這份檔案。",
+        "en": "Without this match, the file cannot be read correctly.",
+    },
+    "intake.ex.column_why_medium": {
+        "zh-TW": "系統建議使用這一欄作為排放計算的{label}。",
+        "en": (
+            "The system suggests using this column as the {label} "
+            "for emission calculation."
+        ),
+    },
+    "intake.ex.column_control": {
+        "zh-TW": "要使用哪一欄？",
+        "en": "Which column should be used?",
+    },
+    "intake.ex.proposed": {
+        "zh-TW": "系統建議：{value}",
+        "en": "Suggested answer: {value}",
+    },
+    "intake.ex.ym_q": {
+        "zh-TW": "請確認系統將「{column}」讀成資料期間。",
+        "en": "Please confirm that “{column}” is the reporting period.",
+    },
+    "intake.ex.dates_q": {
+        "zh-TW": "請告訴系統這份資料的日期或期間。",
+        "en": "Please tell the system the dates or period for this file.",
+    },
+    "intake.ex.ng_q": {
+        "zh-TW": "請確認天然氣的環境部年度熱值分類。",
+        "en": "Please confirm the MOENV annual heating-value class for natural gas.",
+    },
+    "intake.ex.ng_why": {
+        "zh-TW": "不同分類的官方年度熱值不同，確認後才能計算這些列。",
+        "en": (
+            "The official annual heating values differ by class, "
+            "so these rows cannot be calculated until this is answered."
+        ),
+    },
+    "intake.ex.diesel_q": {
+        "zh-TW": "這些柴油列是公司車輛使用嗎？",
+        "en": "Are these diesel rows for company vehicles?",
+    },
+    "intake.ex.diesel_why": {
+        "zh-TW": "無法確認用途時，這些列會暫不計算，不會被刪除。",
+        "en": (
+            "If the use cannot be confirmed, those rows are held out of "
+            "calculation; they are not deleted."
+        ),
+    },
+    "intake.ex.elec_q": {
+        "zh-TW": "這些電力列是否用於企業／廠場盤查？",
+        "en": "Are these electricity rows for enterprise / facility inventory?",
+    },
+    "intake.ex.elec_why": {
+        "zh-TW": "確認用途後才能套用企業盤查係數；未確認的列會暫不計算。",
+        "en": (
+            "The enterprise inventory factor can be applied only after this "
+            "is answered. Unconfirmed rows are held out of calculation."
+        ),
+    },
+    "intake.ex.activity_q": {
+        "zh-TW": "「{value}」是哪一種活動？",
+        "en": "What activity is “{value}”?",
+    },
+    "intake.ex.unit_q": {
+        "zh-TW": "「{value}」的單位是？",
+        "en": "What unit is “{value}”?",
+    },
+    "intake.ex.unknown_rows": {
+        "zh-TW": "還不確定（相關列暫不計算）",
+        "en": "Not sure yet (those rows will not be calculated for now)",
+    },
+    "intake.ex.why_activity": {
+        "zh-TW": "無法判斷活動類型時，這一列會暫不計算，不會被刪除。",
+        "en": (
+            "If the activity cannot be identified, the row is held out of "
+            "calculation; it is not deleted."
+        ),
+    },
+    "intake.draft_unapplied": {
+        "zh-TW": "你有尚未套用的選擇。請先套用，才能繼續。",
+        "en": "You have unapplied choices. Apply them before continuing.",
+    },
+    "intake.btn.continue_ready": {
+        "zh-TW": "繼續",
+        "en": "Continue",
+    },
+    "intake.btn.continue_blocked": {
+        "zh-TW": "還有項目尚未確認，無法繼續。",
+        "en": "Items still need answers before you can continue.",
+    },
+    "intake.rej.held_activity": {
+        "zh-TW": "這一列的活動類型還無法判斷，因此暫不計算。",
+        "en": "This row’s activity is still unclear, so it is not calculated yet.",
+    },
+    "intake.rej.held_unit": {
+        "zh-TW": "這一列的單位還無法判斷，因此暫不計算。",
+        "en": "This row’s unit is still unclear, so it is not calculated yet.",
+    },
+    "intake.rej.held_ng": {
+        "zh-TW": "天然氣用途尚未確定，因此這一列暫不計算。",
+        "en": (
+            "Natural-gas context is still unknown, "
+            "so this row is not calculated yet."
+        ),
+    },
+    "intake.rej.held_diesel": {
+        "zh-TW": "柴油用途尚未確定，因此這一列暫不計算。",
+        "en": "Diesel context is still unknown, so this row is not calculated yet.",
+    },
+    "intake.rej.held_elec": {
+        "zh-TW": "電力盤查用途尚未確定，因此這一列暫不計算。",
+        "en": (
+            "Electricity inventory context is still unknown, "
+            "so this row is not calculated yet."
+        ),
     },
     "intake.read_sheet": {
         "zh-TW": "工作表：{sheet}",

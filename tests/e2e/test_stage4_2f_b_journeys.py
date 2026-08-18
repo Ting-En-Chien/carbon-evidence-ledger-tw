@@ -90,13 +90,14 @@ def test_journey_42fb_read_result_editor_and_ng(page) -> None:
     text = visible_text(page)
     assert "資料已讀取" in text
     assert "找到 2 筆資料" in text
-    assert "系統已提出" in text
-    assert "還有" in text and "需要確認" in text
+    assert "系統已自動辨識" in text
+    assert "個項目需要確認" in text
     assert "我們看懂這份 Excel" not in text
     assert "可計算" not in text
     assert "activity_type" not in text
     assert "必須確認" not in text
-    assert page.get_by_role("button", name="確認並繼續").count() >= 1
+    assert page.get_by_role("button", name="確認並繼續").count() == 0
+    assert page.get_by_role("button", name="採用這個選擇").count() >= 1
     assert page.get_by_role("button", name="調整欄位對應").count() >= 1
     save_step_screenshot(page, "qa_42fb_read_compact", required=True)
 

@@ -84,6 +84,7 @@ STATE_INTAKE_HEADER_ROW = "intake_header_row"
 STATE_INTAKE_HEADER_CONFIRMED = "intake_header_confirmed"
 STATE_INTAKE_YEAR_MONTH_CONFIRMED = "intake_year_month_confirmed"
 STATE_INTAKE_SHOW_MAPPING_EDITOR = "intake_show_mapping_editor"
+STATE_INTAKE_COMMITTED = "intake_committed_decisions"
 STATE_INTAKE_MAPPING = "intake_mapping"
 STATE_INTAKE_METADATA = "intake_metadata"
 STATE_INTAKE_RESULT = "validated_intake_result"
@@ -737,6 +738,7 @@ def clear_intake_state(session_state: Any) -> None:
         STATE_INTAKE_HEADER_CONFIRMED,
         STATE_INTAKE_YEAR_MONTH_CONFIRMED,
         STATE_INTAKE_SHOW_MAPPING_EDITOR,
+        STATE_INTAKE_COMMITTED,
         STATE_INTAKE_MAPPING,
         STATE_INTAKE_METADATA,
         STATE_INTAKE_RESULT,

@@ -200,15 +200,46 @@ NG_CUSTOMER_LABEL = {
     "NG1": "天然氣（環境部年度熱值分類 NG1）",
     "NG2": "天然氣（環境部年度熱值分類 NG2）",
 }
+DIESEL_CUSTOMER_LABEL = "公司車輛／公司控制的移動燃燒"
+ELECTRICITY_CUSTOMER_LABEL = "企業／廠場盤查"
 
 
-def confirm_intake_reading(page) -> None:
-    """Advance from the compact file-read result using the explicit confirm CTA."""
+def resolve_intake_exceptions(page, *, ng_choice: str = "NG1") -> None:
+    """Apply visible exception-queue answers without opening the mapping editor."""
+    apply_re = re.compile(
+        r"採用這個選擇|Use this choice|套用這項答案|Apply this answer"
+    )
+    ng_label = NG_CUSTOMER_LABEL.get(ng_choice, ng_choice)
+    for _ in range(16):
+        apply_btns = page.get_by_role("button", name=apply_re)
+        if apply_btns.count() == 0:
+            return
+        radios = page.locator('[data-testid="stRadioOption"]')
+        if radios.filter(has_text=ng_label).count():
+            choose_radio(page, ng_label)
+        if radios.filter(has_text=DIESEL_CUSTOMER_LABEL).count():
+            choose_radio(page, DIESEL_CUSTOMER_LABEL)
+        if radios.filter(has_text=ELECTRICITY_CUSTOMER_LABEL).count():
+            choose_radio(page, ELECTRICITY_CUSTOMER_LABEL)
+        apply_btns = page.get_by_role("button", name=apply_re)
+        if apply_btns.count() == 0:
+            return
+        apply_btns.first.click(force=True)
+        wait_streamlit_idle(page, timeout=40)
+        page.wait_for_timeout(250)
+
+
+def confirm_intake_reading(page, *, ng_choice: str = "NG1") -> None:
+    """Resolve remaining exceptions, then continue from the file-read result."""
     page.get_by_text(re.compile(r"資料已讀取|File read successfully")).first.wait_for(
         state="visible", timeout=20_000
     )
+    resolve_intake_exceptions(page, ng_choice=ng_choice)
     btn = page.get_by_role(
-        "button", name=re.compile(r"確認並繼續|Confirm and continue")
+        "button",
+        name=re.compile(
+            r"^繼續$|^Continue$|確認並繼續|Confirm and continue"
+        ),
     )
     if btn.count():
         btn.first.click(force=True)

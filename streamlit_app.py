@@ -52,7 +52,7 @@ from carbon_ledger.ui.view_models_compliance import regulatory_freshness_banner
 st.set_page_config(
     page_title="Carbon Evidence Ledger",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 inject_design_system()

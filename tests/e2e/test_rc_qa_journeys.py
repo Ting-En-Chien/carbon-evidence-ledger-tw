@@ -302,25 +302,29 @@ def _walk_ng_file_to_validation(page, csv_path: Path) -> None:
     wait_streamlit_idle(page, timeout=40)
     page.wait_for_timeout(700)
     confirm_intake_reading(page)
-    ng_help = page.get_by_text("NG1 與 NG2 的官方年度熱值", exact=False)
-    if ng_help.count() == 0:
-        open_intake_mapping_editor(page)
-    ng_help.first.wait_for(state="visible", timeout=20_000)
-    choose_radio(page, NG_CUSTOMER_LABEL["NG1"])
-    if page.get_by_text("公司車輛／公司控制的移動燃燒", exact=False).count():
-        choose_radio(page, "公司車輛／公司控制的移動燃燒")
-    if page.get_by_text("企業／廠場盤查", exact=False).count():
-        choose_radio(page, "企業／廠場盤查")
-    fill_streamlit_date(page, "文件日期", "2025-01-31")
-    page.get_by_text("請確認文件日期", exact=False).first.wait_for(
-        state="hidden", timeout=15_000
-    )
-    validate = page.get_by_role(
-        "button", name=re.compile(r"資料格式檢查|Check data format")
-    )
-    assert validate.count() >= 1
-    validate.first.click(force=True)
-    wait_streamlit_idle(page, timeout=40)
+    nxt = page.get_by_role("button", name=re.compile(r"下一步|Next"))
+    if nxt.count() == 0:
+        ng_help = page.get_by_text("NG1 與 NG2 的官方年度熱值", exact=False)
+        if ng_help.count() == 0:
+            open_intake_mapping_editor(page)
+        if ng_help.count():
+            choose_radio(page, NG_CUSTOMER_LABEL["NG1"])
+            if page.get_by_text("公司車輛／公司控制的移動燃燒", exact=False).count():
+                choose_radio(page, "公司車輛／公司控制的移動燃燒")
+            if page.get_by_text("企業／廠場盤查", exact=False).count():
+                choose_radio(page, "企業／廠場盤查")
+            fill_streamlit_date(page, "文件日期", "2025-01-31")
+            page.get_by_text("請確認文件日期", exact=False).first.wait_for(
+                state="hidden", timeout=15_000
+            )
+            validate = page.get_by_role(
+                "button",
+                name=re.compile(r"資料格式檢查|Check data format|套用這些調整"),
+            )
+            if validate.count():
+                validate.first.click(force=True)
+                wait_streamlit_idle(page, timeout=40)
+            confirm_intake_reading(page)
 
 
 def _start_uploaded_analysis(page) -> None:

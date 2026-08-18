@@ -575,28 +575,31 @@ def _walk_stage41_intake(page, csv_path: Path, *, ng_choice: str) -> None:
     uploader.first.set_input_files(str(csv_path))
     wait_streamlit_idle(page, timeout=40)
     page.wait_for_timeout(700)
-    confirm_intake_reading(page)
-    ng_help = page.get_by_text("NG1 與 NG2 的官方年度熱值", exact=False)
-    if ng_help.count() == 0:
-        open_intake_mapping_editor(page)
-    ng_help.first.wait_for(state="visible", timeout=20_000)
-    ng_help.first.scroll_into_view_if_needed()
-    choose_radio(page, NG_CUSTOMER_LABEL.get(ng_choice, ng_choice))
-    choose_radio(page, "公司車輛／公司控制的移動燃燒")
-    choose_radio(page, "企業／廠場盤查")
-    fill_streamlit_date(page, "文件日期", "2025-01-31")
-    page.get_by_text("請確認文件日期", exact=False).first.wait_for(
-        state="hidden", timeout=15_000
-    )
-    save_step_screenshot(page, "qa_stage41_mapping_ng")
-    validate = page.get_by_role(
-        "button", name=re.compile(r"資料格式檢查|Check data format")
-    )
-    assert validate.count() >= 1
-    validate.first.scroll_into_view_if_needed()
-    validate.first.click(force=True)
-    wait_streamlit_idle(page, timeout=40)
+    confirm_intake_reading(page, ng_choice=ng_choice)
     nxt = page.get_by_role("button", name=re.compile(r"下一步|Next"))
+    if nxt.count() == 0:
+        ng_help = page.get_by_text("NG1 與 NG2 的官方年度熱值", exact=False)
+        if ng_help.count() == 0:
+            open_intake_mapping_editor(page)
+        ng_help.first.wait_for(state="visible", timeout=20_000)
+        ng_help.first.scroll_into_view_if_needed()
+        choose_radio(page, NG_CUSTOMER_LABEL.get(ng_choice, ng_choice))
+        choose_radio(page, "公司車輛／公司控制的移動燃燒")
+        choose_radio(page, "企業／廠場盤查")
+        fill_streamlit_date(page, "文件日期", "2025-01-31")
+        page.get_by_text("請確認文件日期", exact=False).first.wait_for(
+            state="hidden", timeout=15_000
+        )
+        save_step_screenshot(page, "qa_stage41_mapping_ng")
+        validate = page.get_by_role(
+            "button", name=re.compile(r"資料格式檢查|Check data format|套用這些調整")
+        )
+        if validate.count():
+            validate.first.scroll_into_view_if_needed()
+            validate.first.click(force=True)
+            wait_streamlit_idle(page, timeout=40)
+        confirm_intake_reading(page, ng_choice=ng_choice)
+        nxt = page.get_by_role("button", name=re.compile(r"下一步|Next"))
     nxt.first.wait_for(state="visible", timeout=20_000)
     nxt.first.click(force=True)
     wait_streamlit_idle(page)
