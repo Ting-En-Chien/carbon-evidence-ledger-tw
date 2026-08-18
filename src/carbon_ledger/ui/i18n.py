@@ -1400,7 +1400,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Current status",
     },
     # Phase 9A Data Intake
-    "intake.title": {"zh-TW": "上傳公司資料", "en": "Upload company data"},
+    "intake.title": {
+        "zh-TW": "上傳能源與營運資料",
+        "en": "Upload energy and operating data",
+    },
     "intake.subtitle": {
         "zh-TW": (
             "上傳活動資料後，系統會協助確認欄位、單位與資料完整性，"
@@ -1413,13 +1416,74 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "intake.page_lead": {
         "zh-TW": (
-            "上傳活動資料後，系統會協助確認欄位、單位與資料完整性，"
-            "完成後再進行排放分析。"
+            "請直接使用公司目前的 Excel 或 CSV，不必重新整理格式。"
+            "系統會辨識欄位、單位、日期與廠場，只詢問不確定的項目。"
         ),
         "en": (
-            "After you upload activity data, the system helps confirm "
-            "columns, units, and completeness before emissions analysis."
+            "Use the Excel or CSV your company already maintains. "
+            "The system will identify columns, units, dates, and facilities, "
+            "and will only ask about uncertain items."
         ),
+    },
+    "intake.upload_existing_title": {
+        "zh-TW": "上傳公司現有資料",
+        "en": "Upload your company’s existing data",
+    },
+    "intake.processing_title": {
+        "zh-TW": "正在讀取檔案…",
+        "en": "Reading the file…",
+    },
+    "intake.processing_body": {
+        "zh-TW": "我們正在辨識工作表、欄位與資料格式。",
+        "en": "We are identifying worksheets, columns, and the data layout.",
+    },
+    "intake.read_title": {
+        "zh-TW": "資料已讀取",
+        "en": "File read successfully",
+    },
+    "intake.read_found": {
+        "zh-TW": "找到 {n} 筆資料",
+        "en": "{n} records found",
+    },
+    "intake.read_mapped": {
+        "zh-TW": "系統已提出 {mapped} 個欄位對應",
+        "en": "{mapped} column matches proposed",
+    },
+    "intake.read_confirm_count": {
+        "zh-TW": "還有 {confirm} 個項目需要確認",
+        "en": "{confirm} items still need confirmation",
+    },
+    "intake.read_sheet": {
+        "zh-TW": "工作表：{sheet}",
+        "en": "Worksheet: {sheet}",
+    },
+    "intake.read_ask": {
+        "zh-TW": "請確認系統對這份檔案的理解",
+        "en": "Please confirm how the system read this file",
+    },
+    "intake.editor.required": {
+        "zh-TW": "必須確認",
+        "en": "Required",
+    },
+    "intake.editor.optional": {
+        "zh-TW": "可選調整",
+        "en": "Optional adjustments",
+    },
+    "intake.editor.dates": {
+        "zh-TW": "日期與期間",
+        "en": "Dates and period",
+    },
+    "intake.editor.values": {
+        "zh-TW": "檔案內容對應",
+        "en": "File value matching",
+    },
+    "intake.ng_option_1": {
+        "zh-TW": "天然氣（環境部年度熱值分類 NG1）",
+        "en": "Natural gas (MOENV annual heating-value class NG1)",
+    },
+    "intake.ng_option_2": {
+        "zh-TW": "天然氣（環境部年度熱值分類 NG2）",
+        "en": "Natural gas (MOENV annual heating-value class NG2)",
     },
     "intake.upload_limit": {
         "zh-TW": "支援 CSV、XLSX。單一檔案最大 10 MB。",
@@ -1591,8 +1655,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Suggested column mappings",
     },
     "intake.interpret.title": {
-        "zh-TW": "我們看懂這份 Excel 了 ✓",
-        "en": "We understand this Excel file ✓",
+        "zh-TW": "資料已讀取",
+        "en": "File read successfully",
     },
     "intake.interpret.intro": {
         "zh-TW": "我們會這樣讀取你的資料：",
@@ -1638,8 +1702,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Used as the end date for each activity.",
     },
     "intake.interpret.ask": {
-        "zh-TW": "這和你的 Excel 內容相符嗎？",
-        "en": "Does this match your Excel content?",
+        "zh-TW": "請確認系統對這份檔案的理解",
+        "en": "Please confirm how the system read this file",
     },
     "intake.interpret.need_help": {
         "zh-TW": (
@@ -1651,20 +1715,20 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "intake.btn.accept": {
-        "zh-TW": "正確，繼續",
-        "en": "Looks right, continue",
+        "zh-TW": "確認並繼續",
+        "en": "Confirm and continue",
     },
     "intake.btn.accept_help": {
-        "zh-TW": "接受目前的資料辨識結果，前往資料檢查。",
-        "en": "Accept the current reading and continue to data checks.",
+        "zh-TW": "確認目前的讀取結果，繼續檢查資料。",
+        "en": "Confirm the current reading and continue to data checks.",
     },
     "intake.btn.fix": {
-        "zh-TW": "有地方不對",
-        "en": "Something is wrong",
+        "zh-TW": "調整欄位對應",
+        "en": "Adjust column matching",
     },
     "intake.btn.fix_help": {
-        "zh-TW": "修改系統對 Excel 欄位的理解。",
-        "en": "Change how the system reads your Excel columns.",
+        "zh-TW": "調整系統對檔案欄位的理解。",
+        "en": "Adjust how the system reads your file columns.",
     },
     "intake.btn.validate_help": {
         "zh-TW": "只檢查資料能否轉成系統格式，不會開始計算碳排。",
@@ -1702,31 +1766,35 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Advanced: system field format",
     },
     "intake.step1": {"zh-TW": "01 上傳檔案", "en": "01 Upload file"},
-    "intake.step2": {"zh-TW": "02 對應欄位", "en": "02 Map columns"},
+    "intake.step2": {"zh-TW": "02 讀取結果", "en": "02 Read result"},
     "intake.step3": {"zh-TW": "03 確認資料", "en": "03 Confirm data"},
     "intake.step4": {"zh-TW": "04 檢查結果", "en": "04 Validation result"},
     "intake.journey.upload": {"zh-TW": "上傳資料", "en": "Upload data"},
     "intake.journey.confirm": {"zh-TW": "確認資料", "en": "Confirm data"},
     "intake.journey.results": {"zh-TW": "查看分析結果", "en": "View analysis results"},
     "intake.upload_priority": {
-        "zh-TW": "上傳公司資料",
-        "en": "Upload company data",
+        "zh-TW": "上傳公司現有資料",
+        "en": "Upload your company’s existing data",
     },
     "intake.understood": {
-        "zh-TW": "我們看懂這份 Excel 了 ✓",
-        "en": "We understood this Excel file ✓",
+        "zh-TW": "資料已讀取",
+        "en": "File read successfully",
     },
     "intake.upload_label": {
-        "zh-TW": "選擇公司資料檔案",
-        "en": "Choose a company data file",
+        "zh-TW": "選擇公司檔案",
+        "en": "Choose a company file",
     },
     "intake.upload_help": {
         "zh-TW": "支援 CSV、XLSX。單一檔案最大 10 MB。",
         "en": "CSV and XLSX. Maximum 10 MB per file.",
     },
     "intake.template_button": {
-        "zh-TW": "下載資料範本",
-        "en": "Download data template",
+        "zh-TW": "還沒有資料檔？下載範例",
+        "en": "Don’t have a data file yet? Download an example.",
+    },
+    "intake.template_fallback": {
+        "zh-TW": "還沒有資料檔？下載範例",
+        "en": "Don’t have a data file yet? Download an example.",
     },
     "intake.example_button": {
         "zh-TW": "下載範例檔 (.csv)",
@@ -1814,8 +1882,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "intake.ng_type_unknown": {
-        "zh-TW": "不知道／不確定",
-        "en": "Don't know / not sure",
+        "zh-TW": "還不確定（此列暫不計算）",
+        "en": "Not sure yet (this row will not be calculated for now)",
     },
     "intake.ng_learn_title": {
         "zh-TW": "什麼是 NG1 / NG2？",
@@ -2606,6 +2674,25 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "ev.title": {"zh-TW": "證據與資料", "en": "Evidence & Data"},
+    "ev.landing.title": {
+        "zh-TW": "上傳能源與營運資料",
+        "en": "Upload energy and operating data",
+    },
+    "ev.landing.body": {
+        "zh-TW": (
+            "上傳公司既有的電力、燃料、車輛或採購資料。"
+            "系統會先整理，並標出需要你確認的項目。"
+        ),
+        "en": (
+            "Upload the electricity, fuel, vehicle, or purchasing files "
+            "your company already keeps. We will organize them and flag "
+            "anything that needs confirmation."
+        ),
+    },
+    "ev.landing.primary": {
+        "zh-TW": "上傳資料檔",
+        "en": "Upload a data file",
+    },
     "ev.subtitle": {
         "zh-TW": "把資料給系統，系統幫你整理和計算。",
         "en": "Give the system your data; it organizes and calculates it for you.",
@@ -2618,8 +2705,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "ev.workspace_nav": {
-        "zh-TW": "證據與資料功能",
-        "en": "Evidence & Data functions",
+        "zh-TW": "其他資料功能",
+        "en": "More data tools",
     },
     "ev.flow_title": {
         "zh-TW": "資料與證據工作流程",
@@ -2635,8 +2722,11 @@ MESSAGES: dict[str, dict[str, str]] = {
     "ev.tab.overview": {"zh-TW": "流程總覽", "en": "Overview"},
     "ev.tab.intake": {"zh-TW": "資料匯入", "en": "Data Upload"},
     "ev.tab.intake_help": {
-        "zh-TW": "預設畫面：上傳 Excel／CSV，完成對應後即可分析。",
-        "en": "Default view: upload Excel/CSV, map columns, then analyze.",
+        "zh-TW": "上傳公司既有檔案；其他資料功能可從上方選單開啟。",
+        "en": (
+            "Upload a file your company already keeps; "
+            "other data tools are in the menu above."
+        ),
     },
     "ev.tab.activity": {"zh-TW": "活動資料", "en": "Activity Data"},
     "ev.tab.issues": {"zh-TW": "待處理問題", "en": "Issues & Review"},

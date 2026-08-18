@@ -31,6 +31,7 @@ if str(E2E_DIR) not in sys.path:
 from helpers import (  # noqa: E402
     APPLICABILITY_NAV,
     ARTIFACTS,
+    NG_CUSTOMER_LABEL,
     STUB_ALIGNED_UBN,
     STUB_SPARSE_UBN,
     assert_no_app_errors,
@@ -38,9 +39,12 @@ from helpers import (  # noqa: E402
     choose_radio,
     choose_selectbox,
     click_button,
+    confirm_intake_reading,
     fill_streamlit_date,
     lookup_stub_company,
+    open_evidence_workspace_tool,
     open_fresh_app,
+    open_intake_mapping_editor,
     parse_metric_number,
     safe_scroll_into_view,
     save_step_screenshot,
@@ -252,24 +256,28 @@ def test_journey4_evidence_wizard_one_active_step(page) -> None:
         page.locator('input[type="file"]').count() >= 1
         or page.get_by_text(re.compile(r"Drag and drop|Browse|上傳")).count() >= 1
     )
-    page.get_by_text("需要準備的資料").first.wait_for(state="visible", timeout=15_000)
+    page.get_by_text("上傳能源與營運資料").first.wait_for(
+        state="visible", timeout=15_000
+    )
     page.set_viewport_size({"width": 1440, "height": 1800})
     wait_streamlit_idle(page)
     save_step_screenshot(page, "qa_data_upload")
     text = visible_text(page)
     assert text.count("開始分析") <= 2
     assert_no_raw_html_leak(text)
-    # Stage 3B.3c — Data Upload customer hygiene
+    # Stage 3B.3c / 4.2F-B — Data Upload customer hygiene
     assert "activity_type" not in text
     assert "activity_value" not in text
     assert "系統內部欄位名稱" not in text
     assert "200MB" not in text and "200 MB" not in text
     assert "10 MB" in text or "10MB" in text
-    assert "需要準備的資料" in text
+    assert "需要準備的資料" not in text
+    assert "不知道怎麼準備資料" not in text
     assert "50000" not in text
     assert "2024-01-01" not in text
     downloads = page.get_by_role(
-        "button", name=re.compile(r"下載資料範本|Download data template")
+        "button",
+        name=re.compile(r"還沒有資料檔？下載範例|Don’t have a data file yet"),
     )
     assert downloads.count() >= 1
     example_dl = page.get_by_role(
@@ -337,11 +345,8 @@ def test_journey6_information_hygiene(page) -> None:
 
     page.get_by_role("link", name=re.compile(r"證據與資料|Evidence")).first.click()
     wait_streamlit_idle(page)
-    # Prefer activity explorer sub-nav if present.
-    act = page.get_by_text(re.compile(r"活動|Activity"))
-    if act.count():
-        act.first.click()
-        wait_streamlit_idle(page)
+    open_evidence_workspace_tool(page, "活動資料")
+    wait_streamlit_idle(page)
     act_text = visible_text(page)
     assert "factor_id" not in act_text
     save_step_screenshot(page, "qa_hygiene_activity_default")
@@ -356,22 +361,22 @@ def test_journey6_information_hygiene(page) -> None:
         page.wait_for_timeout(400)
     save_step_screenshot(page, "qa_hygiene_activity_audit")
 
-    issues = page.get_by_text(re.compile(r"問題|Issues|Actions"))
-    if issues.count():
-        issues.first.click()
-        wait_streamlit_idle(page)
-        iss_text = visible_text(page)
-        assert "record_id:" not in iss_text
-        save_step_screenshot(page, "qa_hygiene_issues")
+    page.get_by_role("link", name=re.compile(r"證據與資料|Evidence")).first.click()
+    wait_streamlit_idle(page)
+    open_evidence_workspace_tool(page, "待處理問題")
+    wait_streamlit_idle(page)
+    iss_text = visible_text(page)
+    assert "record_id:" not in iss_text
+    save_step_screenshot(page, "qa_hygiene_issues")
 
-    records = page.get_by_text(re.compile(r"證據紀錄|Evidence records|紀錄"))
-    if records.count():
-        records.first.click()
-        wait_streamlit_idle(page)
-        rec_text = visible_text(page)
-        assert "SHA-256" not in rec_text
-        assert "Evidence hash" not in rec_text
-        save_step_screenshot(page, "qa_hygiene_evidence_records")
+    page.get_by_role("link", name=re.compile(r"證據與資料|Evidence")).first.click()
+    wait_streamlit_idle(page)
+    open_evidence_workspace_tool(page, "證據紀錄")
+    wait_streamlit_idle(page)
+    rec_text = visible_text(page)
+    assert "SHA-256" not in rec_text
+    assert "Evidence hash" not in rec_text
+    save_step_screenshot(page, "qa_hygiene_evidence_records")
 
     page.get_by_role("link", name=re.compile(r"報表|Reporting|匯出")).first.click()
     wait_streamlit_idle(page)
@@ -423,12 +428,8 @@ def test_journey7_terminology_and_reporting_screens(page) -> None:
 
     page.get_by_role("link", name=re.compile(r"證據與資料|Evidence")).first.click()
     wait_streamlit_idle(page)
-    act = page.get_by_text(re.compile(r"^活動資料$|Activity data"))
-    if act.count() == 0:
-        act = page.get_by_text(re.compile(r"活動資料|Activity"))
-    if act.count():
-        act.first.click()
-        wait_streamlit_idle(page)
+    open_evidence_workspace_tool(page, "活動資料")
+    wait_streamlit_idle(page)
     act_text = visible_text(page)
     assert "grid_electricity" not in act_text
     assert "stationary_combustion" not in act_text
@@ -476,12 +477,9 @@ def test_journey7_terminology_and_reporting_screens(page) -> None:
         file_input.first.set_input_files(str(csv_path))
         wait_streamlit_idle(page)
         page.wait_for_timeout(600)
-        cont = page.get_by_role("button", name=re.compile(r"^繼續$|^Continue$"))
-        if cont.count():
-            cont.first.click(force=True)
-            wait_streamlit_idle(page)
+        confirm_intake_reading(page)
         fix = page.get_by_role(
-            "button", name=re.compile(r"有地方不對|Something is wrong")
+            "button", name=re.compile(r"調整欄位對應|Adjust column matching")
         )
         if fix.count():
             fix.first.click(force=True)
@@ -540,6 +538,7 @@ def test_journey8_stage4_2025_fixture_no_fake_zero(page) -> None:
     wait_streamlit_idle(page)
     page.wait_for_timeout(600)
     for label in (
+        r"確認並繼續|Confirm and continue",
         r"^繼續$|^Continue$",
         r"資料格式檢查|Check data format",
         r"下一步|Next",
@@ -576,25 +575,13 @@ def _walk_stage41_intake(page, csv_path: Path, *, ng_choice: str) -> None:
     uploader.first.set_input_files(str(csv_path))
     wait_streamlit_idle(page, timeout=40)
     page.wait_for_timeout(700)
-    cont = page.get_by_role("button", name=re.compile(r"^繼續$|^Continue$"))
-    assert cont.count() >= 1
-    cont.first.click(force=True)
-    wait_streamlit_idle(page, timeout=40)
-    accept = page.get_by_role("button", name=re.compile(r"正確，繼續|Looks right"))
-    if accept.count():
-        accept.first.click(force=True)
-        wait_streamlit_idle(page, timeout=40)
+    confirm_intake_reading(page)
     ng_help = page.get_by_text("NG1 與 NG2 的官方年度熱值", exact=False)
     if ng_help.count() == 0:
-        fix = page.get_by_role(
-            "button", name=re.compile(r"有地方不對|Something is wrong")
-        )
-        if fix.count():
-            fix.first.click(force=True)
-            wait_streamlit_idle(page, timeout=40)
+        open_intake_mapping_editor(page)
     ng_help.first.wait_for(state="visible", timeout=20_000)
     ng_help.first.scroll_into_view_if_needed()
-    choose_radio(page, ng_choice)
+    choose_radio(page, NG_CUSTOMER_LABEL.get(ng_choice, ng_choice))
     choose_radio(page, "公司車輛／公司控制的移動燃燒")
     choose_radio(page, "企業／廠場盤查")
     fill_streamlit_date(page, "文件日期", "2025-01-31")
@@ -751,9 +738,7 @@ def test_journey9_stage41_customer_calculation(page) -> None:
     save_step_screenshot(page, "qa_stage41a_result_scope")
     page.get_by_role("link", name=re.compile(r"證據與資料|Evidence")).first.click()
     wait_streamlit_idle(page)
-    activity_tab = page.get_by_text("活動資料", exact=True)
-    activity_tab.first.wait_for(state="visible", timeout=15_000)
-    activity_tab.first.click(force=True)
+    open_evidence_workspace_tool(page, "活動資料")
     wait_streamlit_idle(page)
     expander = page.get_by_text("查看計算依據")
     expander.first.wait_for(state="visible", timeout=15_000)

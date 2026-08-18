@@ -20,7 +20,7 @@ PAGE_BY_TAB = {
 
 
 def render_evidence_workspace_nav(lang: str, active: str) -> None:
-    """Render segmented workspace navigation; switch page when the user changes tab."""
+    """Render compact secondary navigation; switch page when the user changes it."""
     options = [
         (TAB_INTAKE, t("ev.tab.intake", lang)),
         (TAB_ACTIVITY, t("ev.tab.activity", lang)),
@@ -31,13 +31,13 @@ def render_evidence_workspace_nav(lang: str, active: str) -> None:
     label_to_tab = {label: tab for tab, label in options}
     active_label = dict(options)[active]
 
-    selected = st.segmented_control(
+    st.markdown('<div class="cel-workspace-nav">', unsafe_allow_html=True)
+    selected = st.selectbox(
         t("ev.workspace_nav", lang),
         options=labels,
-        default=active_label,
-        # Per-page key so the control always reflects the active page on entry.
+        index=labels.index(active_label),
         key=f"evidence_workspace_nav_{active}",
-        label_visibility="collapsed",
     )
+    st.markdown("</div>", unsafe_allow_html=True)
     if selected and selected != active_label:
         st.switch_page(PAGE_BY_TAB[label_to_tab[selected]])

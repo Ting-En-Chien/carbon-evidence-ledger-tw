@@ -63,6 +63,9 @@ def _surface_text(at: AppTest, *, include_captions: bool = False) -> str:
     for item in getattr(at, "expander", []):
         if getattr(item, "label", None):
             chunks.append(str(item.label))
+    for item in getattr(at, "file_uploader", []):
+        if getattr(item, "label", None):
+            chunks.append(str(item.label))
     return "\n".join(chunks)
 
 
@@ -89,39 +92,25 @@ def test_customer_default_hides_raw_schema_names() -> None:
         "系統內部欄位名稱",
     ):
         assert token not in text
-    assert "需要準備的資料" in text
-    assert "活動類型" in text
-    assert "用量" in text
+    assert "需要準備的資料" not in text
+    assert "上傳能源與營運資料" in text
+    assert "選擇公司檔案" in text
 
 
 def test_advanced_schema_section_is_collapsed() -> None:
     at = _run_customer()
     labels = _expander_labels(at)
-    assert any("系統欄位格式" in label for label in labels)
+    assert not any("系統欄位格式" in label for label in labels)
     assert not any("系統內部欄位名稱" in label for label in labels)
-    for item in at.expander:
-        label = str(getattr(item, "label", "") or "")
-        if "系統欄位格式" in label:
-            expanded = getattr(item, "value", None)
-            if expanded is None:
-                expanded = getattr(item, "expanded", False)
-            assert not expanded
 
 
 def test_example_table_hidden_until_expanded() -> None:
     at = _run_customer()
     labels = _expander_labels(at)
-    assert any("查看填寫範例" in label for label in labels)
+    assert not any("查看填寫範例" in label for label in labels)
     primary = _surface_text(at)
     assert "50000" not in primary
     assert "2024-01-01" not in primary
-    for item in at.expander:
-        label = str(getattr(item, "label", "") or "")
-        if "查看填寫範例" in label:
-            expanded = getattr(item, "value", None)
-            if expanded is None:
-                expanded = getattr(item, "expanded", False)
-            assert not expanded
 
 
 def test_example_and_template_do_not_enter_analysis_state() -> None:
@@ -139,7 +128,7 @@ def test_only_one_primary_template_download() -> None:
     at = _run_customer()
     labels = [str(item.label) for item in at.download_button]
     assert len(labels) == 1
-    assert "資料範本" in labels[0] or "template" in labels[0].lower()
+    assert "還沒有資料檔？下載範例" in labels[0] or "example" in labels[0].lower()
     assert "範例檔" not in labels[0]
 
 
@@ -169,10 +158,9 @@ def test_csv_xlsx_uploader_still_present() -> None:
 def test_evidence_wizard_steps_remain() -> None:
     at = _run_customer()
     text = _surface_text(at, include_captions=True)
-    assert "01 上傳檔案" in text
-    assert "02 對應欄位" in text
-    assert "03 確認資料" in text
-    assert "04 檢查結果" in text
+    assert "上傳能源與營運資料" in text
+    assert "上傳公司現有資料" in text
+    assert "01 上傳檔案" not in text
 
 
 def test_demo_mode_still_activates_explicitly() -> None:

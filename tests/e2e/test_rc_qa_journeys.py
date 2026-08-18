@@ -19,13 +19,16 @@ if str(TESTS_DIR) not in sys.path:
 from helpers import (  # noqa: E402
     APPLICABILITY_NAV,
     ARTIFACTS,
+    NG_CUSTOMER_LABEL,
     assert_no_app_errors,
     assert_no_engineering_leak,
     assert_no_raw_html_leak,
     choose_radio,
     click_button,
+    confirm_intake_reading,
     fill_streamlit_date,
     open_fresh_app,
+    open_intake_mapping_editor,
     parse_metric_number,
     save_step_screenshot,
     visible_text,
@@ -231,25 +234,23 @@ def test_rc_chaos_journey(page) -> None:
     uploader.first.wait_for(state="attached", timeout=30_000)
     uploader.first.set_input_files(str(csv_path))
     wait_streamlit_idle(page, timeout=40)
-    cont = page.get_by_role("button", name=re.compile(r"^繼續$|^Continue$"))
-    if cont.count():
-        cont.first.click(force=True)
-        wait_streamlit_idle(page, timeout=40)
+    confirm_intake_reading(page)
     back = page.get_by_role("button", name=re.compile(r"上一步|Back"))
     if back.count():
         back.first.click(force=True)
         wait_streamlit_idle(page)
-    nxt = page.get_by_role("button", name=re.compile(r"繼續|Next|下一步"))
+    nxt = page.get_by_role(
+        "button", name=re.compile(r"確認並繼續|Continue|下一步")
+    )
     if nxt.count():
         nxt.first.click(force=True)
         wait_streamlit_idle(page, timeout=40)
-    accept = page.get_by_role("button", name=re.compile(r"正確，繼續|Looks right"))
-    if accept.count():
-        accept.first.click(force=True)
-        wait_streamlit_idle(page, timeout=40)
     ng_help = page.get_by_text("NG1 與 NG2 的官方年度熱值", exact=False)
+    if ng_help.count() == 0:
+        open_intake_mapping_editor(page)
+        ng_help = page.get_by_text("NG1 與 NG2 的官方年度熱值", exact=False)
     if ng_help.count():
-        choose_radio(page, "NG2")
+        choose_radio(page, NG_CUSTOMER_LABEL["NG2"])
         if page.get_by_text("公司車輛／公司控制的移動燃燒", exact=False).count():
             choose_radio(page, "公司車輛／公司控制的移動燃燒")
         if page.get_by_text("企業／廠場盤查", exact=False).count():
@@ -300,24 +301,12 @@ def _walk_ng_file_to_validation(page, csv_path: Path) -> None:
     uploader.first.set_input_files(str(csv_path))
     wait_streamlit_idle(page, timeout=40)
     page.wait_for_timeout(700)
-    cont = page.get_by_role("button", name=re.compile(r"^繼續$|^Continue$"))
-    assert cont.count() >= 1
-    cont.first.click(force=True)
-    wait_streamlit_idle(page, timeout=40)
-    accept = page.get_by_role("button", name=re.compile(r"正確，繼續|Looks right"))
-    if accept.count():
-        accept.first.click(force=True)
-        wait_streamlit_idle(page, timeout=40)
+    confirm_intake_reading(page)
     ng_help = page.get_by_text("NG1 與 NG2 的官方年度熱值", exact=False)
     if ng_help.count() == 0:
-        fix = page.get_by_role(
-            "button", name=re.compile(r"有地方不對|Something is wrong")
-        )
-        if fix.count():
-            fix.first.click(force=True)
-            wait_streamlit_idle(page, timeout=40)
+        open_intake_mapping_editor(page)
     ng_help.first.wait_for(state="visible", timeout=20_000)
-    choose_radio(page, "NG1")
+    choose_radio(page, NG_CUSTOMER_LABEL["NG1"])
     if page.get_by_text("公司車輛／公司控制的移動燃燒", exact=False).count():
         choose_radio(page, "公司車輛／公司控制的移動燃燒")
     if page.get_by_text("企業／廠場盤查", exact=False).count():

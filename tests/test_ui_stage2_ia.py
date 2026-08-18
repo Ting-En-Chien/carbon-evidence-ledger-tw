@@ -248,11 +248,11 @@ def test_evidence_workspace_defaults_to_data_upload() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
     assert "證據與資料" in text
-    assert "上傳公司資料" in text or "資料匯入" in text
+    assert "上傳能源與營運資料" in text or "資料匯入" in text
     assert len(at.file_uploader) >= 1
     nav_labels: list[str] = []
     selected_nav: list[str] = []
-    for control in getattr(at, "segmented_control", []):
+    for control in getattr(at, "selectbox", []):
         options = [
             str(option) for option in (getattr(control, "options", None) or [])
         ]

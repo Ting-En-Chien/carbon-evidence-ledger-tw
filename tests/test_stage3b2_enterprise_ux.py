@@ -246,7 +246,8 @@ def test_evidence_uploader_still_accessible() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     assert len(at.file_uploader) >= 1
     text = _all_text(at)
-    assert "上傳一次" in text or "reuse" in text.lower() or "重用" in text
+    assert "上傳能源與營運資料" in text
+    assert "選擇公司檔案" in text or "上傳資料檔" in text
 
 
 def test_countup_still_uses_calculated_tco2e() -> None:

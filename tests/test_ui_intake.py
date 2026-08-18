@@ -63,6 +63,10 @@ def _all_text(at: AppTest) -> str:
         label = getattr(item, "label", None)
         if label is not None:
             chunks.append(str(label))
+    for item in getattr(at, "file_uploader", []):
+        label = getattr(item, "label", None)
+        if label is not None:
+            chunks.append(str(label))
     return "\n".join(chunks)
 
 
@@ -89,20 +93,20 @@ def _switch_language(at: AppTest, option: str) -> AppTest:
 def test_data_intake_page_exists() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
-    assert "上傳公司資料" in text
-    assert "資料匯入" in text or "匯入" in text or "上傳" in text
+    assert "上傳能源與營運資料" in text
+    assert "上傳" in text
 
 
 def test_traditional_chinese_page_title_default() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
-    assert "上傳公司資料" in _all_text(at)
+    assert "上傳能源與營運資料" in _all_text(at)
 
 
 def test_english_page_title_after_language_switch() -> None:
     at = _switch_language(_run_app(), "EN")
     assert at.session_state[STATE_LANGUAGE] == "en"
     at = _switch(at, "app_pages/data_intake.py")
-    assert "Upload company data" in _all_text(at)
+    assert "Upload energy and operating data" in _all_text(at)
     assert at.session_state[STATE_LANGUAGE] == "en"
 
 
@@ -110,7 +114,9 @@ def test_uploader_and_template_download_exist() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     assert len(at.file_uploader) >= 1
     labels = [str(item.label) for item in at.download_button]
-    assert any("範本" in label or "template" in label.lower() for label in labels)
+    assert any(
+        "下載範例" in label or "example" in label.lower() for label in labels
+    )
 
 
 def test_uploader_accepts_csv_xlsx_not_pdf() -> None:
@@ -125,29 +131,29 @@ def test_uploader_accepts_csv_xlsx_not_pdf() -> None:
 def test_step_labels_exist() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
-    assert "01 上傳檔案" in text
-    assert "02 對應欄位" in text
-    assert "03 確認資料" in text
-    assert "04 檢查結果" in text
-    assert "開始分析" in text
+    assert "上傳能源與營運資料" in text
+    assert "選擇公司檔案" in text
+    assert "開始分析" in text or "上傳資料檔" in text
 
 
 def test_example_and_demo_notice_exist() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
-    assert "不知道怎麼準備資料" in text
-    assert "需要準備的資料" in text
+    assert "不知道怎麼準備資料" not in text
+    assert "需要準備的資料" not in text
     assert "系統內部欄位名稱" not in text
+    assert "activity_type" not in text
+    assert "activity_value" not in text
     labels = [str(item.label) for item in at.download_button]
-    assert any("資料範本" in label or "template" in label.lower() for label in labels)
+    assert any("還沒有資料檔？下載範例" in label for label in labels)
     assert not any(
         "範例檔" in label or "example file" in label.lower() for label in labels
     )
     expander_labels = [
         str(getattr(item, "label", "") or "") for item in at.expander
     ]
-    assert any("查看填寫範例" in label for label in expander_labels)
-    assert any("系統欄位格式" in label for label in expander_labels)
+    assert not any("查看填寫範例" in label for label in expander_labels)
+    assert not any("系統欄位格式" in label for label in expander_labels)
 
 
 def test_no_uncaught_exception_on_intake_page() -> None:

@@ -23,7 +23,6 @@ from carbon_ledger.intake import (
     context_confirmations_needed,
     default_value_maps,
     detect_header_row,
-    example_preview_customer_rows,
     extract_natural_gas_subtype_from_text,
     list_xlsx_sheet_names,
     load_raw_tabular_frame,
@@ -89,44 +88,16 @@ from carbon_ledger.ui.view_models import (
 inject_design_system()
 lang = get_language(st.session_state)
 
-# Evidence & Data workspace: Data Upload is the default landing view.
+# Evidence & Data workspace: upload is the default landing task.
 st.markdown(
     f"""
     <p class="cel-page-kicker">{t("nav.evidence", lang)}</p>
-    <h1 class="cel-page-title">{t("ev.title", lang)}</h1>
-    <p class="cel-page-sub">{t("ev.subtitle", lang)}</p>
+    <h1 class="cel-page-title">{t("ev.landing.title", lang)}</h1>
+    <p class="cel-page-sub">{t("ev.landing.body", lang)}</p>
     """,
     unsafe_allow_html=True,
 )
 render_evidence_workspace_nav(lang, TAB_INTAKE)
-st.caption(t("ev.tab.intake_help", lang))
-
-analyzed = get_current_result(st.session_state)
-if analyzed is not None:
-    ev_summary = beginner_result_summary(analyzed, lang)
-    ev_done = int(ev_summary["calculated"])
-    ev_unresolved = int(ev_summary["needs_work"])
-    render_section_header(t("ev.status_title", lang))
-    st.success("✓ " + t("ev.status_done", lang, done=ev_done))
-    if should_show_unresolved_cta(ev_unresolved):
-        st.warning(
-            "⚠ " + t("dash.issues_banner", lang, count=ev_unresolved)
-        )
-        if st.button(t("dash.cta.view_problems", lang), key="ev_view_issues"):
-            st.switch_page("app_pages/issues_actions.py")
-    else:
-        st.caption("✓ " + t("dash.no_data_issues", lang))
-    act_col, file_col = st.columns(2)
-    with act_col:
-        if st.button(t("ev.cta.view_activities", lang), key="ev_view_activities"):
-            st.switch_page("app_pages/activity_explorer.py")
-    with file_col:
-        if st.button(t("ev.cta.view_files", lang), key="ev_view_files"):
-            st.switch_page("app_pages/evidence_data.py")
-
-with st.expander(t("ev.reuse_title", lang), expanded=False):
-    st.caption(t("ev.reuse_help", lang))
-st.caption(t("ev.reuse_title", lang))
 
 QUALITY_OPTIONS = [
     ("unknown", t("intake.quality.unknown", lang)),
@@ -401,13 +372,95 @@ def _action_button(
     *,
     key: str,
     primary: bool = False,
+    show_help: bool = False,
 ) -> bool:
-    st.caption(help_text)
+    if show_help:
+        st.caption(help_text)
     return st.button(
         label,
         type="primary" if primary else "secondary",
         key=key,
     )
+
+
+FIELD_LABEL_KEYS = {
+    "activity_type": "intake.field.activity_type",
+    "activity_value": "intake.field.activity_value",
+    "unit": "intake.field.unit",
+    "site_id": "intake.field.site_id",
+    "year_month": "intake.field.year_month",
+    "activity_start_date": "intake.field.start",
+    "activity_end_date": "intake.field.end",
+    "fuel_subtype": "intake.ng_type",
+}
+
+
+def _field_label(field_name: str) -> str:
+    key = FIELD_LABEL_KEYS.get(field_name)
+    return t(key, lang) if key else field_name
+
+
+def _proposal_counts(
+    table: Any,
+    detailed: dict[str, FieldSuggestion],
+) -> tuple[int, int]:
+    mapped = sum(
+        1
+        for name in INTERPRET_FIELD_ORDER
+        if _usable_suggestion(_suggestion(detailed, name))
+    )
+    missing_required = sum(
+        1
+        for name in ("activity_type", "activity_value", "unit")
+        if not _usable_suggestion(_suggestion(detailed, name))
+    )
+    confirm = missing_required
+    if _required_suggestions_ready(detailed):
+        draft = _mapping_from_suggestions(table, detailed)
+        needed = context_confirmations_needed(table, draft)
+        confirm += sum(1 for flag in needed.values() if flag)
+    if confirm == 0:
+        confirm = 1
+    return mapped, confirm
+
+
+def _render_read_summary(
+    table: Any,
+    detailed: dict[str, FieldSuggestion],
+) -> None:
+    mapped, confirm = _proposal_counts(table, detailed)
+    rows: list[str] = [
+        f'<p class="cel-read-file">{html_escape(table.file_name)}</p>',
+        f"<p>{html_escape(t('intake.read_found', lang, n=len(table.frame)))}</p>",
+    ]
+    if table.sheet_name:
+        rows.append(
+            "<p>"
+            + html_escape(t("intake.read_sheet", lang, sheet=table.sheet_name))
+            + "</p>"
+        )
+    rows.append(
+        "<p>"
+        + html_escape(t("intake.read_mapped", lang, mapped=mapped))
+        + "</p>"
+    )
+    rows.append(
+        "<p>"
+        + html_escape(t("intake.read_confirm_count", lang, confirm=confirm))
+        + "</p>"
+    )
+    st.markdown(f"### {t('intake.read_title', lang)}")
+    st.markdown(
+        f'<div class="cel-read-summary">{"".join(rows)}</div>',
+        unsafe_allow_html=True,
+    )
+    for field_name in INTERPRET_FIELD_ORDER:
+        suggestion = _suggestion(detailed, field_name)
+        if not _usable_suggestion(suggestion):
+            continue
+        st.caption(
+            f"{_field_label(field_name)} ← {suggestion.source_column}"
+        )
 
 
 def _suggestion(
@@ -458,53 +511,6 @@ def _default_date_mode(detailed: dict[str, FieldSuggestion]) -> str:
     if _usable_suggestion(start) and _usable_suggestion(end):
         return "file"
     return "period"
-
-
-def _render_natural_interpretation(
-    table: Any,
-    detailed: dict[str, FieldSuggestion],
-) -> None:
-    st.markdown(f"### {t('intake.interpret.title', lang)}")
-    st.markdown(t("intake.interpret.intro", lang))
-    for field_name in INTERPRET_FIELD_ORDER:
-        suggestion = _suggestion(detailed, field_name)
-        if not _usable_suggestion(suggestion):
-            continue
-        column = suggestion.source_column
-        st.markdown(f"• 「{column}」")
-        if field_name == "year_month":
-            sample = _sample_year_month_value(table, column)
-            example = str(sample).strip() if sample is not None else "2025-01"
-            start_text = "2025-01-01"
-            end_text = "2025-01-31"
-            if sample is not None:
-                try:
-                    preview = year_month_transform_preview(sample)
-                    example = preview["source"]
-                    start_text = preview["activity_start_date"]
-                    end_text = preview["activity_end_date"]
-                except ValueError:
-                    pass
-            body = t(
-                "intake.interpret.year_month",
-                lang,
-                example=example,
-                start=start_text,
-                end=end_text,
-            )
-            st.markdown(body.replace("\n", "  \n"))
-        else:
-            key = {
-                "activity_type": "intake.interpret.activity_type",
-                "activity_value": "intake.interpret.activity_value",
-                "unit": "intake.interpret.unit",
-                "site_id": "intake.interpret.site_id",
-                "activity_start_date": "intake.interpret.start",
-                "activity_end_date": "intake.interpret.end",
-                "fuel_subtype": "intake.interpret.fuel_subtype",
-            }.get(field_name)
-            if key:
-                st.markdown(t(key, lang))
 
 
 def _mapping_from_suggestions(
@@ -562,15 +568,13 @@ def _default_metadata(table: Any) -> IntakeMetadata:
     )
 
 
-render_section_header(t("intake.upload_priority", lang), t("intake.page_lead", lang))
-st.markdown(t("intake.upload_limit", lang))
-
 step = int(st.session_state.get(STATE_INTAKE_STEP, 1) or 1)
 # Promote mapping editor to step 3 in the five-step wizard.
 if bool(st.session_state.get(STATE_INTAKE_SHOW_MAPPING_EDITOR)) and step == 2:
     step = 3
     st.session_state[STATE_INTAKE_STEP] = 3
-_step_indicator(step)
+if step > 1:
+    _step_indicator(step)
 
 existing_table = st.session_state.get(STATE_INTAKE_TABLE)
 existing_result = st.session_state.get(STATE_INTAKE_RESULT)
@@ -591,7 +595,7 @@ if step > 2 and existing_table is not None:
     _render_completed_step_summary(
         step_no=2,
         title=t("intake.step2", lang),
-        detail=t("intake.understood", lang),
+        detail=t("intake.read_title", lang),
         edit_key="intake_edit_step2",
         target_step=2,
     )
@@ -618,39 +622,52 @@ if step > 4 and existing_result is not None:
 
 uploaded = None
 if step == 1:
-    st.write("")
+    render_section_header(
+        t("intake.upload_existing_title", lang),
+        t("intake.page_lead", lang),
+    )
+    st.markdown(
+        f'<p class="cel-upload-primary-label">'
+        f"{t('ev.landing.primary', lang)}</p>",
+        unsafe_allow_html=True,
+    )
     uploaded = st.file_uploader(
         t("intake.upload_label", lang),
         type=["csv", "xlsx"],
         help=t("intake.upload_limit", lang),
         key="intake_file_uploader",
     )
-
-    st.markdown(f"**{t('intake.need_help_prepare', lang)}**")
+    st.markdown(t("intake.upload_limit", lang))
+    st.markdown('<div class="cel-upload-fallback">', unsafe_allow_html=True)
     template_bytes, template_name, template_mime = _template_download_payload()
     st.download_button(
-        label=t("intake.template_button", lang),
+        label=t("intake.template_fallback", lang),
         data=template_bytes,
         file_name=template_name,
         mime=template_mime,
         key="intake_template_download",
     )
-    with st.expander(t("intake.example_expand", lang), expanded=False):
-        st.caption(t("intake.example_disclaimer", lang))
-        st.dataframe(
-            example_preview_customer_rows(),
-            hide_index=True,
-            width="stretch",
-        )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown(f"**{t('intake.needed_fields_title', lang)}**")
-    st.markdown(t("intake.needed_fields_list", lang))
-    with st.expander(t("intake.advanced_schema", lang), expanded=False):
-        st.caption(t("intake.col_help_activity_type", lang))
-        st.caption(t("intake.col_help_activity_value", lang))
-        st.caption(t("intake.col_help_unit", lang))
-        st.caption(t("intake.col_help_start", lang))
-        st.caption(t("intake.col_help_end", lang))
+    analyzed = get_current_result(st.session_state)
+    if analyzed is not None:
+        ev_summary = beginner_result_summary(analyzed, lang)
+        ev_done = int(ev_summary["calculated"])
+        ev_unresolved = int(ev_summary["needs_work"])
+        st.caption("✓ " + t("ev.status_done", lang, done=ev_done))
+        if should_show_unresolved_cta(ev_unresolved):
+            if st.button(t("dash.cta.view_problems", lang), key="ev_view_issues"):
+                st.switch_page("app_pages/issues_actions.py")
+        act_col, file_col = st.columns(2)
+        with act_col:
+            if st.button(
+                t("ev.cta.view_activities", lang),
+                key="ev_view_activities",
+            ):
+                st.switch_page("app_pages/activity_explorer.py")
+        with file_col:
+            if st.button(t("ev.cta.view_files", lang), key="ev_view_files"):
+                st.switch_page("app_pages/evidence_data.py")
 
 if uploaded is not None:
     file_bytes = uploaded.getvalue()
@@ -813,12 +830,15 @@ if uploaded is not None:
         header_row = detection.header_row_index
 
     try:
-        table = parse_uploaded_table(
-            file_name=file_name,
-            data=file_bytes,
-            sheet_name=sheet_name,
-            header_row=int(header_row) if header_row is not None else None,
-        )
+        with st.status(t("intake.processing_title", lang), expanded=True) as status:
+            st.write(t("intake.processing_body", lang))
+            table = parse_uploaded_table(
+                file_name=file_name,
+                data=file_bytes,
+                sheet_name=sheet_name,
+                header_row=int(header_row) if header_row is not None else None,
+            )
+            status.update(label=t("intake.read_title", lang), state="complete")
     except IntakeError as exc:
         if exc.code == "INVALID_ENCODING":
             st.error(t("intake.err_encoding", lang))
@@ -829,36 +849,9 @@ if uploaded is not None:
         st.stop()
 
     st.session_state[STATE_INTAKE_TABLE] = table
-    render_section_header(t("intake.preview_title", lang))
-    meta_cols = st.columns(4)
-    with meta_cols[0]:
-        st.markdown(f"**{t('intake.file_name', lang)}**")
-        st.write(table.file_name)
-    with meta_cols[1]:
-        st.markdown(f"**{t('intake.file_type', lang)}**")
-        st.write(table.file_extension)
-    with meta_cols[2]:
-        st.markdown(f"**{t('intake.row_count', lang)}**")
-        st.write(len(table.frame))
-    with meta_cols[3]:
-        st.markdown(f"**{t('intake.col_count', lang)}**")
-        st.write(len(table.columns))
-    if table.sheet_name:
-        st.caption(f"{t('intake.sheet_name', lang)}: {table.sheet_name}")
-    st.caption(
-        t("intake.header_row_label", lang, row=table.header_row_index + 1)
-    )
-    st.dataframe(table.frame.head(20), hide_index=True, width="stretch")
-
-    if _action_button(
-        t("intake.continue_mapping", lang),
-        t("intake.btn.continue_help", lang),
-        key="intake_continue_to_interpret",
-        primary=True,
-    ):
-        st.session_state[STATE_INTAKE_STEP] = 2
-        st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = False
-        st.rerun()
+    st.session_state[STATE_INTAKE_STEP] = 2
+    st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = False
+    st.rerun()
 
 table = st.session_state.get(STATE_INTAKE_TABLE)
 if table is None:
@@ -883,25 +876,13 @@ elif step in {2, 3} or result is None:
 # Confirmation / editor only while there is no validated result yet.
 if result is None and step <= 3:
     st.write("")
-    render_section_header(t("intake.step2", lang))
-    st.info(t("intake.no_rename", lang))
     ready = _required_suggestions_ready(detailed)
-    if ready and not show_editor:
-        st.markdown(
-            f'<div class="cel-understood cel-reveal cel-reveal-1">'
-            f'<span class="cel-check" aria-hidden="true">✓</span>'
-            f"{t('intake.understood', lang)}"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-    _render_natural_interpretation(table, detailed)
-
-    ref_cols = reference_only_columns(list(table.columns))
-    if ref_cols:
-        st.caption(t("intake.reference_only_note", lang))
-
     if not show_editor:
-        st.markdown(f"**{t('intake.interpret.ask', lang)}**")
+        _render_read_summary(table, detailed)
+        ref_cols = reference_only_columns(list(table.columns))
+        if ref_cols:
+            st.caption(t("intake.reference_only_note", lang))
+        st.markdown(f"**{t('intake.read_ask', lang)}**")
         if not ready:
             st.warning(t("intake.interpret.need_help", lang))
             if _action_button(
@@ -914,44 +895,43 @@ if result is None and step <= 3:
                 st.rerun()
             st.stop()
 
-        btn_cols = st.columns(2)
-        with btn_cols[0]:
-            if _action_button(
-                t("intake.btn.accept", lang),
-                t("intake.btn.accept_help", lang),
-                key="intake_accept_interpretation",
-                primary=True,
-            ):
-                mapping = _mapping_from_suggestions(table, detailed)
-                metadata = _default_metadata(table)
-                st.session_state[STATE_INTAKE_MAPPING] = mapping
-                st.session_state[STATE_INTAKE_METADATA] = metadata
-                st.session_state[STATE_INTAKE_YEAR_MONTH_CONFIRMED] = (
-                    mapping.year_month_confirmed
-                )
-                needed = context_confirmations_needed(table, mapping)
-                if any(needed.values()):
-                    st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
-                    st.session_state[STATE_INTAKE_STEP] = 3
-                    st.rerun()
-                try:
-                    validated = build_and_validate_intake(table, mapping, metadata)
-                except IntakeError as exc:
-                    st.error(exc.message)
-                    st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
-                    st.stop()
-                st.session_state[STATE_INTAKE_RESULT] = validated
-                st.session_state[STATE_INTAKE_STEP] = 4
-                st.rerun()
-        with btn_cols[1]:
-            if _action_button(
-                t("intake.btn.fix", lang),
-                t("intake.btn.fix_help", lang),
-                key="intake_fix_interpretation",
-            ):
+        if _action_button(
+            t("intake.btn.accept", lang),
+            t("intake.btn.accept_help", lang),
+            key="intake_accept_interpretation",
+            primary=True,
+        ):
+            mapping = _mapping_from_suggestions(table, detailed)
+            metadata = _default_metadata(table)
+            st.session_state[STATE_INTAKE_MAPPING] = mapping
+            st.session_state[STATE_INTAKE_METADATA] = metadata
+            st.session_state[STATE_INTAKE_YEAR_MONTH_CONFIRMED] = (
+                mapping.year_month_confirmed
+            )
+            needed = context_confirmations_needed(table, mapping)
+            if any(needed.values()):
                 st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
+                st.session_state[STATE_INTAKE_STEP] = 3
                 st.rerun()
+            try:
+                validated = build_and_validate_intake(table, mapping, metadata)
+            except IntakeError as exc:
+                st.error(exc.message)
+                st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
+                st.stop()
+            st.session_state[STATE_INTAKE_RESULT] = validated
+            st.session_state[STATE_INTAKE_STEP] = 4
+            st.rerun()
+        if _action_button(
+            t("intake.btn.fix", lang),
+            t("intake.btn.fix_help", lang),
+            key="intake_fix_interpretation",
+        ):
+            st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = True
+            st.rerun()
         st.stop()
+
+    st.markdown(f"**{t('intake.editor.required', lang)}**")
 
     # Technical mapping controls — only after the beginner asks to fix.
     column_options = [t("intake.choose", lang)] + list(table.columns)
@@ -983,29 +963,26 @@ if result is None and step <= 3:
         choose_label = t("intake.choose", lang)
         return "" if selected == choose_label else selected
 
-    map_cols = st.columns(3)
-    with map_cols[0]:
-        activity_type_column = _select_for(
-            "activity_type",
-            "intake.map_activity_type",
-            "intake_map_activity_type",
-            required=True,
-        )
-    with map_cols[1]:
-        activity_value_column = _select_for(
-            "activity_value",
-            "intake.map_activity_value",
-            "intake_map_activity_value",
-            required=True,
-        )
-    with map_cols[2]:
-        unit_column = _select_for(
-            "unit",
-            "intake.map_unit",
-            "intake_map_unit",
-            required=True,
-        )
+    activity_type_column = _select_for(
+        "activity_type",
+        "intake.map_activity_type",
+        "intake_map_activity_type",
+        required=True,
+    )
+    activity_value_column = _select_for(
+        "activity_value",
+        "intake.map_activity_value",
+        "intake_map_activity_value",
+        required=True,
+    )
+    unit_column = _select_for(
+        "unit",
+        "intake.map_unit",
+        "intake_map_unit",
+        required=True,
+    )
 
+    st.markdown(f"**{t('intake.editor.optional', lang)}**")
     site_column = _select_for(
         "site_id",
         "intake.map_site",
@@ -1017,6 +994,7 @@ if result is None and step <= 3:
         "intake_map_fuel_subtype",
     )
 
+    st.markdown(f"**{t('intake.editor.dates', lang)}**")
     default_date_mode = _default_date_mode(detailed)
     if "intake_date_mode" not in st.session_state:
         st.session_state["intake_date_mode"] = default_date_mode
@@ -1132,6 +1110,7 @@ if result is None and step <= 3:
         table, draft_mapping
     )
 
+    st.markdown(f"**{t('intake.editor.values', lang)}**")
     st.markdown(f"**{t('intake.value_map_activity', lang)}**")
     activity_type_value_map: dict[str, str] = {}
     if activity_type_column:
@@ -1167,13 +1146,20 @@ if result is None and step <= 3:
                     continue
                 if extract_natural_gas_subtype_from_text(source_value):
                     source_has_explicit_ng = True
-        ng_options = ["NG1", "NG2", unknown_label]
+        ng_label_1 = t("intake.ng_option_1", lang)
+        ng_label_2 = t("intake.ng_option_2", lang)
+        ng_options = [ng_label_1, ng_label_2, unknown_label]
         saved_subtype = "unknown"
         if saved_mapping is not None:
             saved_subtype = str(
                 getattr(saved_mapping, "natural_gas_subtype", "unknown") or "unknown"
             )
-        default_ng = saved_subtype if saved_subtype in {"NG1", "NG2"} else unknown_label
+        if saved_subtype == "NG1":
+            default_ng = ng_label_1
+        elif saved_subtype == "NG2":
+            default_ng = ng_label_2
+        else:
+            default_ng = unknown_label
         st.markdown(f"**{t('intake.ng_type', lang)}**")
         selected_ng = st.radio(
             t("intake.ng_type", lang),
@@ -1187,9 +1173,12 @@ if result is None and step <= 3:
             st.write(t("intake.ng_learn_body", lang))
         if source_has_explicit_ng:
             st.caption(t("intake.ng_type_from_file", lang))
-        natural_gas_subtype = (
-            selected_ng if selected_ng in {"NG1", "NG2"} else "unknown"
-        )
+        if selected_ng == ng_label_1:
+            natural_gas_subtype = "NG1"
+        elif selected_ng == ng_label_2:
+            natural_gas_subtype = "NG2"
+        else:
+            natural_gas_subtype = "unknown"
 
     if "diesel" in mapped_types:
         diesel_options = [
@@ -1296,12 +1285,6 @@ if result is None and step <= 3:
             options=[label for _, label in QUALITY_OPTIONS],
             index=0,
             key="intake_data_quality",
-        )
-
-    with st.expander(t("intake.advanced_canonical", lang)):
-        st.caption(
-            "activity_type / activity_value / unit / "
-            "activity_start_date / activity_end_date / site_id"
         )
 
     mapping = ColumnMapping(

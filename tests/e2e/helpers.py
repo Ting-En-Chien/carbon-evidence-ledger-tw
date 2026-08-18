@@ -196,6 +196,34 @@ def fill_streamlit_date(page, label: str, value: str) -> None:
     page.wait_for_timeout(300)
 
 
+NG_CUSTOMER_LABEL = {
+    "NG1": "天然氣（環境部年度熱值分類 NG1）",
+    "NG2": "天然氣（環境部年度熱值分類 NG2）",
+}
+
+
+def confirm_intake_reading(page) -> None:
+    """Advance from the compact file-read result using the explicit confirm CTA."""
+    page.get_by_text(re.compile(r"資料已讀取|File read successfully")).first.wait_for(
+        state="visible", timeout=20_000
+    )
+    btn = page.get_by_role(
+        "button", name=re.compile(r"確認並繼續|Confirm and continue")
+    )
+    if btn.count():
+        btn.first.click(force=True)
+        wait_streamlit_idle(page, timeout=40)
+
+
+def open_intake_mapping_editor(page) -> None:
+    btn = page.get_by_role(
+        "button", name=re.compile(r"調整欄位對應|Adjust column matching")
+    )
+    if btn.count():
+        btn.first.click(force=True)
+        wait_streamlit_idle(page, timeout=40)
+
+
 def choose_radio(page, option_label: str) -> None:
     """Select a Streamlit radio option by its visible label."""
     option = page.locator('[data-testid="stRadioOption"]').filter(
@@ -228,6 +256,31 @@ def choose_selectbox(page, field_label: str, option_label: str) -> None:
     if option.count() == 0:
         option = page.get_by_text(option_label, exact=True)
     assert option.count() >= 1, f"option not found: {option_label!r}"
+    option.first.click(force=True)
+    wait_streamlit_idle(page)
+    page.wait_for_timeout(450)
+
+
+def open_evidence_workspace_tool(page, option_label: str) -> None:
+    """Open a secondary Evidence & Data tool from the compact workspace menu."""
+    wait_streamlit_idle(page)
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    root = page.locator('[data-testid="stSelectbox"]').filter(
+        has_text=re.compile(r"其他資料功能|More data tools")
+    )
+    root.first.wait_for(state="visible", timeout=15_000)
+    current = root.first.inner_text()
+    if option_label in current.splitlines()[-1]:
+        return
+    control = root.first.locator(
+        '[data-baseweb="select"], [role="combobox"]'
+    ).first
+    control.click(force=True)
+    listbox = page.get_by_role("listbox")
+    listbox.first.wait_for(state="visible", timeout=10_000)
+    option = listbox.first.get_by_text(option_label, exact=True)
+    option.first.wait_for(state="visible", timeout=10_000)
     option.first.click(force=True)
     wait_streamlit_idle(page)
     page.wait_for_timeout(450)
