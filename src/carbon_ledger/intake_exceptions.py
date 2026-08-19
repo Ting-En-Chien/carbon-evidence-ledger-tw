@@ -531,6 +531,7 @@ def apply_exception(
                 return committed
             next_state["period_start"] = start.isoformat()
             next_state["period_end"] = end.isoformat()
+            next_state["document_date"] = end.isoformat()
             next_state["date_mode"] = "period"
         else:
             return committed

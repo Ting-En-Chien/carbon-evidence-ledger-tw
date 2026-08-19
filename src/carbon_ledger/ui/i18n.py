@@ -1472,6 +1472,79 @@ MESSAGES: dict[str, dict[str, str]] = {
             "and will not be calculated this time"
         ),
     },
+    "intake.memory.found": {
+        "zh-TW": "找到上次確認的欄位設定",
+        "en": "Previous confirmed column settings were found",
+    },
+    "intake.memory.explain": {
+        "zh-TW": "這份檔案的格式與上次相同，可以沿用已確認的設定。",
+        "en": (
+            "This file has the same format as last time. "
+            "You can reuse the confirmed settings."
+        ),
+    },
+    "intake.memory.use": {
+        "zh-TW": "使用上次設定",
+        "en": "Use previous settings",
+    },
+    "intake.memory.recheck": {
+        "zh-TW": "重新檢查",
+        "en": "Check again",
+    },
+    "intake.memory.history": {
+        "zh-TW": "查看欄位處理紀錄",
+        "en": "View column processing history",
+    },
+    "intake.memory.history_action": {
+        "zh-TW": "處理",
+        "en": "Action",
+    },
+    "intake.memory.history_field": {
+        "zh-TW": "項目",
+        "en": "Item",
+    },
+    "intake.memory.history_detail": {
+        "zh-TW": "內容",
+        "en": "Detail",
+    },
+    "intake.memory.history_when": {
+        "zh-TW": "時間",
+        "en": "Time",
+    },
+    "intake.history.emission_activity": {
+        "zh-TW": "排放活動",
+        "en": "Emissions activity",
+    },
+    "intake.ex.progress": {
+        "zh-TW": "第 {current} 項，共 {total} 項",
+        "en": "Question {current} of {total}",
+    },
+    "intake.sheet_ask": {
+        "zh-TW": "哪一個工作表包含能源或營運資料？",
+        "en": "Which worksheet contains energy or operating data?",
+    },
+    "intake.ex.usage_q_blank": {
+        "zh-TW": "哪一欄是實際用量？",
+        "en": "Which column is the actual quantity?",
+    },
+    "intake.ex.date_era_q": {
+        "zh-TW": "這一欄的日期是民國年還是西元年？",
+        "en": "Are the dates in this column Minguo or Gregorian years?",
+    },
+    "intake.upload_no_pdf": {
+        "zh-TW": "本版接受 Excel 或 CSV。掃描件與 PDF 請先轉成試算表後再上傳。",
+        "en": (
+            "This version accepts Excel or CSV. "
+            "Convert scans and PDFs to a spreadsheet first."
+        ),
+    },
+    "intake.err_pdf": {
+        "zh-TW": "本版接受 Excel 或 CSV。請改上傳試算表，範本僅供參考。",
+        "en": (
+            "This version accepts Excel or CSV. "
+            "Please upload a spreadsheet instead. The example is optional."
+        ),
+    },
     "intake.ex.queue_title": {
         "zh-TW": "需要你確認的項目",
         "en": "Items that need your answer",
@@ -3680,6 +3753,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     "sidebar.company_unset": {
         "zh-TW": "尚未設定公司",
         "en": "Company not set",
+    },
+    "sidebar.company_ubn": {
+        "zh-TW": "統一編號 {ubn}",
+        "en": "UBN {ubn}",
     },
     "sidebar.source_empty_detail": {
         "zh-TW": "尚未上傳公司資料",

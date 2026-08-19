@@ -1049,14 +1049,36 @@ def inject_design_system() -> None:
 def render_global_header(lang: str) -> None:
     """Compact single-baseline top bar: context left, controls right."""
     from carbon_ledger.ui.glossary import render_glossary_popover
-    from carbon_ledger.ui.state import REPO_ROOT, get_company_profile_mapping
+    from carbon_ledger.ui.state import (
+        REPO_ROOT,
+        get_company_master_mapping,
+        get_company_profile_mapping,
+    )
     from carbon_ledger.ui.view_models_compliance import regulatory_freshness_banner
 
     profile = get_company_profile_mapping(st.session_state)
+    master = get_company_master_mapping(st.session_state)
+    confirmed = bool(str(master.get("customer_confirmed_at") or "").strip())
+    confirmed_name = (
+        str(master.get("company_name") or "").strip() if confirmed else ""
+    )
+    confirmed_ubn = (
+        str(master.get("unified_business_number") or "").strip()
+        if confirmed
+        else ""
+    )
     company = html.escape(
-        str(profile.get("company_name") or t("sidebar.company_unset", lang))
+        confirmed_name
+        or str(profile.get("company_name") or "")
+        or t("sidebar.company_unset", lang)
     )
     year = html.escape(str(profile.get("reporting_year") or "—"))
+    context_detail = f"FY{year}"
+    if confirmed_ubn:
+        context_detail = (
+            f"{t('sidebar.company_ubn', lang, ubn=confirmed_ubn)} · "
+            f"{context_detail}"
+        )
     freshness = regulatory_freshness_banner(REPO_ROOT, lang=lang)
     state = html.escape(str(freshness.get("state_label") or ""))
     checked = html.escape(str(freshness.get("last_successful_check_at") or "—"))
@@ -1071,7 +1093,7 @@ def render_global_header(lang: str) -> None:
             f"""
             <div class="cel-topbar-marker" aria-hidden="true"></div>
             <p class="cel-appbar-title">{company}</p>
-            <p class="cel-appbar-sub">FY{year}</p>
+            <p class="cel-appbar-sub">{html.escape(context_detail)}</p>
             """,
             unsafe_allow_html=True,
         )

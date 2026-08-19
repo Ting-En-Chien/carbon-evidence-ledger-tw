@@ -52,6 +52,22 @@ from carbon_ledger.intake_exceptions import (
     mapping_from_committed,
     summary_counts,
 )
+from carbon_ledger.intake_mapping_memory import (
+    EVENT_CUSTOMER_CONFIRMED,
+    EVENT_CUSTOMER_CORRECTED,
+    EVENT_MARKED_UNKNOWN,
+    EVENT_MEMORY_APPLIED,
+    EVENT_MEMORY_OFFERED,
+    EVENT_VALIDATION_REJECTED,
+    append_provenance_event,
+    customer_history_rows,
+    document_id_for_hash,
+    lookup_remembered_mapping,
+    overlay_remembered_committed,
+    record_system_suggestions,
+    remember_committed_mapping,
+    structural_fingerprint,
+)
 from carbon_ledger.potential_duplicates import (
     DECISION_EXCLUDE_DUPLICATES,
     DECISION_KEEP_ALL,
@@ -79,6 +95,9 @@ from carbon_ledger.ui.state import (
     STATE_INTAKE_HEADER_CONFIRMED,
     STATE_INTAKE_HEADER_ROW,
     STATE_INTAKE_MAPPING,
+    STATE_INTAKE_MEMORY_APPLIED,
+    STATE_INTAKE_MEMORY_CHOICE,
+    STATE_INTAKE_MEMORY_OFFERED,
     STATE_INTAKE_METADATA,
     STATE_INTAKE_RESULT,
     STATE_INTAKE_SHEET,
@@ -92,9 +111,11 @@ from carbon_ledger.ui.state import (
     clear_analysis_result,
     clear_duplicate_review_state,
     clear_intake_state,
+    confirmed_company_ubn,
     duplicate_review_blocks_analysis,
     duplicate_review_decisions_from_state,
     get_current_result,
+    get_facility_master_mapping,
     get_language,
 )
 from carbon_ledger.ui.view_models import (
@@ -365,6 +386,140 @@ def _reset_for_new_file() -> None:
     st.session_state[STATE_INTAKE_STEP] = 1
 
 
+def _table_fingerprint(table: Any) -> str:
+    return structural_fingerprint(
+        columns=list(table.columns),
+        sheet_name=str(getattr(table, "sheet_name", "") or ""),
+        header_row_index=int(getattr(table, "header_row_index", 0) or 0),
+    )
+
+
+def _facility_suggestion_names() -> tuple[str, ...]:
+    raw = get_facility_master_mapping(st.session_state)
+    names: list[str] = []
+    facilities = raw.get("facilities") if isinstance(raw, dict) else None
+    if isinstance(facilities, list):
+        for item in facilities:
+            if not isinstance(item, dict):
+                continue
+            label = str(item.get("display_name") or item.get("name") or "").strip()
+            if label:
+                names.append(label)
+    return tuple(names)
+
+
+def _source_document_id(table: Any) -> str:
+    return document_id_for_hash(str(getattr(table, "sha256", "") or ""))
+
+
+def _looks_like_roc_date_text(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    if "民國" in text:
+        return True
+    head = text.replace(".", "/").replace("-", "/").replace("年", "/")
+    part = head.split("/", 1)[0]
+    if not part.isdigit() or len(part) > 3:
+        return False
+    year = int(part)
+    return 1 <= year <= 150 and "/" in head
+
+
+def _table_dates_look_roc(table: Any) -> bool:
+    frame = getattr(table, "frame", None)
+    if frame is None:
+        return False
+    for column in list(getattr(frame, "columns", [])):
+        roc = 0
+        total = 0
+        for value in list(frame[column].tolist())[:12]:
+            text = str(value or "").strip()
+            if not text:
+                continue
+            total += 1
+            if _looks_like_roc_date_text(text):
+                roc += 1
+        if total and roc / total >= 0.5:
+            return True
+    return False
+
+
+def _render_memory_offer(
+    table: Any,
+    remembered: dict[str, Any],
+    *,
+    ubn: str,
+    fingerprint: str,
+) -> None:
+    st.markdown(f"**{t('intake.memory.found', lang)}**")
+    st.caption(t("intake.memory.explain", lang))
+    if _action_button(
+        t("intake.memory.use", lang),
+        t("intake.memory.explain", lang),
+        key="intake_memory_use",
+        primary=True,
+    ):
+        current = st.session_state.get(STATE_INTAKE_COMMITTED) or {}
+        st.session_state[STATE_INTAKE_COMMITTED] = overlay_remembered_committed(
+            current, remembered, frame=table.frame
+        )
+        st.session_state[STATE_INTAKE_MEMORY_CHOICE] = "apply"
+        st.session_state[STATE_INTAKE_MEMORY_APPLIED] = True
+        append_provenance_event(
+            st.session_state,
+            event=EVENT_MEMORY_APPLIED,
+            company_ubn=ubn,
+            fingerprint=fingerprint,
+            source="memory",
+            reason="customer reused confirmed mapping",
+            source_document_id=_source_document_id(table),
+        )
+        st.rerun()
+    if _action_button(
+        t("intake.memory.recheck", lang),
+        t("intake.memory.explain", lang),
+        key="intake_memory_recheck",
+    ):
+        st.session_state[STATE_INTAKE_MEMORY_CHOICE] = "recheck"
+        st.rerun()
+
+
+def _render_mapping_history() -> None:
+    labels = {
+        field_name: _field_label(field_name) for field_name in FIELD_LABEL_KEYS
+    }
+    value_labels = {
+        **{code: t(f"activity.{code}", lang) for code in ACTIVITY_TYPES},
+        "NG1": t("intake.ng_option_1", lang),
+        "NG2": t("intake.ng_option_2", lang),
+        "company_vehicle": t("intake.diesel_company_vehicle", lang),
+        "enterprise": t("intake.electricity_enterprise", lang),
+        "emission_activity": t("intake.history.emission_activity", lang),
+        "file": t("intake.dates_in_file", lang),
+        "year_month": t("intake.dates_year_month", lang),
+        "period": t("intake.dates_period", lang),
+        "unknown": t("intake.ex.unknown_rows", lang),
+    }
+    rows = customer_history_rows(
+        st.session_state,
+        company_ubn=confirmed_company_ubn(st.session_state),
+        lang=lang,
+        field_labels=labels,
+        value_labels=value_labels,
+    )
+    if not rows:
+        return
+    with st.expander(t("intake.memory.history", lang), expanded=False):
+        for row in rows:
+            bits = [row["action"]]
+            if row["field"]:
+                bits.append(row["field"])
+            if row["detail"] and row["detail"] != row["field"]:
+                bits.append(row["detail"])
+            st.markdown(" · ".join(bits))
+
+
 def _activity_select_label(code: str) -> str:
     if not code:
         return t("intake.choose", lang)
@@ -587,12 +742,18 @@ def _render_exception_card(
         if item.proposed:
             question = t("intake.ex.column_q", lang, column=item.proposed)
             why = t("intake.ex.column_why_medium", lang, label=label)
+        elif item.field == "activity_value":
+            question = t("intake.ex.usage_q_blank", lang)
         else:
             question = t("intake.ex.column_q_blank", lang, label=label)
     elif item.kind == KIND_YEAR_MONTH:
         question = t("intake.ex.ym_q", lang, column=item.proposed or item.source_label)
     elif item.kind == KIND_DATES:
-        question = t("intake.ex.dates_q", lang)
+        question = (
+            t("intake.ex.date_era_q", lang)
+            if _table_dates_look_roc(table)
+            else t("intake.ex.dates_q", lang)
+        )
     elif item.kind == KIND_CONTEXT and item.field == "natural_gas":
         question = t("intake.ex.ng_q", lang)
         why = t("intake.ex.ng_why", lang)
@@ -759,6 +920,33 @@ def _render_exception_card(
     if st.button(t("intake.ex.apply", lang), key=apply_key):
         updated = apply_exception(committed, item, payload)
         st.session_state[STATE_INTAKE_COMMITTED] = updated
+        answer = str(
+            payload.get("column")
+            or payload.get("value")
+            or payload.get("date_mode")
+            or ""
+        )
+        unknown_chosen = str(payload.get("value") or "") == "unknown"
+        previous = ""
+        if item.kind == KIND_COLUMN:
+            previous = str((committed.get("columns") or {}).get(item.field) or "")
+        event = EVENT_CUSTOMER_CONFIRMED
+        if unknown_chosen:
+            event = EVENT_MARKED_UNKNOWN
+        elif previous and previous != answer:
+            event = EVENT_CUSTOMER_CORRECTED
+        append_provenance_event(
+            st.session_state,
+            event=event,
+            company_ubn=confirmed_company_ubn(st.session_state),
+            fingerprint=_table_fingerprint(table),
+            field=item.field,
+            proposed=item.proposed,
+            committed="" if unknown_chosen else answer,
+            source="customer",
+            reason="explicit apply",
+            source_document_id=_source_document_id(table),
+        )
         st.rerun()
 
 
@@ -832,6 +1020,7 @@ if step == 1:
         key="intake_file_uploader",
     )
     st.markdown(t("intake.upload_limit", lang))
+    st.caption(t("intake.upload_no_pdf", lang))
     st.markdown('<div class="cel-upload-fallback">', unsafe_allow_html=True)
     template_bytes, template_name, template_mime = _template_download_payload()
     st.download_button(
@@ -877,6 +1066,8 @@ if uploaded is not None:
             st.error(t("intake.err_too_large", lang))
         elif exc.code == "INVALID_ENCODING":
             st.error(t("intake.err_encoding", lang))
+        elif str(file_name).lower().endswith(".pdf"):
+            st.error(t("intake.err_pdf", lang))
         else:
             st.error(t("intake.err_unsupported", lang))
         st.stop()
@@ -904,7 +1095,7 @@ if uploaded is not None:
 
         suggested = ranked[0]
         if len(sheets) > 1 and not sheet_confirmed:
-            st.markdown(f"**{t('intake.suggest_sheet_title', lang)}**")
+            st.markdown(f"**{t('intake.sheet_ask', lang)}**")
             st.markdown(f"### {suggested.sheet_name}")
             st.markdown(t("intake.detect_result", lang))
             for label in worksheet_detection_labels(suggested):
@@ -1056,7 +1247,11 @@ if step < 2:
     st.stop()
 
 result = st.session_state.get(STATE_INTAKE_RESULT)
-detailed = suggest_column_mapping_with_confidence(list(table.columns))
+detailed = suggest_column_mapping_with_confidence(
+    list(table.columns),
+    frame=table.frame,
+    facility_names=_facility_suggestion_names(),
+)
 show_editor = bool(st.session_state.get(STATE_INTAKE_SHOW_MAPPING_EDITOR))
 
 # Active workspace gates: only one expanded step body at a time.
@@ -1070,17 +1265,67 @@ elif step in {2, 3} or result is None:
 # Confirmation / editor only while there is no validated result yet.
 if result is None and step <= 3:
     st.write("")
+    ubn = confirmed_company_ubn(st.session_state)
+    fingerprint = _table_fingerprint(table)
+    doc_id = _source_document_id(table)
+    record_system_suggestions(
+        st.session_state,
+        detailed,
+        company_ubn=ubn,
+        fingerprint=fingerprint,
+        source_document_id=doc_id,
+    )
     committed = _ensure_committed(table, detailed)
+    remembered = (
+        lookup_remembered_mapping(
+            st.session_state, ubn=ubn, fingerprint=fingerprint
+        )
+        if ubn
+        else None
+    )
+    choice = str(st.session_state.get(STATE_INTAKE_MEMORY_CHOICE) or "")
+    awaiting_memory = bool(remembered and choice == "")
+    if awaiting_memory:
+        offer_identity = "|".join((ubn, fingerprint, doc_id))
+        if st.session_state.get(STATE_INTAKE_MEMORY_OFFERED) != offer_identity:
+            append_provenance_event(
+                st.session_state,
+                event=EVENT_MEMORY_OFFERED,
+                company_ubn=ubn,
+                fingerprint=fingerprint,
+                source="memory",
+                reason="compatible structure",
+                source_document_id=doc_id,
+            )
+            st.session_state[STATE_INTAKE_MEMORY_OFFERED] = offer_identity
+        st.markdown(f"### {t('intake.read_title', lang)}")
+        st.caption(table.file_name)
+        _render_memory_offer(
+            table, remembered, ubn=ubn, fingerprint=fingerprint
+        )
+        _render_mapping_history()
+        st.stop()
     exceptions = list_exceptions(table, detailed, committed)
     _render_read_summary(table, detailed, committed)
+    _render_mapping_history()
     ref_cols = reference_only_columns(list(table.columns))
     if ref_cols:
         st.caption(t("intake.reference_only_note", lang))
     if not show_editor:
         if exceptions:
             st.markdown(f"**{t('intake.ex.queue_title', lang)}**")
-            for item in exceptions:
-                _render_exception_card(item, table, committed)
+            answered = len(set(committed.get("applied_ids") or []))
+            current_number = answered + 1
+            total_number = answered + len(exceptions)
+            st.caption(
+                t(
+                    "intake.ex.progress",
+                    lang,
+                    current=current_number,
+                    total=total_number,
+                )
+            )
+            _render_exception_card(exceptions[0], table, committed)
             st.info(t("intake.btn.continue_blocked", lang))
         else:
             held = int(summary_counts(table, detailed, committed)["waiting_rows"])
@@ -1112,9 +1357,26 @@ if result is None and step <= 3:
                         table, mapping, metadata
                     )
                 except IntakeError as exc:
+                    append_provenance_event(
+                        st.session_state,
+                        event=EVENT_VALIDATION_REJECTED,
+                        company_ubn=ubn,
+                        fingerprint=fingerprint,
+                        source="validation",
+                        reason=str(exc.code or ""),
+                        source_document_id=doc_id,
+                    )
                     st.error(exc.message)
                     st.stop()
                 validated = hold_unknown_context_rows(validated, mapping)
+                if ubn:
+                    remember_committed_mapping(
+                        st.session_state,
+                        ubn=ubn,
+                        fingerprint=fingerprint,
+                        committed=committed,
+                        source_document_id=doc_id,
+                    )
                 st.session_state[STATE_INTAKE_RESULT] = validated
                 st.session_state[STATE_INTAKE_STEP] = 4
                 st.rerun()
@@ -1534,6 +1796,18 @@ if result is None and step <= 3:
             next_committed["period_end"] = period_end.isoformat()
         next_committed["activity_type_value_map"] = activity_type_value_map
         next_committed["unit_value_map"] = unit_value_map
+        applied_ids = set(next_committed.get("applied_ids") or [])
+        applied_ids.update(
+            f"activity_value:{source}"
+            for source, mapped in activity_type_value_map.items()
+            if str(mapped or "").strip()
+        )
+        applied_ids.update(
+            f"unit_value:{source}"
+            for source, mapped in unit_value_map.items()
+            if str(mapped or "").strip()
+        )
+        next_committed["applied_ids"] = sorted(applied_ids)
         next_committed["natural_gas_subtype"] = natural_gas_subtype
         next_committed["diesel_context"] = diesel_context
         next_committed["electricity_context"] = electricity_context
@@ -1544,6 +1818,33 @@ if result is None and step <= 3:
         )
         if confirmed_document_date is not None:
             next_committed["document_date"] = confirmed_document_date.isoformat()
+        previous_columns = dict(
+            (_ensure_committed(table, detailed).get("columns") or {})
+        )
+        next_columns = dict(next_committed.get("columns") or {})
+        for field_name, column in next_columns.items():
+            answer = str(column or "").strip()
+            if not answer:
+                continue
+            previous = str(previous_columns.get(field_name) or "").strip()
+            if previous == answer:
+                continue
+            append_provenance_event(
+                st.session_state,
+                event=(
+                    EVENT_CUSTOMER_CORRECTED
+                    if previous
+                    else EVENT_CUSTOMER_CONFIRMED
+                ),
+                company_ubn=confirmed_company_ubn(st.session_state),
+                fingerprint=_table_fingerprint(table),
+                field=field_name,
+                proposed=previous,
+                committed=answer,
+                source="customer",
+                reason="editor apply",
+                source_document_id=_source_document_id(table),
+            )
         st.session_state[STATE_INTAKE_COMMITTED] = next_committed
         st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = False
         st.rerun()
@@ -1570,6 +1871,7 @@ with nav_cols[0]:
 if step == 4:
     st.write("")
     render_section_header(t("intake.step4", lang))
+    _render_mapping_history()
     render_kpi_row(
         [
             (result.accepted_count, t("intake.result_accepted", lang), "teal"),

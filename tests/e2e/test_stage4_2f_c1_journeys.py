@@ -170,7 +170,7 @@ def test_journey_42fc1_c_unmatched_required(page) -> None:
     _goto_intake(page)
     _upload_csv(page, "qa_42fc1_unmatched.csv", UNMATCHED)
     text = visible_text(page)
-    assert "請選擇哪一欄是活動類型" in text
+    assert "請確認「說明欄」欄位" in text
     assert page.get_by_role("button", name="繼續").count() == 0
     save_step_screenshot(page, "qa_42fc1_unmatched_required", required=True)
     choose_selectbox(page, "要使用哪一欄？", "說明欄")
@@ -191,13 +191,18 @@ def test_journey_42fc1_d_mixed_queue_to_zero(page) -> None:
     start = _confirm_count(before)
     assert start >= 2
     assert "請確認「用量」欄位" in before
-    assert "天然氣" in before
+    assert "第 1 項，共 5 項" in before
+    assert "請確認天然氣的環境部年度熱值分類。" not in before
+    assert _apply_button(page).count() == 1
     assert "必須確認" not in before
     save_step_screenshot(page, "qa_42fc1_mixed_queue", required=True)
     _apply_button(page).first.click(force=True)
     wait_streamlit_idle(page, timeout=40)
     mid = visible_text(page)
     assert _confirm_count(mid) == start - 1
+    assert "第 2 項，共 5 項" in mid
+    assert "雜項能源" in mid
+    assert _apply_button(page).count() == 1
     _select_unknown_activity(page, "雜項能源")
     apply_btn = _apply_button(page)
     apply_btn.first.wait_for(state="visible", timeout=15_000)
@@ -223,6 +228,7 @@ def test_journey_42fc1_e_unresolved_rows_held_out(page) -> None:
     apply_btn.first.click(force=True)
     wait_streamlit_idle(page, timeout=40)
     resolve_intake_exceptions(page)
+    assert _apply_button(page).count() == 0, visible_text(page)
     cont = page.get_by_role("button", name="繼續")
     cont.first.wait_for(state="visible", timeout=20_000)
     cont.first.click(force=True)

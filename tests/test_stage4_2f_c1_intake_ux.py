@@ -199,7 +199,7 @@ def test_unmatched_required_field_blocks_continue() -> None:
     committed = at.session_state[STATE_INTAKE_COMMITTED]
     assert "activity_type" not in (committed.get("columns") or {})
     text = _all_text(at)
-    assert t("intake.ex.column_q_blank", ZH, label="活動類型") in text
+    assert t("intake.ex.column_q", ZH, column="說明欄") in text
     assert t("intake.btn.continue_ready", ZH) not in [
         str(b.label) for b in at.button
     ]

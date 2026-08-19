@@ -14,6 +14,7 @@ import calendar
 import hashlib
 import math
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from io import BytesIO
@@ -643,11 +644,26 @@ def _build_blank_template_xlsx_bytes() -> bytes:
     return buffer.getvalue()
 
 
+_HEADER_PAREN_RE = re.compile(r"[\(\[（【].*?[\)\]）】]")
+_HEADER_WRAPPER_SUFFIXES = ("欄位", "欄", "column", "col")
+_VALUE_SAMPLE_LIMIT = 30
+
+
 def _normalize_header(value: str) -> str:
     text = str(value or "").strip().lower()
     text = text.replace("_", " ").replace("-", " ")
     text = re.sub(r"\s+", " ", text)
     return text
+
+
+def structural_normalize_header(value: str) -> str:
+    """NFKC header identity: strip parenthetical units and collapse space."""
+    text = unicodedata.normalize("NFKC", str(value or ""))
+    text = _HEADER_PAREN_RE.sub(" ", text)
+    text = text.replace("_", " ").replace("-", " ").replace(":", " ")
+    text = text.strip().lower()
+    text = re.sub(r"[^\w\u4e00-\u9fff ]+", " ", text, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def is_reference_only_column(column_name: str) -> bool:
@@ -674,24 +690,114 @@ def reference_only_columns(columns: list[str] | tuple[str, ...]) -> list[str]:
 def _alias_match_confidence(column_name: str, field_name: str) -> str:
     if is_reference_only_column(column_name):
         return CONFIDENCE_LOW
-    normalized = _normalize_header(column_name)
+    normalized = structural_normalize_header(column_name)
+    if not normalized:
+        return CONFIDENCE_LOW
     rules = COLUMN_ALIAS_RULES.get(field_name, {})
     for alias in rules.get(CONFIDENCE_HIGH, ()):
-        if normalized == _normalize_header(alias):
+        if normalized == structural_normalize_header(alias):
             return CONFIDENCE_HIGH
     for alias in rules.get(CONFIDENCE_MEDIUM, ()):
-        if normalized == _normalize_header(alias):
+        if normalized == structural_normalize_header(alias):
             return CONFIDENCE_MEDIUM
     return CONFIDENCE_LOW
 
 
+def _wrapped_high_alias_match(column_name: str, field_name: str) -> bool:
+    """Header equals a High alias plus a short wrapper. Always Medium, never High."""
+    if is_reference_only_column(column_name):
+        return False
+    normalized = structural_normalize_header(column_name)
+    if not normalized:
+        return False
+    rules = COLUMN_ALIAS_RULES.get(field_name, {})
+    for alias in rules.get(CONFIDENCE_HIGH, ()):
+        alias_norm = structural_normalize_header(alias)
+        if not alias_norm or alias_norm == normalized:
+            continue
+        if normalized.startswith(alias_norm + " "):
+            suffix = normalized[len(alias_norm) :].strip()
+            if suffix in _HEADER_WRAPPER_SUFFIXES:
+                return True
+        if normalized.endswith(" " + alias_norm):
+            prefix = normalized[: -len(alias_norm)].strip()
+            if prefix in {"本月", "本期"}:
+                return True
+        compact = normalized.replace(" ", "")
+        alias_compact = alias_norm.replace(" ", "")
+        for suffix in _HEADER_WRAPPER_SUFFIXES:
+            if compact == alias_compact + suffix.replace(" ", ""):
+                return True
+    return False
+
+
+def _sampled_texts(frame: pd.DataFrame, column: str) -> list[str]:
+    if column not in frame.columns:
+        return []
+    texts: list[str] = []
+    for value in frame[column].tolist():
+        text = _cell_text(value)
+        if not text:
+            continue
+        texts.append(text)
+        if len(texts) >= _VALUE_SAMPLE_LIMIT:
+            break
+    return texts
+
+
+def _value_assisted_field(
+    field_name: str,
+    texts: list[str],
+    *,
+    facility_names: tuple[str, ...] = (),
+) -> bool:
+    if not texts:
+        return False
+    total = len(texts)
+    if field_name == "activity_value":
+        numeric = sum(1 for item in texts if _is_numeric_cell(item))
+        dated = sum(
+            1
+            for item in texts
+            if _is_date_like_cell(item) and not _is_numeric_cell(item)
+        )
+        return numeric / total >= 0.7 and dated / total < 0.3
+    if field_name == "unit":
+        units = sum(1 for item in texts if bool(suggest_unit(item)))
+        return units / total >= 0.6
+    if field_name == "activity_type":
+        matched = sum(1 for item in texts if bool(suggest_activity_type(item)))
+        return matched / total >= 0.6
+    if field_name in {"activity_start_date", "activity_end_date", "year_month"}:
+        dated = sum(1 for item in texts if _is_date_like_cell(item))
+        return dated / total >= 0.6
+    if field_name == "site_id" and facility_names:
+        wanted = {structural_normalize_header(name) for name in facility_names}
+        wanted.discard("")
+        if not wanted:
+            return False
+        hits = sum(
+            1 for item in texts if structural_normalize_header(item) in wanted
+        )
+        return hits / total >= 0.5
+    return False
+
+
 def suggest_column_mapping_with_confidence(
     columns: list[str] | tuple[str, ...],
+    *,
+    frame: pd.DataFrame | None = None,
+    facility_names: tuple[str, ...] | list[str] = (),
 ) -> dict[str, FieldSuggestion]:
-    """Suggest semantic mappings with confidence; never claim reference cols."""
+    """Suggest semantic mappings with confidence; never claim reference cols.
+
+    Exact unambiguous alias matches may be High. Fuzzy, value-assisted, or
+    competing matches remain Medium or Low and are never silently committed.
+    """
     usable = [col for col in columns if not is_reference_only_column(col)]
     claimed: set[str] = set()
     suggestions: dict[str, FieldSuggestion] = {}
+    facilities = tuple(facility_names or ())
 
     # Prefer start/end date fields over ambiguous year-month when both exist.
     field_order = (
@@ -705,20 +811,46 @@ def suggest_column_mapping_with_confidence(
     )
 
     for field_name in field_order:
-        best_col = ""
-        best_confidence = CONFIDENCE_LOW
-        best_rank = 99
+        high_cols: list[str] = []
+        medium_cols: list[str] = []
         for col in usable:
             if col in claimed:
                 continue
             confidence = _alias_match_confidence(col, field_name)
-            if confidence == CONFIDENCE_LOW:
-                continue
-            rank = 0 if confidence == CONFIDENCE_HIGH else 1
-            if rank < best_rank:
-                best_col = col
-                best_confidence = confidence
-                best_rank = rank
+            if confidence == CONFIDENCE_HIGH:
+                high_cols.append(col)
+            elif confidence == CONFIDENCE_MEDIUM:
+                medium_cols.append(col)
+            elif _wrapped_high_alias_match(col, field_name):
+                medium_cols.append(col)
+        best_col = ""
+        best_confidence = CONFIDENCE_LOW
+        if len(high_cols) == 1:
+            best_col = high_cols[0]
+            best_confidence = CONFIDENCE_HIGH
+        elif len(high_cols) > 1:
+            best_col = high_cols[0]
+            best_confidence = CONFIDENCE_MEDIUM
+        elif len(medium_cols) == 1:
+            best_col = medium_cols[0]
+            best_confidence = CONFIDENCE_MEDIUM
+        elif len(medium_cols) > 1:
+            best_col = medium_cols[0]
+            best_confidence = CONFIDENCE_MEDIUM
+        elif frame is not None:
+            assisted = [
+                col
+                for col in usable
+                if col not in claimed
+                and _value_assisted_field(
+                    field_name,
+                    _sampled_texts(frame, col),
+                    facility_names=facilities,
+                )
+            ]
+            if len(assisted) == 1:
+                best_col = assisted[0]
+                best_confidence = CONFIDENCE_MEDIUM
         if best_col and best_confidence != CONFIDENCE_LOW:
             suggestions[field_name] = FieldSuggestion(
                 field=field_name,

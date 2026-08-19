@@ -91,6 +91,13 @@ STATE_INTAKE_RESULT = "validated_intake_result"
 STATE_INTAKE_STEP = "intake_wizard_step"
 STATE_INTAKE_DUPLICATE_REVIEW = "intake_duplicate_review"
 STATE_INTAKE_SHOW_DUPLICATE_REVIEW = "intake_show_duplicate_review"
+STATE_INTAKE_MEMORY_CHOICE = "intake_memory_choice"
+STATE_INTAKE_MEMORY_APPLIED = "intake_memory_applied"
+STATE_INTAKE_MEMORY_OFFERED = "intake_memory_offered_fp"
+STATE_INTAKE_SUGGESTIONS_RECORDED = "intake_suggestions_recorded_for"
+# Session-scoped mapping memory/provenance: survive _reset_for_new_file.
+STATE_INTAKE_MAPPING_MEMORY = "intake_mapping_memory"
+STATE_INTAKE_MAPPING_PROVENANCE = "intake_mapping_provenance"
 DUPLICATE_WIDGET_PREFIX = "intake_dup_"
 
 # Stage 3B company profile + applicability assessment (session-only)
@@ -615,6 +622,14 @@ def get_company_master_mapping(session_state: Any) -> dict[str, Any]:
     return dict(raw) if isinstance(raw, dict) else {}
 
 
+def confirmed_company_ubn(session_state: Any) -> str:
+    """Return the customer-confirmed UBN, or empty when the company is not confirmed."""
+    master = get_company_master_mapping(session_state)
+    if not str(master.get("customer_confirmed_at") or "").strip():
+        return ""
+    return str(master.get("unified_business_number") or "").strip()
+
+
 def save_company_master_mapping(session_state: Any, mapping: dict[str, Any]) -> None:
     session_state[STATE_COMPANY_MASTER] = dict(mapping or {})
 
@@ -745,6 +760,10 @@ def clear_intake_state(session_state: Any) -> None:
         STATE_INTAKE_STEP,
         STATE_INTAKE_DUPLICATE_REVIEW,
         STATE_INTAKE_SHOW_DUPLICATE_REVIEW,
+        STATE_INTAKE_MEMORY_CHOICE,
+        STATE_INTAKE_MEMORY_APPLIED,
+        STATE_INTAKE_MEMORY_OFFERED,
+        STATE_INTAKE_SUGGESTIONS_RECORDED,
     ):
         if key in session_state:
             del session_state[key]
