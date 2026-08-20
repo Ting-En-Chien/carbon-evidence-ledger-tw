@@ -74,7 +74,10 @@ def wait_streamlit_idle(page, *, timeout: float = 20.0) -> None:
 
 def dismiss_tutorial_if_present(page) -> None:
     button = page.get_by_role(
-        "button", name=re.compile(r"開始使用|稍後再看|Get started|Maybe later")
+        "button",
+        name=re.compile(
+            r"開始使用|稍後再看|Get started|Maybe later|Start using the product"
+        ),
     )
     if button.count():
         button.first.click(force=True)
@@ -122,7 +125,13 @@ def lookup_stub_company(page, ubn: str) -> None:
     else:
         page.locator('input[type="text"]').first.fill(ubn)
     wait_streamlit_idle(page)
-    click_button(page, "查詢公司")
+    lookup = page.get_by_role(
+        "button", name=re.compile(r"查詢公司|Look up company")
+    )
+    lookup.first.wait_for(state="visible", timeout=15_000)
+    lookup.first.click(force=True)
+    wait_streamlit_idle(page)
+    page.wait_for_timeout(400)
     confirm = page.get_by_role(
         "button", name=re.compile(r"這是我的公司|This is my company")
     )
@@ -131,10 +140,16 @@ def lookup_stub_company(page, ubn: str) -> None:
         wait_streamlit_idle(page)
         page.wait_for_timeout(300)
     entity_boxes = page.locator('[data-testid="stSelectbox"]').filter(
-        has_text=re.compile(r"公司類型")
+        has_text=re.compile(r"公司類型|Entity type")
     )
     if entity_boxes.count():
-        choose_selectbox(page, "公司類型", "一般上市公司")
+        entity_text = entity_boxes.first.inner_text()
+        if "Entity type" in entity_text:
+            choose_selectbox(
+                page, "Entity type", "General listed company (TWSE)"
+            )
+        else:
+            choose_selectbox(page, "公司類型", "一般上市公司")
 
 
 def save_step_screenshot(page, name: str, *, required: bool = False) -> Path:
@@ -293,28 +308,36 @@ def choose_selectbox(page, field_label: str, option_label: str) -> None:
 
 
 def open_evidence_workspace_tool(page, option_label: str) -> None:
-    """Open a secondary Evidence & Data tool from the compact workspace menu."""
+    """Open a populated post-analysis page via its customer-facing CTA."""
     wait_streamlit_idle(page)
     page.keyboard.press("Escape")
     page.wait_for_timeout(200)
-    root = page.locator('[data-testid="stSelectbox"]').filter(
-        has_text=re.compile(r"其他資料功能|More data tools")
-    )
-    root.first.wait_for(state="visible", timeout=15_000)
-    current = root.first.inner_text()
-    if option_label in current.splitlines()[-1]:
-        return
-    control = root.first.locator(
-        '[data-baseweb="select"], [role="combobox"]'
-    ).first
-    control.click(force=True)
-    listbox = page.get_by_role("listbox")
-    listbox.first.wait_for(state="visible", timeout=10_000)
-    option = listbox.first.get_by_text(option_label, exact=True)
-    option.first.wait_for(state="visible", timeout=10_000)
-    option.first.click(force=True)
+    patterns = {
+        "活動資料": r"查看活動資料|View activities",
+        "待處理問題": r"^查看問題$|^View issues$",
+        "證據紀錄": r"查看文件|View files",
+    }
+    pattern = patterns[option_label]
+    button = page.get_by_role("button", name=re.compile(pattern))
+    if button.count() == 0 and option_label == "活動資料":
+        button = page.get_by_role(
+            "button",
+            name=re.compile(r"查看計算依據|View calculation basis"),
+        )
+    if button.count() == 0 and option_label == "待處理問題":
+        button = page.get_by_role(
+            "button",
+            name=re.compile(r"查看待處理問題"),
+        )
+    if button.count() == 0 and option_label == "證據紀錄":
+        button = page.get_by_role(
+            "button",
+            name=re.compile(r"^查看證據$|^View evidence"),
+        )
+    button.first.wait_for(state="visible", timeout=15_000)
+    button.first.click()
     wait_streamlit_idle(page)
-    page.wait_for_timeout(450)
+    page.wait_for_timeout(300)
 
 
 def set_money_unknown(page, *, index: int, unknown: bool) -> None:

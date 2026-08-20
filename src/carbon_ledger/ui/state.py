@@ -27,7 +27,9 @@ from carbon_ledger.ui.app_mode import (
 )
 from carbon_ledger.ui.i18n import DEFAULT_LANG, STATE_LANGUAGE, normalize_lang
 from carbon_ledger.ui.tutorial import (
+    STATE_TUTORIAL_KEEP_OPEN,
     STATE_TUTORIAL_OPEN_COUNT,
+    STATE_TUTORIAL_VISIBLE,
     ensure_tutorial_state,
 )
 
@@ -149,6 +151,8 @@ def get_language(session_state: Any) -> str:
 def set_language(session_state: Any, lang: str) -> None:
     """Store UI language without touching pipeline results."""
     session_state[STATE_LANGUAGE] = normalize_lang(lang)
+    if bool(_ss_get(session_state, STATE_TUTORIAL_VISIBLE)):
+        session_state[STATE_TUTORIAL_KEEP_OPEN] = True
 
 
 def activity_period_bounds(

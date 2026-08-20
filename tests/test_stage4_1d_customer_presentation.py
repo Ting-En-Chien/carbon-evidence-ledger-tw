@@ -334,12 +334,13 @@ def test_first_tutorial_is_concise() -> None:
     copy = get_tutorial_copy(ZH)
     assert copy["title"] == "歡迎使用 Carbon Evidence Ledger"
     assert "第一次使用" not in copy["title"]
-    assert "不需要先懂碳盤查" in copy["subtitle"]
+    assert "用 3 個步驟了解如何確認公司" in copy["subtitle"]
+    assert "不需要先懂碳盤查" not in copy["subtitle"]
     titles = [step["title"] for step in copy["steps"]]
     assert titles == [
-        "填公司資料",
-        "上傳電力、燃料等營運資料",
-        "查看分析結果",
+        "確認公司與目前營運據點",
+        "使用公司既有的資料檔",
+        "檢視分析結果與可下載資料",
     ]
     assert "排放量" not in copy["helps"]
     assert "哪些資料有問題" not in copy["helps"]

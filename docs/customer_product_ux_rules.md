@@ -215,3 +215,18 @@ Missing-data actions jump to the setup step that collects that fact.
 
 Company and factory lookup belong in setup.
 「開始分析」 stays deterministic and offline on verified local state.
+
+## Supported surfaces (Stage 4.2G)
+
+Company setup, Excel/CSV ingestion, mapping confirmation, analysis, evidence,
+and reporting are a **desktop** workflow.
+
+The three-step guided orientation is approved on desktop only. It covers
+confirming the company and current operating locations, providing an existing
+company file, and reviewing traceable results and reports. Mobile guided-tour
+layout is a deferred known limitation, not a Stage 4.2G pass. Do not present
+`qa_42g_tour_mobile.png` as approval evidence. Do not claim that the current
+full workflow supports phones.
+
+Future mobile scope may cover read-only results, alerts, and executive
+summaries — not the complete setup-to-report journey.

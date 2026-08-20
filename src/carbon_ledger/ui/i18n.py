@@ -1215,37 +1215,251 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Welcome to Carbon Evidence Ledger",
     },
     "tut.subtitle": {
-        "zh-TW": "不需要先懂碳盤查，我們會一步一步帶你完成。",
-        "en": "You do not need carbon-inventory expertise. We will guide you.",
+        "zh-TW": (
+            "用 3 個步驟了解如何確認公司、上傳既有資料，"
+            "並查看可追溯的結果與報告。"
+        ),
+        "en": (
+            "See how to confirm your company, upload existing data, "
+            "and review traceable results and reports in three steps."
+        ),
     },
-    "tut.step1_title": {"zh-TW": "填公司資料", "en": "Enter company details"},
+    "tut.step1_title": {
+        "zh-TW": "確認公司與目前營運據點",
+        "en": "Confirm the company and current operating locations",
+    },
     "tut.step1_body": {
-        "zh-TW": "填公司資料。",
-        "en": "Enter company details.",
+        "zh-TW": "核對官方登記的公司資料，並確認目前營運據點。",
+        "en": "Verify the official company record and current operating locations.",
     },
     "tut.step2_title": {
-        "zh-TW": "上傳電力、燃料等營運資料",
-        "en": "Upload electricity, fuel, and operating data",
+        "zh-TW": "使用公司既有的資料檔",
+        "en": "Use the file the company already keeps",
     },
     "tut.step2_body": {
-        "zh-TW": "上傳電力、燃料等營運資料。",
-        "en": "Upload electricity, fuel, and operating data.",
+        "zh-TW": "系統會讀取公司日常使用的 Excel 或 CSV，不必先改成指定格式。",
+        "en": (
+            "The product reads the Excel or CSV the company already uses. "
+            "It does not require a special template first."
+        ),
     },
-    "tut.step3_title": {"zh-TW": "查看分析結果", "en": "Review the analysis"},
+    "tut.step3_title": {
+        "zh-TW": "檢視分析結果與可下載資料",
+        "en": "Review the analysis and downloadable files",
+    },
     "tut.step3_body": {
-        "zh-TW": "查看分析結果。",
-        "en": "Review the analysis.",
+        "zh-TW": "分析完成後，這裡是內部管理與申報準備的起點。",
+        "en": (
+            "After analysis, this is the starting point for internal review "
+            "and filing preparation."
+        ),
     },
     "tut.helps": {
-        "zh-TW": "不懂的地方，隨時點「？」查看說明。",
-        "en": "Tap “?” whenever you need a short explanation.",
+        "zh-TW": "需要說明時，點「？」查看與目前畫面相關的指引。",
+        "en": "Select “?” for guidance related to the current screen.",
     },
     "tut.glossary_hint": {
         "zh-TW": "",
         "en": "",
     },
-    "tut.start": {"zh-TW": "開始使用", "en": "Get started"},
+    "tut.start": {"zh-TW": "開始使用", "en": "Start using the product"},
     "tut.later": {"zh-TW": "稍後再看", "en": "Maybe later"},
+    "tut.prev": {"zh-TW": "上一步", "en": "Previous"},
+    "tut.next": {"zh-TW": "下一步", "en": "Next"},
+    "tut.progress": {
+        "zh-TW": "第 {current} 步，共 {total} 步",
+        "en": "Step {current} of {total}",
+    },
+    "tut.s1.title": {
+        "zh-TW": "確認公司與目前營運據點",
+        "en": "Confirm the company and current operating locations",
+    },
+    "tut.s1.why": {
+        "zh-TW": "法規要求、申報時程與資料範圍，都取決於正確的公司及實際營運據點。",
+        "en": (
+            "Regulatory requirements, reporting timelines, and data scope "
+            "depend on the correct company and the locations it actually operates."
+        ),
+    },
+    "tut.s1.action": {
+        "zh-TW": "核對官方登記的公司資料，並確認政府找到的據點目前是否仍由公司營運。",
+        "en": (
+            "Verify the official company record and confirm whether the "
+            "locations found in government records are still operated by "
+            "the company."
+        ),
+    },
+    "tut.s1.next": {
+        "zh-TW": "系統會依已確認的公司與據點，整理適用要求、重要時程與仍待補充的資料。",
+        "en": (
+            "The system uses the confirmed company and locations to organize "
+            "applicable requirements, key dates, and information still needed."
+        ),
+    },
+    "tut.s1.callout1": {
+        "zh-TW": "核對公司與目前營運據點",
+        "en": "Verify the company and current operating locations",
+    },
+    "tut.s1.alt": {
+        "zh-TW": (
+            "公司設定畫面，上方可見已確認的公司名稱，"
+            "並顯示完整的台灣廠場確認題與兩個選擇。"
+        ),
+        "en": (
+            "Company setup screen showing the confirmed company name above "
+            "the complete Taiwan facility-confirmation question and both "
+            "choices."
+        ),
+    },
+    "tut.s2.title": {
+        "zh-TW": "使用公司既有的資料檔",
+        "en": "Use the file the company already keeps",
+    },
+    "tut.s2.why": {
+        "zh-TW": "系統會讀取公司日常使用的 Excel 或 CSV，不必先改成指定格式。",
+        "en": (
+            "The product reads the Excel or CSV the company already uses. "
+            "It does not require a special template first."
+        ),
+    },
+    "tut.s2.action": {
+        "zh-TW": "選擇公司目前保存的 Excel 或 CSV，交給系統處理。",
+        "en": (
+            "Select the Excel or CSV the company currently keeps, "
+            "and provide it to the system."
+        ),
+    },
+    "tut.s2.next": {
+        "zh-TW": (
+            "系統會先整理可安全辨識的欄位。你只需確認不確定項目，"
+            "並在分析前查看哪些資料會納入、暫緩或仍待補充。"
+        ),
+        "en": (
+            "The system first organizes fields it can identify safely. "
+            "You only confirm uncertain items and review which data will "
+            "be included, held, or still needed before analysis."
+        ),
+    },
+    "tut.s2.callout1": {
+        "zh-TW": "交給系統處理的是公司既有檔案",
+        "en": "Provide the company's existing file",
+    },
+    "tut.s2.alt": {
+        "zh-TW": "資料匯入畫面，標示提交公司既有檔案的位置。",
+        "en": (
+            "Data intake screen highlighting where to provide "
+            "the company's existing file."
+        ),
+    },
+    "tut.s3.title": {
+        "zh-TW": "檢視分析結果與可下載資料",
+        "en": "Review the analysis and downloadable files",
+    },
+    "tut.s3.why": {
+        "zh-TW": "分析完成後，這裡是內部管理與申報準備的起點，不是另一個設定畫面。",
+        "en": (
+            "After analysis, this is the starting point for internal review "
+            "and filing preparation, not another setup screen."
+        ),
+    },
+    "tut.s3.action": {
+        "zh-TW": "查看已計算的排放摘要，並依需要開啟證據或下載報告。",
+        "en": (
+            "Review the calculated emissions summary, then open evidence "
+            "or download a report as needed."
+        ),
+    },
+    "tut.s3.next": {
+        "zh-TW": "教學到此結束。進入產品後，可從結果頁繼續處理待確認項目或匯出資料。",
+        "en": (
+            "This tour ends here. After you enter the product, continue from "
+            "the results page to resolve open items or export files."
+        ),
+    },
+    "tut.s3.callout1": {
+        "zh-TW": "分析後可立即查看的排放摘要",
+        "en": "The emissions summary available after analysis",
+    },
+    "tut.s3.alt": {
+        "zh-TW": (
+            "結果畫面，顯示完整的排放資料摘要標題、排放量指標卡與 tCO₂e 單位，"
+            "並可見通往證據與報表的路徑。"
+        ),
+        "en": (
+            "Results screen showing the complete emissions-summary heading, "
+            "the full KPI card with the tCO₂e unit, and routes to evidence "
+            "and reporting."
+        ),
+    },
+    "tut.s4.title": {
+        "zh-TW": "只確認系統無法安全判斷的項目",
+        "en": "Confirm only what needs your judgment",
+    },
+    "tut.s4.outcome": {
+        "zh-TW": "系統先完成可以安全辨識的部分，只請你確認少數不確定項目。",
+        "en": (
+            "Safe matches are completed first. You only confirm a few "
+            "uncertain items."
+        ),
+    },
+    "tut.s4.action": {
+        "zh-TW": "確認這一題後，再看下一題。",
+        "en": "Answer this question, then continue to the next one.",
+    },
+    "tut.s4.callout1": {"zh-TW": "目前這一題", "en": "This question"},
+    "tut.s4.callout2": {"zh-TW": "採用這個選擇", "en": "Use this choice"},
+    "tut.s4.alt": {
+        "zh-TW": "一次一題的確認畫面，標示問題、建議與採用按鈕。",
+        "en": (
+            "One-question confirmation screen with the proposed answer "
+            "and apply action."
+        ),
+    },
+    "tut.s5.title": {
+        "zh-TW": "檢查資料並開始分析",
+        "en": "Check the data and start analysis",
+    },
+    "tut.s5.outcome": {
+        "zh-TW": "先確認哪些資料會納入計算，再開始分析。",
+        "en": "Confirm which rows will be calculated, then start analysis.",
+    },
+    "tut.s5.action": {
+        "zh-TW": "查看可繼續與暫緩的筆數，再開始分析。",
+        "en": "Review continuing and held rows, then start analysis.",
+    },
+    "tut.s5.callout1": {
+        "zh-TW": "可繼續與暫緩筆數",
+        "en": "Rows that continue or are held",
+    },
+    "tut.s5.callout2": {"zh-TW": "開始分析", "en": "Start analysis"},
+    "tut.s5.alt": {
+        "zh-TW": "資料檢查畫面，標示可繼續、暫緩筆數與開始分析。",
+        "en": (
+            "Validation screen highlighting row counts and the "
+            "start-analysis action."
+        ),
+    },
+    "tut.s6.title": {
+        "zh-TW": "查看結果、證據與報告",
+        "en": "Review results, evidence, and reports",
+    },
+    "tut.s6.outcome": {
+        "zh-TW": "查看結果、追蹤來源證據，並下載可供內部管理或申報準備使用的資料。",
+        "en": (
+            "Review results, trace source evidence, and download files for "
+            "internal management or filing preparation."
+        ),
+    },
+    "tut.s6.action": {
+        "zh-TW": "查看摘要、待處理問題，並匯出報告。",
+        "en": "Review the summary, open items, and export a report.",
+    },
+    "tut.s6.callout1": {"zh-TW": "結果摘要", "en": "Results summary"},
+    "tut.s6.callout2": {"zh-TW": "證據與報告", "en": "Evidence and reports"},
+    "tut.s6.alt": {
+        "zh-TW": "結果畫面，標示排放摘要、待處理問題與報告匯出。",
+        "en": "Results screen highlighting the summary, open items, and report export.",
+    },
     # Explanations used in view models
     "explain.calculated": {
         "zh-TW": "已用已驗證輸入與對應排放係數完成計算。",

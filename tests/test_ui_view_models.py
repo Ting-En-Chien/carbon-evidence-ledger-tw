@@ -240,8 +240,8 @@ def test_tutorial_has_three_beginner_steps() -> None:
     steps = tutorial_step_texts(ZH)
     assert len(steps) == 3
     joined = "\n".join(steps)
-    assert "填公司資料" in joined
-    assert "上傳電力、燃料等營運資料" in joined
-    assert "查看分析結果" in joined
+    assert "確認公司與目前營運據點" in joined
+    assert "使用公司既有的資料檔" in joined
+    assert "檢視分析結果與可下載資料" in joined
     assert "GHG Protocol" not in joined
     assert "IFRS" not in joined

@@ -11,10 +11,6 @@ from carbon_ledger.ui.components import (
     render_page_help,
     render_section_header,
 )
-from carbon_ledger.ui.evidence_workspace import (
-    TAB_RECORDS,
-    render_evidence_workspace_nav,
-)
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.state import get_current_result, get_language
 from carbon_ledger.ui.view_models import (
@@ -27,7 +23,6 @@ lang = get_language(st.session_state)
 result = get_current_result(st.session_state)
 
 render_page_header(t("ev.title", lang), t("ev.subtitle", lang))
-render_evidence_workspace_nav(lang, TAB_RECORDS)
 render_section_header(t("ev.tab.records", lang), t("ev.tab.records_help", lang))
 render_page_help(t("ev.records_help", lang))
 

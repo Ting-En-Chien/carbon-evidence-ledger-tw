@@ -7,6 +7,7 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 from carbon_ledger.ui.i18n import STATE_LANGUAGE
+from carbon_ledger.ui.state import set_language
 from carbon_ledger.ui.tutorial import (
     STATE_TUTORIAL_OPEN_COUNT,
     get_tutorial_copy,
@@ -75,7 +76,7 @@ def _switch(at: AppTest, page: str) -> AppTest:
 
 def _switch_language(at: AppTest, option: str) -> AppTest:
     code = "en" if option == "EN" else "zh-TW"
-    at.session_state[STATE_LANGUAGE] = code
+    set_language(at.session_state, code)
     if len(at.segmented_control) >= 1:
         try:
             at.segmented_control[0].set_value(option)
@@ -229,9 +230,9 @@ def test_tutorial_button_exists_and_opens() -> None:
     zh_copy = get_tutorial_copy("zh-TW")
     assert "第一次使用" not in zh_copy["title"]
     assert "歡迎使用" in zh_copy["title"]
-    assert zh_copy["steps"][0]["title"] == "填公司資料"
-    assert "上傳電力、燃料" in zh_copy["steps"][1]["title"]
-    assert zh_copy["steps"][2]["title"] == "查看分析結果"
+    assert zh_copy["steps"][0]["title"] == "確認公司與目前營運據點"
+    assert "使用公司既有的資料檔" in zh_copy["steps"][1]["title"]
+    assert zh_copy["steps"][2]["title"] == "檢視分析結果與可下載資料"
     assert len(zh_copy["steps"]) == 3
     assert "治理、策略" not in zh_copy["helps"]
     assert "GHG Protocol" not in zh_copy["helps"]

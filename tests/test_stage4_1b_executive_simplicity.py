@@ -120,8 +120,9 @@ def test_tutorial_is_centered_medium_dialog() -> None:
     css = (REPO_ROOT / "src/carbon_ledger/ui/visual_system.css").read_text(
         encoding="utf-8"
     )
-    assert 'width="medium"' in tutorial
+    assert 'width="large"' in tutorial
     assert "cel-tutorial-dialog" in tutorial
+    assert "cel-tour-root" in tutorial
     assert "translate(-50%, -50%)" in css
     assert "left: 50%" in css
 
@@ -130,11 +131,12 @@ def test_tutorial_is_simple_three_step_onboarding() -> None:
     copy = get_tutorial_copy("zh-TW")
     steps = tutorial_step_texts("zh-TW")
     assert len(steps) == 3
-    assert steps[0] == "填公司資料"
-    assert steps[1] == "上傳電力、燃料等營運資料"
-    assert steps[2] == "查看分析結果"
+    assert steps[0] == "確認公司與目前營運據點"
+    assert steps[1] == "使用公司既有的資料檔"
+    assert steps[2] == "檢視分析結果與可下載資料"
     blob = "\n".join([copy["subtitle"], copy["helps"], *steps])
-    assert "不需要先懂碳盤查" in blob
+    assert "用 3 個步驟了解如何確認公司" in blob
+    assert "不需要先懂碳盤查" not in blob
     assert "治理、策略" not in blob
     assert "GHG Protocol" not in blob
     assert "IFRS S1/S2 四個核心" not in blob

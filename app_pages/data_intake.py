@@ -81,10 +81,6 @@ from carbon_ledger.ui.components import (
     render_kpi_row,
     render_section_header,
 )
-from carbon_ledger.ui.evidence_workspace import (
-    TAB_INTAKE,
-    render_evidence_workspace_nav,
-)
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.state import (
     STATE_INTAKE_BYTES,
@@ -137,7 +133,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-render_evidence_workspace_nav(lang, TAB_INTAKE)
 
 QUALITY_OPTIONS = [
     ("unknown", t("intake.quality.unknown", lang)),

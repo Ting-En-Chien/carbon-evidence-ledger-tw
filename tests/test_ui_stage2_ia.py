@@ -248,26 +248,18 @@ def test_evidence_workspace_defaults_to_data_upload() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
     assert "證據與資料" in text
-    assert "上傳能源與營運資料" in text or "資料匯入" in text
+    assert "資料匯入" in text or "上傳能源與營運資料" in text
     assert len(at.file_uploader) >= 1
     nav_labels: list[str] = []
-    selected_nav: list[str] = []
     for control in getattr(at, "selectbox", []):
         options = [
             str(option) for option in (getattr(control, "options", None) or [])
         ]
         if "資料匯入" in options and "證據紀錄" in options:
             nav_labels = options
-            value = getattr(control, "value", None)
-            if value is not None:
-                selected_nav.append(str(value))
-    assert nav_labels == [
-        "資料匯入",
-        "活動資料",
-        "待處理問題",
-        "證據紀錄",
-    ]
-    assert "資料匯入" in selected_nav
+    assert nav_labels == []
+    assert "其他資料功能" not in text
+    assert "More data tools" not in text
 
 
 def test_evidence_records_tab_still_reachable() -> None:

@@ -65,13 +65,15 @@ def test_simple_first_run_tutorial(page) -> None:
     dialog.first.wait_for(state="visible", timeout=20_000)
     body = visible_text(page)
     assert "歡迎使用 Carbon Evidence Ledger" in body
-    assert "填公司資料" in body
-    assert "上傳電力、燃料等營運資料" in body
-    assert "查看分析結果" in body
+    assert "確認公司與目前營運據點" in body
+    assert "第 1 步，共 3 步" in body
+    assert "用 3 個步驟了解如何確認公司" in body
+    assert "不需要先懂碳盤查" not in body
+    assert page.locator(".cel-tour-shot img, .cel-tour-spotlight").count() >= 1
     assert "治理、策略" not in body
     assert "GHG Protocol" not in body
     save_step_screenshot(page, "qa_simple_tutorial")
-    page.get_by_role("button", name=re.compile(r"開始使用|Get started")).first.click(
+    page.get_by_role("button", name=re.compile(r"稍後再看|Maybe later")).first.click(
         force=True
     )
     wait_streamlit_idle(page)
@@ -990,10 +992,11 @@ def test_customer_comprehension_qa(page) -> None:
     assert "歡迎使用 Carbon Evidence Ledger" in welcome
     assert "第一次使用" not in welcome
     assert "tut.glossary_hint" not in welcome
-    assert "排放量" not in welcome or "不需要先懂碳盤查" in welcome
+    assert "用 3 個步驟了解如何確認公司" in welcome
+    assert "不需要先懂碳盤查" not in welcome
     assert "哪些資料有問題" not in welcome
     save_step_screenshot(page, "qa_customer_welcome")
-    page.get_by_role("button", name=re.compile(r"開始使用|Get started")).first.click(
+    page.get_by_role("button", name=re.compile(r"稍後再看|Maybe later")).first.click(
         force=True
     )
     wait_streamlit_idle(page)

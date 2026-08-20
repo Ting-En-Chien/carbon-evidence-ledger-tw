@@ -15,10 +15,6 @@ from carbon_ledger.ui.components import (
     render_section_header,
     render_status_badge,
 )
-from carbon_ledger.ui.evidence_workspace import (
-    TAB_ACTIVITY,
-    render_evidence_workspace_nav,
-)
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.state import (
     get_current_result,
@@ -38,7 +34,6 @@ lang = get_language(st.session_state)
 result = get_current_result(st.session_state)
 
 render_page_header(t("ev.title", lang), t("ev.subtitle", lang))
-render_evidence_workspace_nav(lang, TAB_ACTIVITY)
 render_section_header(t("act.title", lang), t("act.subtitle", lang))
 render_page_help(t("act.help", lang))
 

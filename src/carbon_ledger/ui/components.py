@@ -15,7 +15,7 @@ from carbon_ledger.ui.i18n import (
     t,
 )
 from carbon_ledger.ui.state import set_language
-from carbon_ledger.ui.tutorial import request_tutorial
+from carbon_ledger.ui.tutorial import STATE_TUTORIAL_KEEP_OPEN, request_tutorial
 
 DESIGN_CSS = """
 <style>
@@ -1112,7 +1112,7 @@ def render_global_header(lang: str) -> None:
         )
     with help_col:
         if st.button(
-            t("header.help", lang),
+            t("header.tutorial", lang),
             key="header_tutorial_btn",
             type="tertiary",
         ):
@@ -1122,6 +1122,13 @@ def render_global_header(lang: str) -> None:
         render_glossary_popover(lang)
     with lang_col:
         current = LANG_CODE_TO_OPTION.get(lang, "繁中")
+        keep_open = False
+        try:
+            keep_open = bool(st.session_state[STATE_TUTORIAL_KEEP_OPEN])
+        except Exception:  # noqa: BLE001
+            keep_open = False
+        if keep_open:
+            st.session_state["ui_language_control"] = current
         selected = st.segmented_control(
             t("header.language_aria", lang),
             options=list(LANG_OPTIONS),
