@@ -22,13 +22,13 @@ dependencies = [
 dev = [
     "pytest",
     "ruff",
-    "pypdf>=5.1,<6",
+    "pypdf>=5.1,<7",
     "pypdfium2>=4.30,<5",
 ]
 e2e = [
     "playwright>=1.49",
     "pytest-playwright>=0.6",
-    "pypdf>=5.1,<6",
+    "pypdf>=5.1,<7",
     "pypdfium2>=4.30,<5",
 ]
 
