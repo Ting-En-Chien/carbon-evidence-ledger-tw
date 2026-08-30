@@ -8,6 +8,8 @@ An auditable data pipeline that maps synthetic Taiwanese exporter activity
 records to GHG Protocol classifications, EU CBAM data roles, IFRS S2
 climate-data readiness signals, and traceable data-quality exceptions.
 
+**Live app:** [carbon-evidence-ledger-tw.streamlit.app](https://carbon-evidence-ledger-tw.streamlit.app/)
+
 ## Purpose
 
 Companies often store operational information across utility bills, invoices,
@@ -90,6 +92,10 @@ cp .env.example .env
 
 ## Professional web demo
 
+Open the public application:
+
+<https://carbon-evidence-ledger-tw.streamlit.app/>
+
 Launch the Streamlit application from the repository root:
 
 ```bash
@@ -106,18 +112,16 @@ logic. The interface now includes:
 - Phase 8E meaningful Vega-Lite status / classification charts from live results
 - Phase 9A structured company-data intake (CSV/XLSX upload, mapping, validation)
 
-Visitors land on a populated synthetic demonstration with these product areas:
+Visitors start with an empty customer workspace and a guided first-run tutorial.
+Synthetic demonstration data are loaded only after the visitor explicitly
+selects the demo option. The public navigation includes:
 
-- **總覽 / Dashboard** — KPI cards, calculation-status charts, calculable
-  emissions panel with contribution bars, attention cards, and activity overview
-- **資料匯入 / Data Intake** — CSV/XLSX upload, column/value mapping, schema
-  validation, and accepted/rejected preview (does not replace demo analysis yet)
-- **活動資料 / Activity Data** — record drill-down from evidence to
-  calculation and framework use
-- **待處理問題 / Issues & Actions** — operational core QA task list
-- **準則分析 / Frameworks** — separate GHG Protocol, EU CBAM, and IFRS S2 views
-- **稽核與匯出 / Audit & Export** — download-first audit bundle, issue CSV,
-  and official-reference maintenance status
+- **合規總覽 / Compliance overview** — setup progress and a concise status view
+- **我的適用要求 / Applicability** — guided company setup and requirement mapping
+- **排放資料與計算 / Emissions data and calculation** — CSV/XLSX intake,
+  mapping, validation, analysis, and review
+- **碳排報表與匯出 / Emissions reports and export** — customer-facing results
+  and auditable downloads
 
 ### Structured company-data intake
 
