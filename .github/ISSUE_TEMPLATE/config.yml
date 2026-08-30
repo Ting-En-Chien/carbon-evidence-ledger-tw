@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Live application / 正式網站
+    url: https://carbon-evidence-ledger-tw.streamlit.app/
+    about: Open the public Carbon Evidence Ledger application.
+  - name: Security concern / 安全問題
+    url: https://github.com/Ting-En-Chien/carbon-evidence-ledger-tw/security/advisories/new
+    about: Privately report a potential security vulnerability instead of opening a public issue.

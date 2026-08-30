@@ -1,0 +1,69 @@
+name: Bug report / 錯誤回報
+description: Report a reproducible problem in the application or data pipeline.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Carbon Evidence Ledger. Do not include confidential company data, credentials, or personal information.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Guided onboarding
+        - Company applicability
+        - Emissions data and calculation
+        - Reports and export
+        - Regulatory references
+        - Installation or local development
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+      placeholder: Include the exact error message when one is available.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser and operating system, or Python version for local use.
+      placeholder: Chrome 128 on macOS 15 / Python 3.13
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional context
+      description: Add screenshots or sanitized sample data if helpful. Remove sensitive information first.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed confidential data, credentials, and personal information from this report.
+          required: true
+
