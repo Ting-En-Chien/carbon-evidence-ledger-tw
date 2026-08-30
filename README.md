@@ -4,9 +4,9 @@
 
 **Python package:** `carbon_ledger`
 
-An auditable data pipeline that maps synthetic Taiwanese exporter activity
-records to GHG Protocol classifications, EU CBAM data roles, IFRS S2
-climate-data readiness signals, and traceable data-quality exceptions.
+An open-source research and portfolio project exploring how synthetic Taiwanese
+exporter activity records can be organized into traceable evidence, limited
+emissions calculations, and regulatory data-readiness mappings.
 
 **Live app:** [carbon-evidence-ledger-tw.streamlit.app](https://carbon-evidence-ledger-tw.streamlit.app/)
 
@@ -39,35 +39,38 @@ The company manufactures products such as screws, nuts, and bolts. Selected
 products may fall under CN 7318 in the synthetic demonstration only. Product
 names alone are not treated as formal customs classification.
 
-## Long-term direction
+## Current scope and roadmap
 
-Three frameworks stay separate and answer different questions:
+The v0.1.0 public release focuses on traceable evidence intake, data validation,
+limited emissions calculations, and a guided workflow for a synthetic Taiwanese
+exporter scenario. Framework-related features have different maturity levels:
 
-- **GHG Protocol** — corporate organizational and operational inventory boundary
-  (Scope 1 / 2 / 3)
-- **EU CBAM** — data-needs and data-role mapping for a simplified steel-fastener
-  scenario (not a full declaration or certificate calculation)
-- **IFRS S2** — climate-metrics and value-chain **data readiness** signals
-  (not a compliance score or assurance opinion)
+- **GHG Protocol** — technical Scope 1 / 2 / 3 mapping for supported synthetic
+  activity records is available now.
+- **Taiwan regulatory applicability** — the web app provides guided screening
+  based on registered reference records, but does not make a legal determination.
+- **EU CBAM** — an experimental data-role mapping is available for a simplified
+  steel-fastener scenario. A complete declaration, embedded-emissions workflow,
+  and certificate calculation remain future work.
+- **IFRS S2** — experimental climate-data readiness signals are available. Full
+  disclosures, compliance assessment, and assurance remain outside the current
+  release.
 
-## Current prototype capabilities
+## Available in v0.1.0
 
-This repository currently includes:
+- guided Traditional Chinese / English web workflow
+- CSV and XLSX evidence intake with source traceability
+- schema validation, unit normalization, and data-quality exceptions
+- versioned emission-factor and regulatory reference records
+- auditable reference-sync workflow with human validation before activation
+- deterministic factor matching and calculation-readiness checks
+- limited emissions calculations where configured factors are available
+- technical GHG Protocol mapping for supported records
+- optional experimental EU CBAM and IFRS S2 readiness mappings
+- reproducible pipeline outputs and downloadable audit bundles
 
-- provenance-aware evidence ingestion
-- schema validation and safe unit normalization
-- official emission-factor and regulatory reference registry
-- official reference sync (allowlisted fetch, snapshot hashing, candidates,
-  validation/activation; no silent web-to-calculation path)
-- engineering conversion registry
-- deterministic factor matching and calculation readiness
-- limited auditable emissions calculation
-- GHG Protocol mapping
-- optional EU CBAM data-role mapping
-- optional IFRS S2 climate-data readiness mapping
-- framework-neutral core QA exception register
-- reproducible end-to-end pipeline runner and export bundle
-- professional Streamlit web demonstration on the same tested pipeline
+This is a public research and demonstration release, not production compliance
+software.
 
 ## Technology stack
 
@@ -100,7 +103,7 @@ Copy the environment example if you need a local `.env` later:
 cp .env.example .env
 ```
 
-## Professional web demo
+## Public web app
 
 Open the public application:
 
@@ -118,9 +121,9 @@ logic. The interface now includes:
 - Traditional Chinese / English localization (Traditional Chinese default)
 - first-time tutorial and glossary
 - beginner-first explanations with progressive technical disclosure
-- Phase 8D clean SaaS dashboard shell (sidebar navigation + compact overview)
-- Phase 8E meaningful Vega-Lite status / classification charts from live results
-- Phase 9A structured company-data intake (CSV/XLSX upload, mapping, validation)
+- dashboard navigation and a compact workflow overview
+- status and classification charts generated from current results
+- structured company-data intake (CSV/XLSX upload, mapping, and validation)
 
 Visitors start with an empty customer workspace and a guided first-run tutorial.
 Synthetic demonstration data are loaded only after the visitor explicitly
@@ -135,7 +138,7 @@ selects the demo option. The public navigation includes:
 
 ### Structured company-data intake
 
-Phase 9A supports:
+The current release supports:
 
 - CSV and XLSX uploads (10 MB limit)
 - column mapping and activity/unit value mapping
@@ -145,12 +148,12 @@ Phase 9A supports:
 Uploaded data are processed in memory and are not committed to Git.
 
 PDF invoice extraction and uploaded-data carbon calculation are **not**
-implemented in Phase 9A (planned for later phases).
+implemented in the current release and remain planned work.
 
-Keep all existing disclaimers: this remains a synthetic demonstration, not
+The workflow remains a synthetic demonstration and should not be treated as
 production compliance software.
 
-## Official reference sync (Phase 10A)
+## Official reference sync
 
 Official government factors are maintained through an auditable sync layer.
 Normal analysis stays offline and never auto-activates newly downloaded values.
@@ -222,11 +225,11 @@ any future private pilot must stay out of Git.
 - CN 7318 is a demonstration assumption, not a formal customs determination
 - CBAM is an optional downstream adapter
 - IFRS S2 evaluation is readiness only, not a compliance assessment
-- This prototype is not production-ready
+- The v0.1.0 public release is not production-ready
 
 ## Limitations and disclaimer
 
-This prototype is not legal, customs, assurance, or compliance advice.
+This project is not legal, customs, assurance, or compliance advice.
 It does not determine CBAM certificate liability or IFRS S2 compliance.
 Product CN codes and regulatory mappings are simplified for educational and
 technical demonstration purposes and require professional review before
