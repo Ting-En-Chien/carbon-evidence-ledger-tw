@@ -356,7 +356,8 @@ PERIOD_OVERLAP_JS = """() => {
     boundToGroup: className.indexOf('cel_onb_reporting_period_confirmation') !== -1,
     boundToSave: !!(save && host && save.closest && hostBox
       && overlap(hostBox, save.getBoundingClientRect()) > 0
-      && save.className && String(save.className).indexOf('boundary_period_primary') !== -1),
+      && save.className
+      && String(save.className).indexOf('boundary_period_primary') !== -1),
     markerPresent: !!marker,
     year: box(year),
     start: box(start) || (dates[0] ? box(dates[0]) : null),
@@ -412,11 +413,17 @@ def test_reporting_period_coachmark_binds_the_period_group(page) -> None:
     _walk_to_scene(page, "reporting_period")
     geo1440 = _assert_period_coach_clear(page, width=1440, height=900)
     save_step_screenshot(
-        page, "qa_onboarding_reporting_period_group_1440_zh", required=True, full_page=False
+        page,
+        "qa_onboarding_reporting_period_group_1440_zh",
+        required=True,
+        full_page=False,
     )
     geo1366 = _assert_period_coach_clear(page, width=1366, height=768)
     save_step_screenshot(
-        page, "qa_onboarding_reporting_period_group_1366_zh", required=True, full_page=False
+        page,
+        "qa_onboarding_reporting_period_group_1366_zh",
+        required=True,
+        full_page=False,
     )
     assert geo1440.get("markerPresent") is True
     assert geo1366.get("markerPresent") is True
