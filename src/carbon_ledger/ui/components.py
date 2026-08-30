@@ -35,15 +35,16 @@ html, body, [class*="css"],
   --color-danger: #B42318;
   --color-success: #047857;
   --color-neutral: #64748B;
-  --cel-primary: var(--color-primary);
-  --cel-primary-hover: var(--color-primary-hover);
-  --cel-navy: #172A46;
+  --cel-primary: #0F8A83;
+  --cel-primary-hover: #0C726C;
+  --cel-navy: #0D2238;
+  --cel-navy-950: #081A2B;
   --cel-text: #0F172A;
   --cel-slate: var(--color-neutral);
-  --cel-page: #F5F7FA;
+  --cel-page: #F4F7FA;
   --cel-surface: #FFFFFF;
   --cel-soft: #F1F5F9;
-  --cel-border: #E2E8F0;
+  --cel-border: #E3E9EF;
   --cel-warning: var(--color-warning);
   --cel-critical: var(--color-danger);
   --cel-success: var(--color-success);
@@ -92,40 +93,51 @@ section[data-testid="stMain"] .block-container,
   padding-right: var(--space-5) !important;
 }
 
-/* Sidebar width target ~220–240px */
+/* Sidebar: dark navy rail (visual_system.css refines further) */
 section[data-testid="stSidebar"] {
-  min-width: 228px !important;
-  max-width: 240px !important;
+  min-width: 280px !important;
+  max-width: 300px !important;
+  background: linear-gradient(180deg, #081A2B 0%, #0D2238 100%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 section[data-testid="stSidebar"] > div {
-  width: 228px !important;
-}
-section[data-testid="stSidebar"] {
-  background: var(--cel-surface);
-  border-right: 1px solid var(--cel-border);
+  width: 280px !important;
+  background: transparent !important;
 }
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] span {
   font-size: 0.875rem !important;
+  color: rgba(226, 232, 240, 0.88) !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarNavLink"] {
-  border-radius: 8px !important;
-  margin: 2px 0 !important;
-  padding: 0.45rem 0.65rem !important;
+  border-radius: 10px !important;
+  margin: 3px 8px !important;
+  padding: 0.55rem 0.7rem !important;
+  background: transparent !important;
+  height: auto !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  align-items: flex-start !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarNavLink"] span {
-  color: var(--cel-slate) !important;
+  color: rgba(203, 213, 225, 0.9) !important;
   font-weight: 500 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: 1.3 !important;
+  height: auto !important;
+  word-break: break-word !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-current="page"] {
-  background: #ECFDF8 !important;
-  color: var(--cel-navy) !important;
-  border-left: 3px solid var(--cel-primary);
+  background: rgba(20, 163, 154, 0.18) !important;
+  box-shadow: inset 3px 0 0 #14A39A;
+  border-left: none !important;
 }
 section[data-testid="stSidebar"]
   [data-testid="stSidebarNavLink"][aria-current="page"] span {
-  color: var(--cel-navy) !important;
+  color: #F0FDFA !important;
   font-weight: 650 !important;
 }
 
@@ -161,9 +173,127 @@ div[data-testid="stButton"] > button[kind="secondary"]:hover {
   border-color: #CBD5E1 !important;
   box-shadow: var(--shadow-card) !important;
 }
+div[data-testid="stButton"] > button[kind="primary"]:disabled,
+div[data-testid="stButton"] > button[kind="primary"][disabled],
+div[data-testid="stButton"] > button[kind="primary"]:disabled:hover,
+div[data-testid="stButton"] > button[kind="primary"][disabled]:hover,
+div[data-testid="stButton"] > button[kind="primary"]:disabled:active,
+div[data-testid="stButton"] > button[kind="primary"][disabled]:active {
+  background: #B6E3DF !important;
+  border: 1px solid #7AB8B3 !important;
+  color: #115E59 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+div[data-testid="stButton"] > button[kind="primary"]:disabled p,
+div[data-testid="stButton"] > button[kind="primary"][disabled] p,
+div[data-testid="stButton"] > button[kind="primary"]:disabled span,
+div[data-testid="stButton"] > button[kind="primary"][disabled] span {
+  color: #115E59 !important;
+}
+div[data-testid="stButton"] > button[kind="secondary"]:disabled,
+div[data-testid="stButton"] > button[kind="secondary"][disabled],
+div[data-testid="stButton"] > button[kind="secondary"]:disabled:hover,
+div[data-testid="stButton"] > button[kind="secondary"][disabled]:hover,
+div[data-testid="stButton"] > button[kind="secondary"]:disabled:active,
+div[data-testid="stButton"] > button[kind="secondary"][disabled]:active {
+  background: #E2E8F0 !important;
+  border: 1px solid #94A3B8 !important;
+  color: #1E293B !important;
+  box-shadow: none !important;
+  transform: none !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+div[data-testid="stButton"] > button[kind="secondary"]:disabled p,
+div[data-testid="stButton"] > button[kind="secondary"][disabled] p,
+div[data-testid="stButton"] > button[kind="secondary"]:disabled span,
+div[data-testid="stButton"] > button[kind="secondary"][disabled] span {
+  color: #1E293B !important;
+}
 div[data-testid="stButton"] > button[kind="tertiary"] {
   color: var(--cel-primary) !important;
   font-weight: 600 !important;
+}
+
+div[data-testid="stPopover"] > button,
+div[data-testid="stPopover"] > div > button {
+  background: #ffffff !important;
+  color: #0F172A !important;
+  border: 1px solid #CBD5E1 !important;
+  border-radius: var(--cel-radius-sm) !important;
+  font-weight: 600 !important;
+  min-height: 2.4rem !important;
+  opacity: 1 !important;
+}
+div[data-testid="stPopover"] > button p,
+div[data-testid="stPopover"] > button span,
+div[data-testid="stPopover"] > button svg,
+div[data-testid="stPopover"] > div > button p,
+div[data-testid="stPopover"] > div > button span,
+div[data-testid="stPopover"] > div > button svg {
+  color: #0F172A !important;
+  fill: #0F172A !important;
+  stroke: #0F172A !important;
+}
+div[data-testid="stPopover"] > button:hover,
+div[data-testid="stPopover"] > div > button:hover {
+  background: #F8FAFC !important;
+  border-color: #94A3B8 !important;
+  color: #0F172A !important;
+}
+div[data-testid="stPopover"] > button:focus-visible,
+div[data-testid="stPopover"] > div > button:focus-visible {
+  outline: 2px solid var(--cel-primary) !important;
+  outline-offset: 2px !important;
+}
+div[data-testid="stPopover"] > button:disabled,
+div[data-testid="stPopover"] > button[disabled],
+div[data-testid="stPopover"] > div > button:disabled,
+div[data-testid="stPopover"] > div > button[disabled] {
+  background: #F1F5F9 !important;
+  color: #475569 !important;
+  border-color: #CBD5E1 !important;
+  opacity: 1 !important;
+}
+div[data-testid="stPopover"] > button:disabled p,
+div[data-testid="stPopover"] > button:disabled span,
+div[data-testid="stPopover"] > button:disabled svg,
+div[data-testid="stPopover"] > div > button:disabled p,
+div[data-testid="stPopover"] > div > button:disabled span,
+div[data-testid="stPopover"] > div > button:disabled svg {
+  color: #475569 !important;
+  fill: #475569 !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stPopover"] > button,
+section[data-testid="stSidebar"] div[data-testid="stPopover"] > div > button {
+  background: #ffffff !important;
+  color: #0F172A !important;
+  border: 1px solid rgba(255,255,255,0.45) !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stPopover"] > button p,
+section[data-testid="stSidebar"] div[data-testid="stPopover"] > button span,
+section[data-testid="stSidebar"] div[data-testid="stPopover"] > button svg,
+section[data-testid="stSidebar"] div[data-testid="stPopover"] > div > button p,
+section[data-testid="stSidebar"] div[data-testid="stPopover"] > div > button span,
+section[data-testid="stSidebar"] div[data-testid="stPopover"] > div > button svg {
+  color: #0F172A !important;
+  fill: #0F172A !important;
+  stroke: #0F172A !important;
+}
+.cel-intake-progress-copy {
+  color: #334155 !important;
+  font-size: 0.92rem !important;
+  line-height: 1.45 !important;
+  margin: 0.1rem 0 0.35rem 0 !important;
+}
+.cel-analysis-view {
+  display: block;
+  max-width: 40rem;
+  margin: 0.25rem 0 2rem 0;
+  min-height: 3rem;
 }
 
 div[data-baseweb="select"] > div,
@@ -332,6 +462,15 @@ button[aria-selected="true"][data-baseweb="tab"] {
 .cel-kpi-grid-hero {
   grid-template-columns: 1.35fr 1fr 1fr 1fr;
 }
+.cel-kpi-grid-hero-1 {
+  grid-template-columns: minmax(16rem, 28rem);
+}
+.cel-kpi-grid-hero-2 {
+  grid-template-columns: 1.6fr 1fr;
+}
+.cel-kpi-grid-hero-3 {
+  grid-template-columns: 1.4fr 1fr 1fr;
+}
 .cel-kpi-grid-compact {
   grid-template-columns: repeat(4, minmax(140px, 1fr));
 }
@@ -397,18 +536,28 @@ button[aria-selected="true"][data-baseweb="tab"] {
   min-height: 3.1rem;
   line-height: 1;
 }
+.cel-kpi-metric:has(.cel-period-range) {
+  flex-wrap: wrap;
+  min-height: 0;
+  align-items: flex-start;
+  line-height: 1.15;
+}
 .cel-kpi-value {
   margin: 0;
   color: var(--cel-navy);
   font-size: clamp(1.9rem, 2.35vw, 2.35rem);
   font-weight: 700;
   letter-spacing: -0.035em;
-  line-height: 1;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
   word-break: normal;
   overflow-wrap: normal;
   white-space: nowrap;
+}
+.cel-kpi-value:has(.cel-period-range) {
+  white-space: normal;
+  max-width: 100%;
 }
 .cel-kpi-value-primary {
   margin: 0;
@@ -1028,63 +1177,106 @@ html.motion-ready
 def inject_design_system() -> None:
     """Inject application-owned CSS and scroll-reveal runtime once per page."""
     st.markdown(DESIGN_CSS, unsafe_allow_html=True)
+    from carbon_ledger.ui.enterprise import inject_enterprise_styles
     from carbon_ledger.ui.motion import inject_scroll_reveal_runtime
 
+    inject_enterprise_styles()
     inject_scroll_reveal_runtime()
 
 
 def render_global_header(lang: str) -> None:
-    """Render top toolbar: brand left, tutorial + language right."""
-    brand, utilities = st.columns(
-        [2.8, 1.2],
-        gap="medium",
+    """Compact single-baseline top bar: context left, controls right.
+
+    Customer mode has no global glossary dropdown. Field-level questions use
+    the contextual "?" help next to the field that needs it.
+    """
+    from carbon_ledger.ui.state import (
+        REPO_ROOT,
+        get_company_master_mapping,
+        get_company_profile_mapping,
+    )
+    from carbon_ledger.ui.view_models_compliance import regulatory_freshness_banner
+
+    profile = get_company_profile_mapping(st.session_state)
+    master = get_company_master_mapping(st.session_state)
+    confirmed = bool(str(master.get("customer_confirmed_at") or "").strip())
+    confirmed_name = (
+        str(
+            master.get("legal_name")
+            or master.get("company_name")
+            or ""
+        ).strip()
+        if confirmed
+        else ""
+    )
+    confirmed_ubn = (
+        str(master.get("unified_business_number") or "").strip()
+        if confirmed
+        else ""
+    )
+    company = html.escape(
+        confirmed_name
+        or str(profile.get("company_name") or "")
+        or t("sidebar.company_unset", lang)
+    )
+    year = html.escape(str(profile.get("reporting_year") or "—"))
+    context_detail = f"FY{year}"
+    if confirmed_ubn:
+        context_detail = (
+            f"{t('sidebar.company_ubn', lang, ubn=confirmed_ubn)} · "
+            f"{context_detail}"
+        )
+    freshness = regulatory_freshness_banner(REPO_ROOT, lang=lang)
+    state = html.escape(str(freshness.get("state_label") or ""))
+    checked = html.escape(str(freshness.get("last_successful_check_at") or "—"))
+
+    ctx, meta, help_col, lang_col = st.columns(
+        [1.7, 1.9, 1.05, 1.05],
+        gap="small",
         vertical_alignment="center",
     )
-    with brand:
-        toolbar_style = (
-            "border:none;margin:0;padding:0;min-height:48px;"
-        )
+    with ctx:
         st.markdown(
-            (
-                f'<div class="cel-toolbar" style="{toolbar_style}">'
-                '<div class="cel-brand-row">'
-                '<div class="cel-mark" aria-hidden="true"></div>'
-                f'<p class="cel-brand-name">{t("brand.name", lang)}</p>'
-                "</div>"
-                "</div>"
-            ),
+            f"""
+            <div class="cel-topbar-marker" aria-hidden="true"></div>
+            <p class="cel-appbar-title">{company}</p>
+            <p class="cel-appbar-sub">{html.escape(context_detail)}</p>
+            """,
             unsafe_allow_html=True,
         )
-    with utilities:
-        tut_col, lang_col = st.columns(
-            [1.1, 0.95],
-            gap="small",
-            vertical_alignment="center",
+    with meta:
+        st.markdown(
+            f"""
+            <div class="cel-appbar-meta">
+              <span class="cel-freshness-chip">
+                <span class="cel-freshness-dot" aria-hidden="true"></span>
+                {state}
+              </span>
+              <span style="font-size:0.75rem;white-space:nowrap;">{checked}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        with tut_col:
-            if st.button(
-                t("header.tutorial", lang),
-                key="header_tutorial_btn",
-                type="tertiary",
-            ):
-                request_tutorial(st.session_state)
-                st.rerun()
-        with lang_col:
-            current = LANG_CODE_TO_OPTION.get(lang, "繁中")
-            selected = st.segmented_control(
-                t("header.language_aria", lang),
-                options=list(LANG_OPTIONS),
-                default=current,
-                key="ui_language_control",
-                label_visibility="collapsed",
-            )
-            if selected and selected != current:
-                set_language(st.session_state, LANG_OPTION_TO_CODE[selected])
-                st.rerun()
-    st.markdown(
-        '<div style="border-bottom:1px solid #E5EAF0;margin:4px 0 12px 0;"></div>',
-        unsafe_allow_html=True,
-    )
+    with help_col:
+        if st.button(
+            t("header.tutorial", lang),
+            key="header_tutorial_btn",
+            type="tertiary",
+        ):
+            request_tutorial(st.session_state)
+            st.rerun()
+    with lang_col:
+        current = LANG_CODE_TO_OPTION.get(lang, "繁中")
+        selected = st.segmented_control(
+            t("header.language_aria", lang),
+            options=list(LANG_OPTIONS),
+            default=current,
+            key="ui_language_control",
+            label_visibility="collapsed",
+        )
+        if selected and selected != current:
+            set_language(st.session_state, LANG_OPTION_TO_CODE[selected])
+            st.rerun()
 
 
 def render_page_header(
@@ -1162,6 +1354,13 @@ def render_result_meta_strip(
     )
 
 
+def _zero_count_text(decimals: int) -> str:
+    """Visible start value for a playing count-up (before rAF)."""
+    if int(decimals) > 0:
+        return f"{0:.{int(decimals)}f}"
+    return "0"
+
+
 def _count_span(
     display: str,
     *,
@@ -1173,20 +1372,50 @@ def _count_span(
     hero_emissions: bool = False,
     hero_play: bool = False,
     hero_run: str = "",
+    kpi_metric: bool = False,
+    kpi_play: bool = False,
+    kpi_run: str = "",
+    kpi_key: str = "",
 ) -> str:
-    """Build a fail-open count-up span (final value is always in DOM text)."""
+    """Build a count-up span. Playing nodes start at 0; final is in data-cel-final."""
     final = html.escape(str(display))
+    playing = (hero_emissions and hero_play) or (kpi_metric and kpi_play)
+    hold_zero = playing
+    if hero_emissions:
+        hold_zero = bool(hero_play)
+    else:
+        try:
+            from carbon_ledger.ui.state import STATE_COUNTUP_RUNTIME_READY
+
+            if playing and bool(st.session_state.get(STATE_COUNTUP_RUNTIME_READY)):
+                hold_zero = False
+        except Exception:  # noqa: BLE001 - AppTest session proxies vary
+            pass
+    visible = _zero_count_text(int(decimals)) if hold_zero else final
     cls = f' class="{html.escape(css_class)}"' if css_class else ""
     if hero_emissions:
         # Dedicated primary emissions KPI — not driven by scroll-reveal.
         play = "1" if hero_play else "0"
         run = html.escape(str(hero_run))
+        node_id = html.escape(f"cel-hero-emissions-{hero_run or 'idle'}")
         return (
-            f"<span{cls} id=\"cel-hero-emissions\" "
+            f"<span{cls} id=\"{node_id}\" "
             f'data-cel-hero-emissions="1" data-cel-hero-play="{play}" '
             f'data-cel-hero-run="{run}" data-cel-final="{final}" '
             f'data-cel-target="{float(target)}" '
-            f'data-cel-decimals="{int(decimals)}">{final}</span>'
+            f'data-cel-decimals="{int(decimals)}">{visible}</span>'
+        )
+    if kpi_metric:
+        play = "1" if kpi_play else "0"
+        run = html.escape(str(kpi_run))
+        key = html.escape(str(kpi_key or "metric"))
+        node_id = html.escape(f"cel-kpi-{kpi_key or 'metric'}-{kpi_run or 'idle'}")
+        return (
+            f"<span{cls} id=\"{node_id}\" data-cel-kpi-metric=\"1\" "
+            f'data-cel-kpi-key="{key}" data-cel-kpi-play="{play}" '
+            f'data-cel-kpi-run="{run}" data-cel-final="{final}" '
+            f'data-cel-target="{float(target)}" '
+            f'data-cel-decimals="{int(decimals)}">{visible}</span>'
         )
     attrs = (
         f'data-cel-count="1" data-cel-final="{final}" '
@@ -1206,6 +1435,7 @@ def render_saas_kpi_row(
     reveal: bool = False,
     reveal_on_scroll: bool = False,
     scroll_key: str = "kpi",
+    tour_target: str = "",
 ) -> None:
     """Render compact SaaS KPI cards with optional subtitle and progress.
 
@@ -1216,6 +1446,12 @@ def render_saas_kpi_row(
     grid_class = "cel-kpi-grid"
     if variant == "hero":
         grid_class = "cel-kpi-grid cel-kpi-grid-hero"
+        if len(cards) == 1:
+            grid_class += " cel-kpi-grid-hero-1"
+        elif len(cards) == 2:
+            grid_class += " cel-kpi-grid-hero-2"
+        elif len(cards) == 3:
+            grid_class += " cel-kpi-grid-hero-3"
     elif variant == "compact":
         grid_class = "cel-kpi-grid cel-kpi-grid-compact"
 
@@ -1262,10 +1498,14 @@ def render_saas_kpi_row(
                 hero_emissions=bool(count.get("hero_emissions")),
                 hero_play=bool(count.get("hero_play")),
                 hero_run=str(count.get("hero_run") or ""),
+                kpi_metric=bool(count.get("kpi_metric")),
+                kpi_play=bool(count.get("kpi_play")),
+                kpi_run=str(count.get("kpi_run") or ""),
+                kpi_key=str(count.get("kpi_key") or ""),
             )
         else:
             value_html = (
-                f'<span class="{value_class}">{html.escape(str(value))}</span>'
+                f'<span class="{value_class}">{period_range_inner_html(value)}</span>'
             )
         unit_html = (
             f'<span class="cel-kpi-unit-inline">{html.escape(str(unit))}</span>'
@@ -1305,6 +1545,12 @@ def render_saas_kpi_row(
             f' data-cel-reveal="kpi" data-cel-key="{scroll_key}" '
             f'data-cel-stagger="1" data-cel-animation-type="stagger"'
         )
+    if tour_target:
+        wrap_attrs += f' data-cel-tour-target="{html.escape(tour_target, quote=True)}"'
+        if tour_target == "results-hero":
+            wrap_attrs += ' data-cel-onboarding-target="results-hero"'
+        elif tour_target == "coverage-summary":
+            wrap_attrs += ' data-cel-onboarding-target="calculation-coverage"'
     st.markdown(
         f"<div class='{grid_class}'{wrap_attrs}>{''.join(html_parts)}</div>",
         unsafe_allow_html=True,
@@ -1534,8 +1780,10 @@ def render_completeness_stats(
     needs_work_label: str,
     needs_work_value: int,
     scroll_key: str = "completeness-metrics",
+    play: bool = False,
+    run: str = "",
 ) -> None:
-    """Side-stack metrics for data completeness (viewport count-up)."""
+    """Side-stack metrics for data completeness (analysis-result count-up)."""
     from carbon_ledger.ui.formatting import format_int
 
     calc_display = format_int(calculated_value)
@@ -1544,11 +1792,19 @@ def render_completeness_stats(
         calc_display,
         target=float(calculated_value),
         delay_ms=60,
+        kpi_metric=True,
+        kpi_play=play,
+        kpi_run=run,
+        kpi_key="completeness-calculated",
     )
     need_span = _count_span(
         need_display,
         target=float(needs_work_value),
         delay_ms=140,
+        kpi_metric=True,
+        kpi_play=play,
+        kpi_run=run,
+        kpi_key="completeness-unresolved",
     )
     st.markdown(
         f"""
@@ -1570,7 +1826,33 @@ def render_completeness_stats(
     )
 
 
-def render_kpi_row(items: list[tuple[Any, str] | tuple[Any, str, str]]) -> None:
+def period_range_inner_html(value: Any) -> str:
+    """Split a start–end date range so it can wrap before the second date."""
+    raw = str(value or "").strip()
+    start = ""
+    end = ""
+    for sep in (" – ", " — ", " ～ ", " - "):
+        if sep in raw:
+            start, end = raw.split(sep, 1)
+            break
+    if not end:
+        return html.escape(raw)
+    return (
+        '<span class="cel-period-range" data-cel-period-range="1">'
+        '<span class="cel-period-head">'
+        f'<span class="cel-period-start">{html.escape(start.strip())}</span>'
+        '<span class="cel-period-sep" aria-hidden="true">–</span>'
+        "</span>"
+        f'<span class="cel-period-end">{html.escape(end.strip())}</span>'
+        "</span>"
+    )
+
+
+def render_kpi_row(
+    items: list[tuple[Any, str] | tuple[Any, str, str]],
+    *,
+    tour_target: str = "",
+) -> None:
     """Render four equal SaaS KPI cards with optional accent class."""
     cards = []
     for item in items:
@@ -1584,7 +1866,7 @@ def render_kpi_row(items: list[tuple[Any, str] | tuple[Any, str, str]]) -> None:
                 "accent": accent,
             }
         )
-    render_saas_kpi_row(cards)
+    render_saas_kpi_row(cards, tour_target=tour_target)
 
 
 def render_kpi_card(
@@ -1607,7 +1889,7 @@ def render_kpi_card(
         "<div class='cel-kpi-card cel-accent-slate' style='max-width:100%'>"
         f"<p class='cel-kpi-label'>{html.escape(str(label))}</p>"
         f'<p class="cel-kpi-metric">'
-        f'<span class="cel-kpi-value">{html.escape(str(value))}</span></p>'
+        f'<span class="cel-kpi-value">{period_range_inner_html(value)}</span></p>'
         f"{sub_html}</div>",
         unsafe_allow_html=True,
     )
@@ -1810,7 +2092,13 @@ def render_sidebar_controls(
 
 
 def render_sidebar_help(lang: str) -> None:
-    """Render compact sidebar help with glossary access."""
+    """Render compact sidebar help.
+
+    Customer mode keeps only the 操作教學 entry. The global glossary
+    dropdown stays available for admin diagnostics.
+    """
+    from carbon_ledger.ui.app_mode import is_admin_mode
+
     st.markdown(
         f'<p class="cel-sidebar-title">{t("sidebar.need_help", lang)}</p>',
         unsafe_allow_html=True,
@@ -1822,4 +2110,5 @@ def render_sidebar_help(lang: str) -> None:
     ):
         request_tutorial(st.session_state)
         st.rerun()
-    render_glossary_popover(lang)
+    if is_admin_mode(st.session_state):
+        render_glossary_popover(lang)

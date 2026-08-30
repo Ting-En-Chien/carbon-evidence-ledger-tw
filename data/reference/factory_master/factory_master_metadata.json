@@ -1,0 +1,46 @@
+{
+  "source_name": "登記工廠名錄（生產中工廠清冊）",
+  "source_authority": "經濟部產業發展署",
+  "source_id": "src_tw_factory_open_data",
+  "source_url": "https://serv.gcis.nat.gov.tw/RDownLoad/Data/statistical/%E7%94%9F%E7%94%A2%E4%B8%AD%E5%B7%A5%E5%BB%A0%E6%B8%85%E5%86%8A.zip",
+  "dataset_page": "https://data.gov.tw/dataset/6569",
+  "sources": [
+    {
+      "source_name": "登記工廠名錄（生產中工廠清冊）",
+      "source_authority": "經濟部產業發展署",
+      "source_url": "https://serv.gcis.nat.gov.tw/RDownLoad/Data/statistical/%E7%94%9F%E7%94%A2%E4%B8%AD%E5%B7%A5%E5%BB%A0%E6%B8%85%E5%86%8A.zip",
+      "catalog_url": "https://www.ida.gov.tw/opendata/02/SDD6569.csv",
+      "dataset_page": "https://data.gov.tw/dataset/6569",
+      "inner_file": "11506.csv",
+      "record_count": 99789,
+      "source_data_date": "2026-06-01"
+    }
+  ],
+  "downloaded_at": "2026-08-16T10:51:09+00:00",
+  "source_data_date": "2026-06-01",
+  "record_count": 99788,
+  "fields_included": [
+    "unified_business_number",
+    "factory_name",
+    "address",
+    "registration_number",
+    "industry_code",
+    "main_products"
+  ],
+  "fields_not_kept": [
+    "工廠負責人姓名",
+    "董事長",
+    "負責人",
+    "負責人姓名"
+  ],
+  "snapshot_version": "2026-08-16.v1",
+  "coverage_statement_zh": "目前本地工廠資料庫涵蓋政府公開資料中的生產中登記工廠。",
+  "quality": {
+    "total_records": 99788,
+    "unique_ubn_count": 85269,
+    "records_with_name": 99788,
+    "records_with_address": 99788,
+    "records_with_registration_number": 99788
+  },
+  "note_zh": "登記工廠僅為發現候選，不會自動納入盤查邊界。"
+}

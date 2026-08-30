@@ -19,6 +19,7 @@ from carbon_ledger.domain import (
     DATA_ORIGINS,
     DATA_QUALITY_TIERS,
     DOCUMENT_TYPES,
+    FUEL_SUBTYPES,
     HUMAN_REVIEW_STATUSES,
     MEASUREMENT_METHODS,
     ORGANIZATIONAL_BOUNDARY_STATUSES,
@@ -204,6 +205,12 @@ ACTIVITY_RECORDS_SCHEMA = DataFrameSchema(
         "process_use": Column(
             str,
             checks=Check.isin(PROCESS_USES),
+            nullable=True,
+            required=False,
+        ),
+        "fuel_subtype": Column(
+            str,
+            checks=Check.isin(FUEL_SUBTYPES),
             nullable=True,
             required=False,
         ),

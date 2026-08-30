@@ -1,0 +1,35 @@
+source_id,last_checked_at,last_successful_fetch_at,last_changed_at,http_etag,http_last_modified,content_hash,fetch_status,fetch_error,consecutive_failures,freshness_status,next_check_at,current_source_version,previous_source_version,monitor_criticality
+src_tw_fsc_law_portal,,,,,,,,,0,CHECK_DUE,,portal_live,portal_live,CRITICAL
+src_tw_annual_report_rules_fl007032,,,,,,,,,0,CHECK_DUE,,2025-12-19_amended,2025-12-19_amended,CRITICAL
+src_tw_order_11403851756,,,,,,,,,0,CHECK_DUE,,金管證審字第11403851756號,金管證審字第11403851756號,CRITICAL
+src_tw_order_11403851755,,,,,,,,,0,CHECK_DUE,,金管證審字第11403851755號,金管證審字第11403851755號,CRITICAL
+src_tw_sfb_ifrs_download_area,,,,,,,,,0,CHECK_DUE,,portal_live,portal_live,CRITICAL
+src_tw_order_11402739247_fi,,,,,,,,,0,CHECK_DUE,,金管銀法字第11402739247號,金管銀法字第11402739247號,CRITICAL
+src_tw_bank_annual_report_fl006611,,,,,,,,,0,CHECK_DUE,,2025-12_amended,2025-12_amended,SUPPLEMENTARY
+src_tw_fhc_annual_report_fl006626,,,,,,,,,0,CHECK_DUE,,2025-12_amended,2025-12_amended,SUPPLEMENTARY
+src_tw_bills_annual_report_fl006628,,,,,,,,,0,CHECK_DUE,,2025-12_amended,2025-12_amended,SUPPLEMENTARY
+src_tw_securities_fin_report_fl007040,,,,,,,,,0,CHECK_DUE,,2025-12-24_Art32-1,2025-12-24_Art32-1,CRITICAL
+src_tw_order_11403856095_securities,,,,,,,,,0,CHECK_DUE,,金管證券字第11403856095號,金管證券字第11403856095號,CRITICAL
+src_tw_order_11403856094_recognised,,,,,,,,,0,CHECK_DUE,,金管證券字第11403856094號,金管證券字第11403856094號,CRITICAL
+src_tw_fcm_fin_report_fl021990,,,,,,,,,0,CHECK_DUE,,2025-12-24_Art34-1,2025-12-24_Art34-1,IMPORTANT
+src_tw_order_11403856096_fcm,,,,,,,,,0,CHECK_DUE,,金管證券字第11403856096號,金管證券字第11403856096號,IMPORTANT
+src_tw_tpex_isds_portal,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_tw_twse_impl_plan_example,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_tw_twse_impl_plan_progress_template,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_tw_sfb_press_20251028,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,IMPORTANT
+src_tw_fsc_roadmap_press_20230817,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_tw_tpex_qa_20250402,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_tw_fsc_portal,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_tw_sfb_portal,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_tw_twse_portal,2026-08-12T15:19:51Z,2026-08-12T15:19:51Z,,"""69ca4304-4ab7b""","Mon, 30 Mar 2026 09:31:48 GMT",dca8a2bdc9b4cfd9c049dc3f48692cff0bff1b010d6a48383b2ec1821d1f289f,OK,,0,AUTOMATED_CURRENT,2026-08-19T15:19:51Z,portal_or_doc,portal_or_doc,CRITICAL
+src_tw_tpex_portal,2026-08-12T15:19:52Z,2026-08-12T15:19:52Z,,"""6a44c791-746fb""","Wed, 01 Jul 2026 07:53:53 GMT",121721d463f53715750768ec82cb6e4d09abca5ebb47665fe655de83a7981796,OK,,0,AUTOMATED_CURRENT,2026-08-19T15:19:52Z,portal_or_doc,portal_or_doc,CRITICAL
+src_tw_moenv_ghg_registry,,,,,,,POLICY_SKIPPED,bootstrap: regulatory portal MANUAL_REFERENCE,0,MANUALLY_VERIFIED,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_tw_moenv_ghg_open_data,2026-08-12T15:19:53Z,,,,,,CREDENTIAL_REQUIRED,Missing required credential env MOENV_API_KEY; no HTTP attempted.,0,MANUAL_ACCESS_REQUIRED,2027-08-12T15:19:53Z,GHG_P_01,GHG_P_01,SUPPLEMENTARY
+src_tw_moenv_oaout,,,,,,,,,0,CHECK_DUE,,portal_or_doc,portal_or_doc,SUPPLEMENTARY
+src_issb_ifrs_s1_2023,,,,,,,,,0,CHECK_DUE,,2023-06,2023-06,IMPORTANT
+src_issb_ifrs_s2_2023,,,,,,,,,0,CHECK_DUE,,2023-06,2023-06,IMPORTANT
+src_issb_ifrs_s2_ghg_amendments_2025,,,,,,,,,0,CHECK_DUE,,2025-12,2025-12,SUPPLEMENTARY
+src_issb_s1_s2_mapping_education,,,,,,,,,0,CHECK_DUE,,education_mapping,education_mapping,SUPPLEMENTARY
+src_issb_knowledge_hub,,,,,,,,,0,CHECK_DUE,,portal_live,portal_live,SUPPLEMENTARY
+src_issb_sasb_hub,,,,,,,,,0,CHECK_DUE,,portal_live,portal_live,SUPPLEMENTARY
+src_ifrs_org_portal,,,,,,,,,0,CHECK_DUE,,portal_live,portal_live,SUPPLEMENTARY

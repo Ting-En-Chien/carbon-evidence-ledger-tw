@@ -55,6 +55,10 @@ SUCCESSFUL_NORMALIZATION_STATUSES = frozenset(
 EXPECTED_READINESS_CALCULATION_PAIRS = {
     "ready": "calculated",
     "blocked_missing_conversion": "blocked_missing_conversion",
+    "blocked_ambiguous_conversion": "blocked_ambiguous_conversion",
+    "blocked_incomplete_gas_factors": "blocked_incomplete_gas_factors",
+    "blocked_conflicting_factor_group": "blocked_conflicting_factor_group",
+    "blocked_natural_gas_type_required": "blocked_natural_gas_type_required",
     "no_factor_configured": "no_factor_configured",
     "not_emissions_activity": "not_emissions_activity",
     "unsupported_activity_type": "unsupported_activity_type",
@@ -62,6 +66,11 @@ EXPECTED_READINESS_CALCULATION_PAIRS = {
 
 CALCULATION_ISSUE_RULES = {
     "blocked_missing_conversion": "qa_missing_conversion_dependency",
+    "blocked_ambiguous_conversion": "qa_ambiguous_conversion",
+    "blocked_incomplete_gas_factors": "qa_incomplete_gas_factors",
+    "blocked_conflicting_factor_group": "qa_conflicting_factor_group",
+    "blocked_missing_gwp": "qa_missing_gwp",
+    "blocked_natural_gas_type_required": "qa_natural_gas_type_required",
     "no_factor_configured": "qa_no_factor_configured",
     "invalid_normalized_input": "qa_invalid_normalized_input",
     "factor_match_inconsistent": "qa_factor_match_inconsistent",
@@ -73,7 +82,16 @@ NON_ISSUE_CALCULATION_STATUSES = frozenset(
 )
 
 CALCULATION_LAYER_ERROR_STATUSES = frozenset(
-    {"invalid_normalized_input", "factor_match_inconsistent"}
+    {
+        "invalid_normalized_input",
+        "factor_match_inconsistent",
+        "blocked_missing_gwp",
+        "blocked_incomplete_gas_factors",
+        "blocked_conflicting_factor_group",
+        "blocked_ambiguous_conversion",
+        "blocked_missing_conversion",
+        "blocked_natural_gas_type_required",
+    }
 )
 
 REQUIRED_REJECTION_COLUMNS = (
@@ -519,6 +537,98 @@ def _evaluate_activity(
                 source_status=calculation_status,
                 source_reason=calculation_reason,
                 blocking_dependency=blocking_dependency,
+            )
+        )
+        return issues
+
+    if calculation_status == "blocked_natural_gas_type_required":
+        rule = rules_by_id["qa_natural_gas_type_required"]
+        issues.append(
+            _issue_from_rule(
+                issue_id=_activity_issue_id(
+                    record_id,
+                    _text(rule.get("issue_code")),
+                ),
+                record_id=record_id,
+                source_document_id=source_document_id,
+                issue_scope="activity_record",
+                rule=rule,
+                source_status=calculation_status,
+                source_reason=calculation_reason,
+                blocking_dependency=blocking_dependency,
+            )
+        )
+        return issues
+
+    if calculation_status == "blocked_ambiguous_conversion":
+        rule = rules_by_id["qa_ambiguous_conversion"]
+        issues.append(
+            _issue_from_rule(
+                issue_id=_activity_issue_id(
+                    record_id,
+                    _text(rule.get("issue_code")),
+                ),
+                record_id=record_id,
+                source_document_id=source_document_id,
+                issue_scope="activity_record",
+                rule=rule,
+                source_status=calculation_status,
+                source_reason=calculation_reason,
+                blocking_dependency=blocking_dependency,
+            )
+        )
+        return issues
+
+    if calculation_status == "blocked_incomplete_gas_factors":
+        rule = rules_by_id["qa_incomplete_gas_factors"]
+        issues.append(
+            _issue_from_rule(
+                issue_id=_activity_issue_id(
+                    record_id,
+                    _text(rule.get("issue_code")),
+                ),
+                record_id=record_id,
+                source_document_id=source_document_id,
+                issue_scope="activity_record",
+                rule=rule,
+                source_status=calculation_status,
+                source_reason=calculation_reason,
+            )
+        )
+        return issues
+
+    if calculation_status == "blocked_conflicting_factor_group":
+        rule = rules_by_id["qa_conflicting_factor_group"]
+        issues.append(
+            _issue_from_rule(
+                issue_id=_activity_issue_id(
+                    record_id,
+                    _text(rule.get("issue_code")),
+                ),
+                record_id=record_id,
+                source_document_id=source_document_id,
+                issue_scope="activity_record",
+                rule=rule,
+                source_status=calculation_status,
+                source_reason=calculation_reason,
+            )
+        )
+        return issues
+
+    if calculation_status == "blocked_missing_gwp":
+        rule = rules_by_id["qa_missing_gwp"]
+        issues.append(
+            _issue_from_rule(
+                issue_id=_activity_issue_id(
+                    record_id,
+                    _text(rule.get("issue_code")),
+                ),
+                record_id=record_id,
+                source_document_id=source_document_id,
+                issue_scope="activity_record",
+                rule=rule,
+                source_status=calculation_status,
+                source_reason=calculation_reason,
             )
         )
         return issues

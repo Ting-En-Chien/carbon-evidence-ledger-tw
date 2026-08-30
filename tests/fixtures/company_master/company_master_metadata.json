@@ -1,0 +1,35 @@
+{
+  "source_name": "TWSE / TPEx official company open data",
+  "source_authority": "臺灣證券交易所、證券櫃檯買賣中心",
+  "source_url": "https://openapi.twse.com.tw/v1/swagger.json",
+  "downloaded_at": "2026-08-16T00:00:00+00:00",
+  "source_data_date": "2026-08-15",
+  "record_count": 3,
+  "fields_included": [
+    "unified_business_number",
+    "company_name",
+    "registered_address",
+    "paid_in_capital_twd",
+    "listing_status",
+    "industry_code",
+    "stock_code",
+    "source_id",
+    "source_authority",
+    "source_dataset",
+    "source_data_date"
+  ],
+  "snapshot_version": "test-fixture",
+  "coverage_statement_zh": "目前本地公司資料庫涵蓋政府公開資料中的上市／上櫃／公開發行公司。",
+  "quality": {
+    "total_records": 3,
+    "records_with_ubn": 3,
+    "records_with_company_name": 3,
+    "records_with_address": 2,
+    "records_with_paid_in_capital": 2,
+    "records_paid_in_capital_ge_10b": 1,
+    "source_distribution": {
+      "TWSE": 2,
+      "TPEX": 1
+    }
+  }
+}

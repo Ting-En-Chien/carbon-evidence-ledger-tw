@@ -221,8 +221,32 @@ __marimo__/
 .venv/
 .env
 private_data/
+private_data/company_workspaces/
 *.duckdb
 outputs/*
 !outputs/.gitkeep
 .DS_Store
 cursor_handoff/
+
+# Local review archives (not product source)
+carbon-ledger-*-review*.zip
+carbon-ledger-*-review.zip
+carbon-ledger-*-review/
+carbon-ledger-full-review.zip
+
+# E2E runtime artifacts — keep directory + seven Stage 4.2D review screenshots
+artifacts/e2e/*
+!artifacts/e2e/.gitkeep
+!artifacts/e2e/qa_facility_compact_default.png
+!artifacts/e2e/qa_facility_exception_edit.png
+!artifacts/e2e/qa_taiwan_missing_fact.png
+!artifacts/e2e/qa_taiwan_resolved_results.png
+!artifacts/e2e/qa_company_capital_zero.png
+!artifacts/e2e/qa_company_capital_mid.png
+!artifacts/e2e/qa_company_capital_final.png
+
+# Local Stage 3B2B debug captures (not product screenshots)
+docs/stage3b2b_screenshots/debug.html
+docs/stage3b2b_screenshots/debug.png
+docs/stage3b2b_screenshots/debug2.png
+docs/stage3b2b_screenshots/debug_8504.png

@@ -19,6 +19,7 @@ from carbon_ledger.intake import (
     IntakeError,
     IntakeMetadata,
     blank_template_csv_bytes,
+    blank_template_xlsx_bytes,
     build_and_validate_intake,
     compute_bytes_sha256,
     default_value_maps,
@@ -447,6 +448,29 @@ def test_intake_does_not_write_files_to_repository(tmp_path: Path) -> None:
     after = {path for path in REPO_ROOT.rglob("*") if path.is_file()}
     assert before == after
     assert blank_template_csv_bytes().startswith(b"activity_type,")
+
+
+def test_xlsx_template_has_three_sheets_and_is_not_auto_imported() -> None:
+    from openpyxl import load_workbook
+
+    payload = blank_template_xlsx_bytes()
+    workbook = load_workbook(BytesIO(payload))
+    assert workbook.sheetnames == ["資料填寫", "填寫範例", "欄位說明"]
+    fill = workbook["資料填寫"]
+    assert [cell.value for cell in fill[1]] == [
+        "活動類型",
+        "用量",
+        "單位",
+        "開始日期",
+        "結束日期",
+    ]
+    assert fill["A2"].value is None
+    example = workbook["填寫範例"]
+    assert example["A2"].value == "外購電力"
+    guide = workbook["欄位說明"]
+    assert guide["D2"].value == "activity_type"
+    assert blank_template_xlsx_bytes() == payload
+
 
 
 def _real_world_workbook_bytes(*, data_sheet_name: str = "活動數據") -> bytes:

@@ -1,14 +1,15 @@
 """Carbon Evidence Ledger — bilingual professional Streamlit application.
 
-Stage 2 V1 navigation: Compliance Overview → Reporting & Export.
-CBAM remains available in the backend but is hidden from the V1 UI.
-Retains Phase 11 analysis progress / result-reveal motion from main.
+Stage 3B.3: CUSTOMER / DEMO / ADMIN product modes.
+Default CUSTOMER starts empty; demo requires explicit activation.
+Admin monitoring details require CEL_APP_MODE=admin.
 """
 
 from __future__ import annotations
 
 import streamlit as st
 
+from carbon_ledger.ui.app_mode import is_admin_mode, is_demo_mode
 from carbon_ledger.ui.components import (
     inject_design_system,
     render_analysis_settings,
@@ -16,16 +17,30 @@ from carbon_ledger.ui.components import (
     render_sidebar_help,
     render_sidebar_source,
 )
+from carbon_ledger.ui.enterprise import render_sidebar_context
 from carbon_ledger.ui.i18n import t
-from carbon_ledger.ui.motion import execute_analysis_with_progress
+from carbon_ledger.ui.motion import (
+    ANALYSIS_PHASE_ANALYZING,
+    ANALYSIS_PHASE_CLOSING,
+    ANALYSIS_PHASE_FAILED,
+    ANALYSIS_PHASE_REVEAL,
+    analysis_phase,
+    consume_analysis_run_requests,
+)
 from carbon_ledger.ui.state import (
+    REPO_ROOT,
+    STATE_ANALYSIS_PHASE,
+    STATE_ANALYSIS_RUNNING,
+    STATE_ANALYSIS_UPLOADED_MODE,
     STATE_INCLUDE_GHG,
     STATE_INCLUDE_IFRS,
+    STATE_INTAKE_STEP,
     STATE_NAVIGATE_TO_RESULTS,
     STATE_RUN_ANALYSIS_REQUEST,
     STATE_RUN_UPLOADED_REQUEST,
     STATE_UPLOADED_ANALYSIS_COMPLETED,
     get_analysis_source_summary,
+    get_company_profile_mapping,
     get_current_result,
     get_language,
     get_ui_error,
@@ -33,12 +48,16 @@ from carbon_ledger.ui.state import (
     initialize_ui_state,
     is_uploaded_analysis,
 )
-from carbon_ledger.ui.tutorial import maybe_show_tutorial
+from carbon_ledger.ui.tutorial import (
+    render_onboarding,
+    run_pending_onboarding_navigation,
+)
+from carbon_ledger.ui.view_models_compliance import regulatory_freshness_banner
 
 st.set_page_config(
     page_title="Carbon Evidence Ledger",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 inject_design_system()
@@ -57,7 +76,30 @@ if "ui_checkbox_ifrs" not in st.session_state:
 st.session_state["ui_checkbox_cbam"] = False
 
 render_global_header(lang)
-maybe_show_tutorial(st.session_state, lang)
+_phase = analysis_phase(st.session_state)
+_analysis_busy = (
+    bool(st.session_state.get(STATE_ANALYSIS_RUNNING))
+    or _phase
+    in {
+        ANALYSIS_PHASE_ANALYZING,
+        ANALYSIS_PHASE_CLOSING,
+        ANALYSIS_PHASE_FAILED,
+    }
+    or bool(st.session_state.get(STATE_RUN_UPLOADED_REQUEST))
+    or bool(st.session_state.get(STATE_RUN_ANALYSIS_REQUEST))
+)
+# Rendered ahead of the router so the coachmark survives every route and
+# every page that ends with st.stop(). Positioning happens in the browser.
+render_onboarding(st.session_state, lang, analysis_busy=_analysis_busy)
+
+if is_demo_mode(st.session_state) or (
+    get_analysis_source_summary(st.session_state).get("is_demo")
+):
+    st.markdown(
+        f'<div class="cel-demo-banner"><span class="cel-badge">'
+        f'{t("common.demo_badge", lang)}</span></div>',
+        unsafe_allow_html=True,
+    )
 
 overview_page = st.Page(
     "app_pages/dashboard.py",
@@ -70,17 +112,20 @@ applicability_page = st.Page(
     title=t("nav.applicability", lang),
     icon=":material/rule:",
 )
+_admin_nav = "visible" if is_admin_mode(st.session_state) else "hidden"
 ifrs_page = st.Page(
     "app_pages/frameworks.py",
     title=t("nav.ifrs", lang),
     icon=":material/account_tree:",
+    visibility=_admin_nav,
 )
 taiwan_page = st.Page(
     "app_pages/taiwan_ghg.py",
     title=t("nav.taiwan", lang),
     icon=":material/public:",
+    visibility=_admin_nav,
 )
-# Evidence & Data lands on Data Upload (intake) so Excel/CSV is immediately visible.
+# Emissions Data & Calculations lands on intake so Excel/CSV is visible.
 evidence_page = st.Page(
     "app_pages/data_intake.py",
     title=t("nav.evidence", lang),
@@ -90,6 +135,13 @@ reporting_page = st.Page(
     "app_pages/audit_export.py",
     title=t("nav.audit", lang),
     icon=":material/fact_check:",
+)
+# Blocking analysis transition — never listed in primary nav.
+analysis_progress_page = st.Page(
+    "app_pages/analysis_progress.py",
+    title=t("analysis.running_title", lang),
+    icon=":material/hourglass_empty:",
+    visibility="hidden",
 )
 # Sibling Evidence workspace pages: reachable via in-page tabs / switch_page only.
 activity_page = st.Page(
@@ -111,7 +163,8 @@ evidence_records_page = st.Page(
     visibility="hidden",
 )
 
-# Flat list: exactly six visible primary destinations (no section headers).
+# Four customer destinations. IFRS / Taiwan stay registered but hidden
+# unless admin mode is enabled, so switch_page still works.
 navigation = st.navigation(
     [
         overview_page,
@@ -120,12 +173,17 @@ navigation = st.navigation(
         taiwan_page,
         evidence_page,
         reporting_page,
+        analysis_progress_page,
         activity_page,
         issues_page,
         evidence_records_page,
     ],
     position="sidebar",
 )
+
+# Pages are registered now, so a queued onboarding route can run before the
+# router mounts anything. Streamlit reruns on the target page.
+run_pending_onboarding_navigation(st.session_state)
 
 source_summary = get_analysis_source_summary(st.session_state)
 prefer_uploaded = has_validated_uploaded_data(st.session_state)
@@ -152,68 +210,91 @@ if prefer_uploaded or active_uploaded:
         run_label = t("sidebar.rerun", lang)
     else:
         run_label = t("sidebar.run_uploaded", lang)
-else:
+elif source_summary.get("is_demo") and has_result:
     source_label = t("sidebar.source_demo", lang)
     source_detail = t("sidebar.reporting_context", lang)
     run_uploaded_mode = False
-    run_label = (
-        t("sidebar.rerun", lang) if has_result else t("sidebar.run_demo", lang)
-    )
+    run_label = t("sidebar.rerun", lang)
+else:
+    source_label = t("empty.no_upload_title", lang)
+    source_detail = t("sidebar.source_empty_detail", lang)
+    run_uploaded_mode = False
+    run_label = t("sidebar.run", lang)
 
 with st.sidebar:
+    profile = get_company_profile_mapping(st.session_state)
+    freshness = regulatory_freshness_banner(REPO_ROOT, lang=lang)
+    fy_value = profile.get("reporting_year")
+    if not fy_value:
+        period_end = str(source_summary.get("period_end") or "")
+        fy_value = period_end[:4] if len(period_end) >= 4 else period_end
+    render_sidebar_context(
+        reporting_year=fy_value,
+        freshness_label=str(freshness.get("state_label") or ""),
+        lang=lang,
+    )
     st.divider()
     render_sidebar_source(
         lang,
         source_label=source_label,
         source_detail=source_detail,
-        is_demo=not (prefer_uploaded or active_uploaded),
+        is_demo=bool(source_summary.get("is_demo")),
     )
-    flags = render_analysis_settings(lang)
-    include_ghg = flags["include_ghg"]
-    include_ifrs = flags["include_ifrs"]
-    # V1 product experience: CBAM UI hidden; backend still accepts the flag.
+
+    # Customer: adapters follow applicability / product defaults — no toggle chaos.
+    # Advanced / admin may still adjust analysis modules.
+    if is_admin_mode(st.session_state):
+        flags = render_analysis_settings(lang)
+        include_ghg = flags["include_ghg"]
+        include_ifrs = flags["include_ifrs"]
+    else:
+        include_ghg = bool(st.session_state.get(STATE_INCLUDE_GHG, True))
+        include_ifrs = bool(st.session_state.get(STATE_INCLUDE_IFRS, True))
     include_cbam = False
 
-    # Avoid ambiguous "start analysis" after a completed uploaded run.
+    # Re-run only when an analysis already exists (or uploaded data is ready).
     show_start_uploaded = prefer_uploaded and not uploaded_completed
-    show_rerun = has_result and (uploaded_completed or not prefer_uploaded)
-    if show_start_uploaded or show_rerun or not prefer_uploaded:
+    show_rerun = has_result and (
+        uploaded_completed or bool(source_summary.get("is_demo"))
+    )
+    if show_start_uploaded or show_rerun:
         run_clicked = st.button(
             run_label,
             type="primary",
             use_container_width=True,
             key="sidebar_run_analysis",
+            disabled=_analysis_busy,
         )
     else:
         run_clicked = False
-
-    if st.session_state.get(STATE_RUN_UPLOADED_REQUEST):
-        run_clicked = True
-        run_uploaded_mode = True
-    elif st.session_state.get(STATE_RUN_ANALYSIS_REQUEST):
-        run_clicked = True
-        run_uploaded_mode = False
-
-    if run_clicked:
-        try:
-            execute_analysis_with_progress(
-                st.session_state,
-                lang=lang,
-                uploaded_mode=run_uploaded_mode,
-                include_ghg=include_ghg,
-                include_cbam=include_cbam,
-                include_ifrs_s2=include_ifrs,
-            )
-            st.session_state[STATE_NAVIGATE_TO_RESULTS] = True
-        except Exception:
-            st.error(t("error.analysis_failed", lang))
 
     st.divider()
     render_sidebar_help(lang)
 
     error = get_ui_error(st.session_state)
-    if error:
-        st.error(t("error.analysis_failed", lang))
+    if error and is_admin_mode(st.session_state):
+        st.error(error)
+    elif error:
+        st.error(t("error.analysis_failed_safe", lang))
+
+requested, requested_uploaded = consume_analysis_run_requests(st.session_state)
+if requested:
+    run_clicked = True
+    if requested_uploaded is not None:
+        run_uploaded_mode = requested_uploaded
+
+if run_clicked:
+    st.session_state[STATE_ANALYSIS_UPLOADED_MODE] = bool(run_uploaded_mode)
+    st.session_state[STATE_ANALYSIS_PHASE] = ANALYSIS_PHASE_ANALYZING
+    st.session_state[STATE_ANALYSIS_RUNNING] = True
+    # Leave the current page so Dashboard/intake unmount before progress starts.
+    st.switch_page("app_pages/analysis_progress.py")
+
+if analysis_phase(st.session_state) == ANALYSIS_PHASE_CLOSING:
+    # Analysis page is not remounted this run. Navigate only after it is gone.
+    st.session_state[STATE_ANALYSIS_PHASE] = ANALYSIS_PHASE_REVEAL
+    st.session_state[STATE_NAVIGATE_TO_RESULTS] = True
+    st.session_state[STATE_INTAKE_STEP] = 4
 
 if st.session_state.get(STATE_NAVIGATE_TO_RESULTS):
     st.session_state[STATE_NAVIGATE_TO_RESULTS] = False

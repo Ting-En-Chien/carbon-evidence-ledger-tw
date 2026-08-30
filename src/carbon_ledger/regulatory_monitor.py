@@ -45,6 +45,27 @@ from carbon_ledger.regulatory_registry import (
     operable_rules,
     outranks,
 )
+from carbon_ledger.regulatory_signals import (
+    GmailAlertAdapter,
+    RegulatorySignalStore,
+    ingest_alerts_from_adapter,
+    pending_source_ids,
+)
+from carbon_ledger.source_access import (
+    CHANGE_TYPE_CREDENTIAL_REQUIRED,
+    CHANGE_TYPE_POLICY_SKIPPED,
+    FETCH_STATUS_ACCESS_POLICY_REVIEW_REQUIRED,
+    FETCH_STATUS_CREDENTIAL_REQUIRED,
+    FETCH_STATUS_POLICY_SKIPPED,
+    SourceAccessPolicy,
+    access_coverage_metrics,
+    is_ifrs_foundation_host,
+    is_swagger_documentation_url,
+    load_source_access_policies,
+    policy_for_source,
+    redact_secrets,
+    resolve_authorized_request_url,
+)
 
 REVIEWABLE_CHANGE_TYPES = frozenset(
     {
@@ -87,6 +108,7 @@ DEFAULT_MONITORING_STATE_FILES = (
     "regulatory_conflict_log.csv",
     "persistence_status.json",
     "regulatory_change_report.md",
+    "change_signals_state.json",
 )
 
 # Never auto-persist these as monitoring state (legal / calculation CONTENT).
@@ -107,12 +129,18 @@ FORBIDDEN_STATE_PATH_FRAGMENTS = (
 
 CHANGE_TYPES = {
     "NO_CHANGE",
+    "BASELINE_CAPTURED",
     "COSMETIC_CHANGE",
     "METADATA_CHANGE",
     "POTENTIAL_REGULATORY_CHANGE",
     "CONFIRMED_REGULATORY_CHANGE",
     "SOURCE_UNAVAILABLE",
+    "MANUAL_ACCESS_REQUIRED",
+    "ALTERNATE_OFFICIAL_SIGNAL",
     "REGULATORY_CONFLICT",
+    "POLICY_SKIPPED",
+    "ACCESS_POLICY_REVIEW_REQUIRED",
+    "CREDENTIAL_REQUIRED",
 }
 
 CHANGE_LOG_COLUMNS = [
@@ -188,9 +216,12 @@ class MonitorConfig:
     backoff_seconds: float = 1.5
     rate_limit_seconds: float = 1.0
     user_agent: str = (
-        "CarbonEvidenceLedger-RegulatoryMonitor/3A.5 "
-        "(+https://github.com/AppleJustin/carbon-evidence-ledger-tw)"
+        "CarbonEvidenceLedger-RegulatoryMonitor/0.1 "
+        "(+educational portfolio regulatory-monitoring project; "
+        "https://github.com/Ting-En-Chien/carbon-evidence-ledger-tw)"
     )
+    change_signals_path: str = "data/regulatory/change_signals_state.json"
+    access_policies_path: str = "data/reference/source_access_policies.csv"
     freshness_windows: dict[str, timedelta] = field(default_factory=dict)
     auto_activate_rules: bool = False
     mark_affected_rules_pending_review: bool = True
@@ -203,7 +234,15 @@ class MonitorConfig:
     high_priority_source_ids: list[str] = field(default_factory=list)
     required_authoritative_source_ids: list[str] = field(default_factory=list)
     critical_source_ids: list[str] = field(default_factory=list)
+    supporting_source_ids: list[str] = field(default_factory=list)
     important_source_ids: list[str] = field(default_factory=list)
+    primary_authoritative_source_ids: list[str] = field(default_factory=list)
+    alternate_official_monitoring_sources: dict[str, str] = field(
+        default_factory=dict
+    )
+    manual_access_http_statuses: list[int] = field(
+        default_factory=lambda: [401, 403, 407]
+    )
     tls_x509_strict_fallback_hosts: list[str] = field(default_factory=list)
     reviewable_change_types: frozenset[str] = REVIEWABLE_CHANGE_TYPES
     schedule_cron_utc: str = "17 16 * * *"
@@ -344,6 +383,18 @@ def load_monitor_config(path: Path) -> MonitorConfig:
                 "data/regulatory/persistence_status.json",
             )
         ),
+        change_signals_path=str(
+            data.get(
+                "change_signals_path",
+                "data/regulatory/change_signals_state.json",
+            )
+        ),
+        access_policies_path=str(
+            data.get(
+                "access_policies_path",
+                "data/reference/source_access_policies.csv",
+            )
+        ),
         high_priority_source_ids=_as_str_list(
             data.get("high_priority_source_ids")
         ),
@@ -351,7 +402,27 @@ def load_monitor_config(path: Path) -> MonitorConfig:
             data.get("required_authoritative_source_ids")
         ),
         critical_source_ids=_as_str_list(data.get("critical_source_ids")),
+        supporting_source_ids=_as_str_list(data.get("supporting_source_ids")),
         important_source_ids=_as_str_list(data.get("important_source_ids")),
+        primary_authoritative_source_ids=_as_str_list(
+            data.get("primary_authoritative_source_ids")
+        ),
+        alternate_official_monitoring_sources={
+            str(k): str(v)
+            for k, v in (
+                (data.get("alternate_official_monitoring_sources") or {})
+                if isinstance(
+                    data.get("alternate_official_monitoring_sources"), dict
+                )
+                else {}
+            ).items()
+            if str(k).strip() and str(v).strip()
+        },
+        manual_access_http_statuses=[
+            int(x)
+            for x in _as_str_list(data.get("manual_access_http_statuses"))
+            or ["401", "403", "407"]
+        ],
         tls_x509_strict_fallback_hosts=_as_str_list(
             data.get("tls_x509_strict_fallback_hosts")
         ),
@@ -463,9 +534,9 @@ def classify_change(
 ) -> str:
     if not fetch_ok:
         return "SOURCE_UNAVAILABLE"
-    # First successful baseline hash: establish state without review spam.
+    # First successful baseline: store hash without treating as a legal amendment.
     if not previous_hash:
-        return "NO_CHANGE"
+        return "BASELINE_CAPTURED"
     if previous_hash == new_hash:
         if previous_version != new_version and (previous_version or new_version):
             # Version/effective-date metadata shift is reviewable later.
@@ -487,7 +558,20 @@ def is_reviewable_change(change: dict[str, str] | str) -> bool:
         change_type = str(change.get("change_type", ""))
         previous_version = str(change.get("previous_version", ""))
         new_version = str(change.get("new_version", ""))
+    if change_type in {
+        "BASELINE_CAPTURED",
+        "NO_CHANGE",
+        "COSMETIC_CHANGE",
+        "POLICY_SKIPPED",
+        "ACCESS_POLICY_REVIEW_REQUIRED",
+        "CREDENTIAL_REQUIRED",
+        "MANUAL_ACCESS_REQUIRED",
+        "SOURCE_UNAVAILABLE",
+    }:
+        return False
     if change_type in REVIEWABLE_CHANGE_TYPES:
+        return True
+    if change_type == "ALTERNATE_OFFICIAL_SIGNAL":
         return True
     # Metadata-only review only when version identifiers differ.
     if change_type == "METADATA_CHANGE" and previous_version != new_version:
@@ -559,8 +643,11 @@ def _fetch_once(
         url,
         headers={
             "User-Agent": user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/pdf,*/*;q=0.8",
-            "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.7",
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                "application/pdf,*/*;q=0.8"
+            ),
+            "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
         },
         method="GET",
     )
@@ -649,6 +736,12 @@ def fetch_with_retries(
             last = fetch_fn(url, config.timeout_seconds)
         if last.ok:
             return last
+        # Access-denied / auth challenges: do not retry aggressively.
+        if int(last.status_code or 0) in set(config.manual_access_http_statuses):
+            return last
+        # Injected fetch_fn is unit-test / offline mode — avoid wall-clock backoff.
+        if fetch_fn is not None:
+            continue
         sleep_for = config.backoff_seconds * (2**attempt)
         time.sleep(min(sleep_for, 30.0))
     return last
@@ -695,27 +788,34 @@ def evaluate_freshness(
     window: timedelta,
     now: datetime | None = None,
     consecutive_failures: int = 0,
+    manual_access_required: bool = False,
 ) -> str:
-    """Freshness is based on last_successful_fetch_at, not merely workflow runs.
+    """Freshness status for the *latest check attempt*.
 
-    CURRENT requires a successful official fetch within the freshness window.
-    Failed fetches never invent CURRENT; they leave the prior success stamp
-    unchanged and escalate to CHECK_DUE / STALE / FETCH_FAILED as it ages.
+    CURRENT requires a successful official fetch on this check.
+    A failed latest check is never reported as CURRENT, even when a prior
+    successful fetch remains within the freshness window (that prior stamp is
+    preserved separately in last_successful_fetch_at).
     """
+    if manual_access_required:
+        return "MANUAL_ACCESS_REQUIRED"
     stamp = _parse_iso(last_successful_fetch_at)
     current = now or _utc_now()
-    if stamp is None:
-        if fetch_failed or consecutive_failures > 0:
+    if fetch_failed or consecutive_failures > 0:
+        # Latest attempt failed — never present as CURRENT.
+        if stamp is None:
             return "FETCH_FAILED"
+        age = current - stamp
+        if age <= window * 2:
+            return "FETCH_FAILED"
+        return "FETCH_FAILED"
+    if stamp is None:
         return "CHECK_DUE"
     age = current - stamp
     if age <= window:
-        # Still current from last success, even if today's attempt failed.
         return "CURRENT"
     if age <= window * 2:
-        return "UPDATE_REQUIRED" if fetch_failed else "CHECK_DUE"
-    if fetch_failed or consecutive_failures > 0:
-        return "FETCH_FAILED"
+        return "CHECK_DUE"
     return "STALE"
 
 
@@ -724,6 +824,13 @@ def fail_safe_state_for_freshness(freshness_status: str) -> str | None:
         return "REGULATORY_DATA_STALE"
     if freshness_status in {"CHECK_DUE", "UPDATE_REQUIRED"}:
         return "UPDATE_REQUIRED"
+    if freshness_status in {
+        "MANUAL_ACCESS_REQUIRED",
+        "MANUAL_VERIFICATION_REQUIRED",
+        "SIGNAL_PENDING_REVIEW",
+        "ACCESS_POLICY_REVIEW_REQUIRED",
+    }:
+        return "MANUAL_VERIFICATION_REQUIRED"
     if freshness_status in {
         "FETCH_FAILED",
         "SOURCE_CHECK_FAILED",
@@ -775,12 +882,19 @@ def assert_sources_fresh_for_analysis(
     stale: list[str] = []
     failed: list[str] = []
     due: list[str] = []
+    manual: list[str] = []
     for source_id in required_source_ids:
         row = by_id.get(source_id)
         if row is None:
             failed.append(source_id)
             continue
         status = row.get("freshness_status", "CHECK_DUE")
+        fetch_status = row.get("fetch_status", "")
+        if status in {"AUTOMATED_CURRENT", "CURRENT", "MANUALLY_VERIFIED"}:
+            continue
+        if fetch_status == FETCH_STATUS_POLICY_SKIPPED or status == "POLICY_SKIPPED":
+            # Policy skip is not a network failure; treat as manually verified.
+            continue
         if status in {"STALE", "REGULATORY_DATA_STALE"}:
             stale.append(source_id)
         elif status in {
@@ -788,14 +902,23 @@ def assert_sources_fresh_for_analysis(
             "SOURCE_CHECK_FAILED",
             "FRESHNESS_STATE_UNAVAILABLE",
             "STATE_PERSISTENCE_FAILED",
+            "ACCESS_POLICY_REVIEW_REQUIRED",
         }:
             failed.append(source_id)
+        elif status in {
+            "MANUAL_ACCESS_REQUIRED",
+            "MANUAL_VERIFICATION_REQUIRED",
+            "SIGNAL_PENDING_REVIEW",
+        }:
+            manual.append(source_id)
         elif status in {"CHECK_DUE", "UPDATE_REQUIRED"}:
             due.append(source_id)
     if failed:
         state = "SOURCE_CHECK_FAILED"
     elif stale:
         state = "REGULATORY_DATA_STALE"
+    elif manual:
+        state = "MANUAL_VERIFICATION_REQUIRED"
     elif due:
         state = "UPDATE_REQUIRED"
     elif persistence_failed:
@@ -807,7 +930,7 @@ def assert_sources_fresh_for_analysis(
         "state": state,
         "stale_sources": stale,
         "failed_sources": failed,
-        "due_sources": due,
+        "due_sources": due + manual,
         "message": (
             "Official regulatory sources are current."
             if state == "CURRENT"
@@ -842,19 +965,64 @@ def build_monitoring_summary(
     consecutive_persistence_failures: int = 0,
     persistence_status: str = "OK",
     critical_source_ids: list[str] | None = None,
+    coverage_metrics: dict[str, int] | None = None,
+    automated_sources_checked: int | None = None,
+    automated_sources_successful: int | None = None,
+    automated_sources_failed: int | None = None,
+    automated_sources_configuration_required: int | None = None,
+    official_change_signals_received: int = 0,
+    change_signals_pending_review: int = 0,
+    last_verified_regulatory_update_at: str = "",
 ) -> dict[str, Any]:
-    """Machine-readable summary for future Compliance Overview / Stage 3B."""
+    """Machine-readable summary for Compliance Overview / Stage 3B.1b.
+
+    Metric semantics:
+    - sources_current: rows with a successful *automated* freshness state
+      (CURRENT / AUTOMATED_CURRENT). Excludes CREDENTIAL_REQUIRED,
+      POLICY_SKIPPED, and MANUALLY_VERIFIED reference rows.
+    - sources_manual_access: freshness rows that need manual verification /
+      action in the current run (non-supplementary).
+    - manual_reference_sources: policy-classified MANUAL_* source count
+      (registry coverage), independent of the current run outcome.
+    - automated_sources_configuration_required: authorised automated sources
+      blocked before HTTP by missing credentials (not a fetch failure).
+    """
     current_now = now or _utc_now()
     critical_ids = set(critical_source_ids or [])
+    coverage = dict(coverage_metrics or {})
     statuses = [row.get("freshness_status", "CHECK_DUE") for row in freshness_rows]
-    sources_current = sum(1 for status in statuses if status == "CURRENT")
+    # Successful automated freshness only — not credential/config skips,
+    # policy skips, or manual/reference rows that merely exist.
+    sources_current = sum(
+        1
+        for row in freshness_rows
+        if row.get("freshness_status") in {"CURRENT", "AUTOMATED_CURRENT"}
+        and row.get("fetch_status") == "OK"
+    )
     sources_stale = sum(
         1 for status in statuses if status in {"STALE", "REGULATORY_DATA_STALE"}
     )
     sources_failed = sum(
         1
         for status in statuses
-        if status in {"FETCH_FAILED", "SOURCE_CHECK_FAILED"}
+        if status
+        in {
+            "FETCH_FAILED",
+            "SOURCE_CHECK_FAILED",
+            "ACCESS_POLICY_REVIEW_REQUIRED",
+        }
+    )
+    sources_manual_access = sum(
+        1
+        for row in freshness_rows
+        if row.get("freshness_status")
+        in {
+            "MANUAL_ACCESS_REQUIRED",
+            "MANUAL_VERIFICATION_REQUIRED",
+            "SIGNAL_PENDING_REVIEW",
+        }
+        # Supporting open-data credential gaps must not downgrade legal health.
+        and (row.get("monitor_criticality") or "") != CRITICALITY_SUPPLEMENTARY
     )
     critical_sources_failed = 0
     for row in freshness_rows:
@@ -862,9 +1030,20 @@ def build_monitoring_summary(
         criticality = row.get("monitor_criticality") or (
             CRITICALITY_CRITICAL if sid in critical_ids else ""
         )
-        failed = row.get("fetch_status") == "FETCH_FAILED" or row.get(
-            "freshness_status"
-        ) in {"FETCH_FAILED", "SOURCE_CHECK_FAILED"}
+        # Policy skips are not critical network failures.
+        if row.get("fetch_status") in {
+            FETCH_STATUS_POLICY_SKIPPED,
+            FETCH_STATUS_CREDENTIAL_REQUIRED,
+        }:
+            continue
+        failed = row.get("fetch_status") in {
+            "FETCH_FAILED",
+            FETCH_STATUS_ACCESS_POLICY_REVIEW_REQUIRED,
+        } or row.get("freshness_status") in {
+            "FETCH_FAILED",
+            "SOURCE_CHECK_FAILED",
+            "ACCESS_POLICY_REVIEW_REQUIRED",
+        }
         if criticality == CRITICALITY_CRITICAL and failed:
             critical_sources_failed += 1
     checked_at_values = [
@@ -887,6 +1066,36 @@ def build_monitoring_summary(
         row for row in conflict_rows if row.get("review_status") == "PENDING_REVIEW"
     ]
     consecutive_fetch_failures = _max_int_field(freshness_rows, "consecutive_failures")
+    auto_expected = int(coverage.get("automated_sources_expected") or 0)
+    auto_checked = (
+        automated_sources_checked
+        if automated_sources_checked is not None
+        else auto_expected
+    )
+    auto_ok = (
+        automated_sources_successful
+        if automated_sources_successful is not None
+        else sum(
+            1
+            for row in freshness_rows
+            if row.get("freshness_status") in {"AUTOMATED_CURRENT", "CURRENT"}
+            and row.get("fetch_status") == "OK"
+        )
+    )
+    auto_fail = (
+        automated_sources_failed
+        if automated_sources_failed is not None
+        else critical_sources_failed
+    )
+    auto_config_required = (
+        automated_sources_configuration_required
+        if automated_sources_configuration_required is not None
+        else sum(
+            1
+            for row in freshness_rows
+            if row.get("fetch_status") == FETCH_STATUS_CREDENTIAL_REQUIRED
+        )
+    )
     if persistence_status in {
         "STATE_PERSISTENCE_FAILED",
         "STATE_PERSISTENCE_MISMATCH",
@@ -894,20 +1103,49 @@ def build_monitoring_summary(
         overall = persistence_status
     elif state_source == STATE_SOURCE_UNAVAILABLE:
         overall = "FRESHNESS_STATE_UNAVAILABLE"
-    elif critical_sources_failed > 0:
-        # CRITICAL failures can never be reported as CURRENT.
-        overall = "SOURCE_CHECK_FAILED"
-    elif sources_failed and not sources_current:
+    elif critical_sources_failed > 0 or (
+        auto_expected > 0 and auto_fail > 0 and auto_ok == 0
+    ):
+        # CRITICAL / expected automated failures can never be CURRENT.
         overall = "SOURCE_CHECK_FAILED"
     elif sources_stale:
         overall = "STALE"
-    elif any(status in {"CHECK_DUE", "UPDATE_REQUIRED"} for status in statuses):
-        overall = "UPDATE_REQUIRED"
-    elif consecutive_persistence_failures >= 3:
-        overall = "UPDATE_REQUIRED"
+    elif sources_manual_access:
+        overall = "MANUAL_VERIFICATION_REQUIRED"
+    elif critical_sources_failed == 0 and (
+        (
+            auto_expected > 0
+            and auto_checked >= auto_expected
+            and auto_ok >= auto_expected
+            and auto_fail == 0
+            and auto_config_required == 0
+        )
+        or (
+            # Supporting credential/config gaps must not downgrade legal
+            # freshness when every CRITICAL automated source succeeded.
+            len(critical_ids) > 0
+            and all(
+                (
+                    row.get("freshness_status") in {"AUTOMATED_CURRENT", "CURRENT"}
+                    or row.get("fetch_status") == "OK"
+                )
+                for row in freshness_rows
+                if row.get("source_id") in critical_ids
+            )
+        )
+    ):
+        # Authoritative legal/regulatory freshness — not “every URL crawled”.
+        overall = "CURRENT"
     elif sources_current and sources_current == len(freshness_rows):
         overall = "CURRENT"
-    elif sources_current:
+    elif consecutive_persistence_failures >= 3:
+        overall = "UPDATE_REQUIRED"
+    elif any(
+        status in {"CHECK_DUE", "UPDATE_REQUIRED"}
+        for status in statuses
+    ) and auto_expected == 0:
+        overall = "UPDATE_REQUIRED"
+    elif sources_current or auto_ok:
         overall = "PARTIAL"
     else:
         overall = "CHECK_DUE"
@@ -921,11 +1159,14 @@ def build_monitoring_summary(
         "sources_current": sources_current,
         "sources_stale": sources_stale,
         "sources_failed": sources_failed,
+        "sources_manual_access": sources_manual_access,
         "sources_total": len(freshness_rows),
         "critical_sources_failed": critical_sources_failed,
         "changes_pending_review": len(pending_changes),
         "regulatory_conflicts": len(open_conflicts),
-        "review_required": bool(reviewable_new or open_conflicts),
+        "review_required": bool(
+            reviewable_new or open_conflicts or change_signals_pending_review
+        ),
         "reviewable_new_changes": len(reviewable_new),
         "generated_at": _iso(current_now),
         "fail_safe_state": fail_safe_state_for_freshness(overall),
@@ -933,32 +1174,83 @@ def build_monitoring_summary(
         "consecutive_fetch_failures": consecutive_fetch_failures,
         "consecutive_persistence_failures": consecutive_persistence_failures,
         "persistence_status": persistence_status,
+        "total_reference_sources": int(
+            coverage.get("total_reference_sources") or len(freshness_rows)
+        ),
+        "automated_sources_expected": auto_expected,
+        "automated_sources_checked": int(auto_checked),
+        "automated_sources_successful": int(auto_ok),
+        "automated_sources_failed": int(auto_fail),
+        "automated_sources_configuration_required": int(auto_config_required),
+        "official_api_sources": int(coverage.get("official_api_sources") or 0),
+        "official_open_data_sources": int(
+            coverage.get("official_open_data_sources") or 0
+        ),
+        "authorized_web_sources": int(coverage.get("authorized_web_sources") or 0),
+        "manual_reference_sources": int(
+            coverage.get("manual_reference_sources") or 0
+        ),
+        "restricted_automation_sources": int(
+            coverage.get("restricted_automation_sources") or 0
+        ),
+        "official_change_signals_received": int(official_change_signals_received),
+        "change_signals_pending_review": int(change_signals_pending_review),
+        "last_verified_regulatory_update_at": str(
+            last_verified_regulatory_update_at or ""
+        ),
+        "regulatory_update_pending": bool(change_signals_pending_review),
     }
     summary["monitoring_health"] = evaluate_monitoring_health(summary)
     return summary
 
 
 def evaluate_monitoring_health(summary: dict[str, Any]) -> str:
-    """Workflow health independent of Python process crash status."""
+    """Operational monitoring health (separate from legal freshness).
+
+    Precedence:
+    1. STATE_PERSISTENCE_FAILED
+    2. STATE_PERSISTENCE_MISMATCH
+    3. CRITICAL_SOURCE_FAILURE
+    4. MONITORING_PARTIAL — including missing optional credentials /
+       incomplete authorised automation
+    5. MONITORING_CURRENT — all expected authorised automation succeeded
+
+    overall_regulatory_freshness may remain CURRENT for authoritative legal
+    dependencies while monitoring_health is MONITORING_PARTIAL when only a
+    supplementary supporting dataset lacks configuration.
+    """
     persistence = str(summary.get("persistence_status") or "")
-    if persistence == "STATE_PERSISTENCE_MISMATCH":
-        return HEALTH_STATE_PERSISTENCE_MISMATCH
-    if persistence == "STATE_PERSISTENCE_FAILED":
+    overall = str(summary.get("overall_regulatory_freshness") or "")
+    if (
+        persistence == "STATE_PERSISTENCE_FAILED"
+        or overall == "STATE_PERSISTENCE_FAILED"
+    ):
         return HEALTH_STATE_PERSISTENCE_FAILED
+    if (
+        persistence == "STATE_PERSISTENCE_MISMATCH"
+        or overall == "STATE_PERSISTENCE_MISMATCH"
+    ):
+        return HEALTH_STATE_PERSISTENCE_MISMATCH
     if int(summary.get("critical_sources_failed") or 0) > 0:
         return HEALTH_CRITICAL_SOURCE_FAILURE
-    overall = str(summary.get("overall_regulatory_freshness") or "")
-    if overall in {
-        "STATE_PERSISTENCE_FAILED",
-        "STATE_PERSISTENCE_MISMATCH",
-        "FRESHNESS_STATE_UNAVAILABLE",
-    }:
-        if "MISMATCH" in overall:
-            return HEALTH_STATE_PERSISTENCE_MISMATCH
-        if "PERSISTENCE" in overall:
-            return HEALTH_STATE_PERSISTENCE_FAILED
-    if overall == "CURRENT":
+    if overall in {"FRESHNESS_STATE_UNAVAILABLE"}:
+        return HEALTH_STATE_PERSISTENCE_FAILED
+    auto_expected = int(summary.get("automated_sources_expected") or 0)
+    auto_ok = int(summary.get("automated_sources_successful") or 0)
+    auto_fail = int(summary.get("automated_sources_failed") or 0)
+    auto_config = int(
+        summary.get("automated_sources_configuration_required") or 0
+    )
+    if auto_config > 0 or auto_fail > 0 or (
+        auto_expected > 0 and auto_ok < auto_expected
+    ):
+        return HEALTH_MONITORING_PARTIAL
+    if overall == "CURRENT" and (
+        auto_expected == 0 or (auto_ok >= auto_expected and auto_fail == 0)
+    ):
         return HEALTH_MONITORING_CURRENT
+    if overall == "CURRENT":
+        return HEALTH_MONITORING_PARTIAL
     return HEALTH_MONITORING_PARTIAL
 
 
@@ -1279,6 +1571,10 @@ def get_regulatory_freshness(
             "consecutive_fetch_failures": 0,
             "consecutive_persistence_failures": 0,
             "persistence_status": "FRESHNESS_STATE_UNAVAILABLE",
+            "regulatory_update_pending": False,
+            "change_signals_pending_review": 0,
+            "last_verified_regulatory_update_at": "",
+            "last_verified_rule_set": True,
         }
 
     freshness_rows = _read_csv_dict(
@@ -1298,12 +1594,48 @@ def get_regulatory_freshness(
         persistence.get("consecutive_persistence_failures") or 0
     )
     persistence_failed = persistence_status == "STATE_PERSISTENCE_FAILED"
+    policies = load_source_access_policies(root / config.access_policies_path)
+    coverage = access_coverage_metrics(policies)
+    signal_store = RegulatorySignalStore(
+        state_dir / "change_signals_state.json"
+        if (state_dir / "change_signals_state.json").is_file()
+        else root / config.change_signals_path,
+        repo_root=root,
+    )
+    pending_signal_sources = pending_source_ids(signal_store)
+    pending_signals = signal_store.pending_count()
+    last_verified_update = str(
+        signal_store.load().get("last_verified_regulatory_update_at") or ""
+    )
+
     gate = assert_sources_fresh_for_analysis(
         freshness_rows,
         required,
         state_available=True,
         persistence_failed=persistence_failed,
     )
+    # Dependency-aware signal impact: only block when a pending signal
+    # touches a required dependency for this conclusion.
+    affected_pending = sorted(set(required) & pending_signal_sources)
+    regulatory_update_pending = pending_signals > 0
+    if affected_pending and gate.get("state") not in {
+        "FRESHNESS_STATE_UNAVAILABLE",
+        "STATE_PERSISTENCE_FAILED",
+        "SOURCE_CHECK_FAILED",
+        "REGULATORY_DATA_STALE",
+    }:
+        gate = {
+            **gate,
+            "analysis_allowed": False,
+            "state": "MANUAL_VERIFICATION_REQUIRED",
+            "due_sources": list(gate.get("due_sources") or []) + affected_pending,
+            "message": (
+                "A regulatory update affecting this conclusion is under "
+                "admin verification. Current assessment remains based on the "
+                "last verified rule set until review completes."
+            ),
+            "affected_pending_signal_sources": affected_pending,
+        }
     # Prefer on-disk summary when present; rebuild to refresh derived fields.
     summary = build_monitoring_summary(
         freshness_rows=freshness_rows,
@@ -1313,6 +1645,10 @@ def get_regulatory_freshness(
         consecutive_persistence_failures=consecutive_persistence_failures,
         persistence_status=persistence_status,
         critical_source_ids=list(config.critical_source_ids),
+        coverage_metrics=coverage,
+        official_change_signals_received=len(signal_store.list_signals()),
+        change_signals_pending_review=pending_signals,
+        last_verified_regulatory_update_at=last_verified_update,
     )
     on_disk = state_dir / "monitoring_summary.json"
     if on_disk.is_file():
@@ -1348,6 +1684,17 @@ def get_regulatory_freshness(
         "consecutive_fetch_failures": summary["consecutive_fetch_failures"],
         "consecutive_persistence_failures": consecutive_persistence_failures,
         "persistence_status": persistence_status,
+        "regulatory_update_pending": regulatory_update_pending,
+        "change_signals_pending_review": pending_signals,
+        "last_verified_regulatory_update_at": last_verified_update
+        or summary.get("last_verified_regulatory_update_at", ""),
+        "last_verified_rule_set": True,
+        "automated_sources_expected": summary.get("automated_sources_expected"),
+        "automated_sources_successful": summary.get("automated_sources_successful"),
+        "automated_sources_failed": summary.get("automated_sources_failed"),
+        "automated_sources_configuration_required": summary.get(
+            "automated_sources_configuration_required"
+        ),
     }
 
 
@@ -1408,6 +1755,179 @@ def record_conflict(
     return conflict
 
 
+def is_manual_access_block(
+    *,
+    source_id: str,
+    status_code: int,
+    config: MonitorConfig,
+) -> bool:
+    """True when a primary authoritative source is blocked (e.g. HTTP 403)."""
+    if source_id not in set(config.primary_authoritative_source_ids):
+        return False
+    return int(status_code or 0) in set(config.manual_access_http_statuses)
+
+
+def looks_like_access_challenge(fetch: FetchResult) -> bool:
+    """Detect CAPTCHA / anti-bot challenges — stop; never evade."""
+    parts = [str(fetch.error or "").lower()]
+    if fetch.body:
+        try:
+            parts.append(fetch.body[:800].decode("utf-8", errors="ignore").lower())
+        except Exception:  # noqa: BLE001
+            parts.append("")
+    blob = " ".join(parts)
+    markers = (
+        "captcha",
+        "cf-challenge",
+        "attention required",
+        "access denied",
+        "unusual traffic",
+        "bot detection",
+        "enable javascript",
+    )
+    return any(token in blob for token in markers)
+
+
+def policy_skip_result(
+    source_row: dict[str, str],
+    *,
+    prior: dict[str, str],
+    config: MonitorConfig,
+    policy: SourceAccessPolicy,
+    now: datetime | None = None,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """Record a policy skip with zero network I/O."""
+    current = now or _utc_now()
+    checked_at = _iso(current)
+    source_id = str(source_row["source_id"])
+    window = freshness_window_for(source_row, config)
+    updated = dict(prior)
+    updated["source_id"] = source_id
+    updated["monitor_criticality"] = source_criticality(source_id, config)
+    updated["last_checked_at"] = checked_at
+    updated["next_check_at"] = _iso(current + window)
+    updated["fetch_status"] = FETCH_STATUS_POLICY_SKIPPED
+    updated["fetch_error"] = (
+        f"automated_access_allowed=false; access_mode={policy.access_mode}; "
+        f"access_policy_status={policy.access_policy_status}"
+    )
+    # Manual / restricted sources must never claim AUTOMATED CURRENT.
+    prior_status = str(prior.get("freshness_status") or "")
+    if prior_status in {"MANUALLY_VERIFIED", "SIGNAL_PENDING_REVIEW"}:
+        updated["freshness_status"] = prior_status
+    else:
+        updated["freshness_status"] = "MANUALLY_VERIFIED"
+    updated["consecutive_failures"] = prior.get("consecutive_failures") or "0"
+    # Preserve last_successful_fetch_at (no automated success claimed).
+    updated["last_successful_fetch_at"] = prior.get("last_successful_fetch_at", "")
+    change_stamp = checked_at.replace(":", "").replace("-", "")
+    change = {
+        "change_id": f"chg_{source_id}_{change_stamp}",
+        "source_id": source_id,
+        "detected_at": checked_at,
+        "previous_hash": prior.get("content_hash", ""),
+        "new_hash": "",
+        "change_type": CHANGE_TYPE_POLICY_SKIPPED,
+        "previous_version": prior.get("current_source_version", ""),
+        "new_version": prior.get("current_source_version", ""),
+        "affected_rule_ids": "",
+        "review_status": "INFO",
+        "reviewed_by": "",
+        "reviewed_at": "",
+        "activation_status": "NOT_ACTIVATED",
+        "notes": (
+            "POLICY_SKIPPED before HTTP — not SOURCE_UNAVAILABLE and not a "
+            "critical network failure. "
+            f"mode={policy.access_mode}; status={policy.access_policy_status}."
+        ),
+    }
+    return updated, [change]
+
+
+
+def credential_required_result(
+    source_row: dict[str, str],
+    *,
+    prior: dict[str, str],
+    config: MonitorConfig,
+    credential_env: str,
+    now: datetime | None = None,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """Missing API credential — configuration state, zero HTTP."""
+    current = now or _utc_now()
+    checked_at = _iso(current)
+    source_id = str(source_row["source_id"])
+    window = freshness_window_for(source_row, config)
+    updated = dict(prior)
+    updated["source_id"] = source_id
+    updated["monitor_criticality"] = source_criticality(source_id, config)
+    updated["last_checked_at"] = checked_at
+    updated["next_check_at"] = _iso(current + window)
+    updated["fetch_status"] = FETCH_STATUS_CREDENTIAL_REQUIRED
+    updated["fetch_error"] = (
+        f"Missing required credential env {credential_env}; no HTTP attempted."
+    )
+    updated["freshness_status"] = "MANUAL_ACCESS_REQUIRED"
+    updated["consecutive_failures"] = prior.get("consecutive_failures") or "0"
+    updated["last_successful_fetch_at"] = prior.get("last_successful_fetch_at", "")
+    change_stamp = checked_at.replace(":", "").replace("-", "")
+    change = {
+        "change_id": f"chg_{source_id}_{change_stamp}",
+        "source_id": source_id,
+        "detected_at": checked_at,
+        "previous_hash": prior.get("content_hash", ""),
+        "new_hash": "",
+        "change_type": CHANGE_TYPE_CREDENTIAL_REQUIRED,
+        "previous_version": prior.get("current_source_version", ""),
+        "new_version": prior.get("current_source_version", ""),
+        "affected_rule_ids": "",
+        "review_status": "INFO",
+        "reviewed_by": "",
+        "reviewed_at": "",
+        "activation_status": "NOT_ACTIVATED",
+        "notes": (
+            "CREDENTIAL_REQUIRED before HTTP — not SOURCE_UNAVAILABLE and not a "
+            f"critical legal failure. Set {credential_env} via environment/secrets."
+        ),
+    }
+    return updated, [change]
+
+
+def schedule_not_due_result(
+    source_row: dict[str, str],
+    *,
+    prior: dict[str, str],
+    config: MonitorConfig,
+    now: datetime | None = None,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """Skip HTTP when next_check_at is still in the future."""
+    del now  # reserved for future stamp updates
+    source_id = str(source_row["source_id"])
+    updated = dict(prior)
+    updated["source_id"] = source_id
+    updated["monitor_criticality"] = source_criticality(source_id, config)
+    # Preserve prior timestamps / success; do not claim a new fetch.
+    if not updated.get("freshness_status"):
+        updated["freshness_status"] = prior.get("freshness_status") or "CHECK_DUE"
+    return updated, []
+
+
+def source_http_due(
+    prior: dict[str, str],
+    *,
+    now: datetime | None = None,
+    force: bool = False,
+) -> bool:
+    if force:
+        return True
+    next_at = _parse_iso(str(prior.get("next_check_at") or ""))
+    if next_at is None:
+        return True
+    current = now or _utc_now()
+    return current >= next_at
+
+
+
 def check_source(
     source_row: dict[str, str],
     *,
@@ -1415,31 +1935,220 @@ def check_source(
     config: MonitorConfig,
     fetch_fn: FetchFn | None = None,
     now: datetime | None = None,
-) -> tuple[dict[str, str], dict[str, str] | None]:
-    """Check one source; return updated freshness row and optional change event."""
+    alternate_source_row: dict[str, str] | None = None,
+    alternate_prior: dict[str, str] | None = None,
+    access_policy: SourceAccessPolicy | None = None,
+    access_policies: dict[str, SourceAccessPolicy] | None = None,
+    force_http: bool = False,
+    environ: dict[str, str] | None = None,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """Check one source; return updated freshness row and zero+ change events.
+
+    Access policy and credentials are resolved BEFORE any network I/O.
+    """
     current = now or _utc_now()
     checked_at = _iso(current)
-    url = str(source_row.get("official_url", "")).strip()
+    source_id = str(source_row["source_id"])
+    policy = access_policy or policy_for_source(
+        source_id, access_policies
+    )
+    # Hard stop: IFRS Foundation hosts never receive scheduled HTTP.
+    official = str(source_row.get("official_url", "")).strip()
+    preferred = str(policy.preferred_access_url or "").strip()
+    if (
+        is_ifrs_foundation_host(official)
+        or is_ifrs_foundation_host(preferred)
+        or policy.access_policy_status == "RESTRICTED_AUTOMATION"
+        or not policy.expects_scheduled_http
+    ):
+        return policy_skip_result(
+            source_row,
+            prior=prior,
+            config=config,
+            policy=policy,
+            now=current,
+        )
+
+    if is_swagger_documentation_url(preferred):
+        return policy_skip_result(
+            source_row,
+            prior=prior,
+            config=config,
+            policy=policy,
+            now=current,
+        )
+
+    if not source_http_due(prior, now=current, force=force_http):
+        return schedule_not_due_result(
+            source_row, prior=prior, config=config, now=current
+        )
+
+    url, missing_cred = resolve_authorized_request_url(
+        source_id,
+        source_row,
+        policy,
+        environ=environ,
+    )
+    if missing_cred:
+        return credential_required_result(
+            source_row,
+            prior=prior,
+            config=config,
+            credential_env=missing_cred,
+            now=current,
+        )
+    if not url or is_ifrs_foundation_host(url) or is_swagger_documentation_url(url):
+        return policy_skip_result(
+            source_row,
+            prior=prior,
+            config=config,
+            policy=policy,
+            now=current,
+        )
+
     fetch = fetch_with_retries(url, config, fetch_fn=fetch_fn)
     window = freshness_window_for(source_row, config)
     next_check = _iso(current + window)
 
     updated = dict(prior)
-    updated["source_id"] = source_row["source_id"]
-    updated["monitor_criticality"] = source_criticality(
-        source_row["source_id"], config
-    )
+    updated["source_id"] = source_id
+    updated["monitor_criticality"] = source_criticality(source_id, config)
     updated["last_checked_at"] = checked_at
     updated["next_check_at"] = next_check
 
     if not fetch.ok:
-        # Preserve last_successful_fetch_at; only update failure metadata.
         prior_success = prior.get("last_successful_fetch_at", "")
         failures = int(updated.get("consecutive_failures") or "0") + 1
         updated["consecutive_failures"] = str(failures)
-        updated["fetch_status"] = "FETCH_FAILED"
-        updated["fetch_error"] = fetch.error or f"HTTP {fetch.status_code}"
         updated["last_successful_fetch_at"] = prior_success
+        change_stamp = checked_at.replace(":", "").replace("-", "")
+        changes: list[dict[str, str]] = []
+
+        blocked = int(fetch.status_code or 0) in set(
+            config.manual_access_http_statuses
+        ) or looks_like_access_challenge(fetch)
+        if blocked:
+            updated["fetch_status"] = FETCH_STATUS_ACCESS_POLICY_REVIEW_REQUIRED
+            updated["fetch_error"] = redact_secrets(
+                fetch.error or f"HTTP {fetch.status_code}"
+            )
+            updated["freshness_status"] = "MANUAL_VERIFICATION_REQUIRED"
+            changes.append(
+                {
+                    "change_id": f"chg_{source_id}_{change_stamp}",
+                    "source_id": source_id,
+                    "detected_at": checked_at,
+                    "previous_hash": prior.get("content_hash", ""),
+                    "new_hash": "",
+                    "change_type": "ACCESS_POLICY_REVIEW_REQUIRED",
+                    "previous_version": prior.get("current_source_version", ""),
+                    "new_version": prior.get("current_source_version", ""),
+                    "affected_rule_ids": "",
+                    "review_status": "PENDING_REVIEW",
+                    "reviewed_by": "",
+                    "reviewed_at": "",
+                    "activation_status": "NOT_ACTIVATED",
+                    "notes": (
+                        "ACCESS_POLICY_REVIEW_REQUIRED — stopped on "
+                        f"HTTP {fetch.status_code or 'challenge'}. "
+                        "No browser impersonation, CAPTCHA bypass, or login "
+                        "bypass attempted. Legal rules not activated."
+                    ),
+                }
+            )
+            return updated, changes
+
+        if is_manual_access_block(
+            source_id=source_id,
+            status_code=fetch.status_code,
+            config=config,
+        ):
+            updated["fetch_status"] = "MANUAL_ACCESS_REQUIRED"
+            updated["fetch_error"] = redact_secrets(
+                fetch.error or f"HTTP {fetch.status_code}"
+            )
+            updated["freshness_status"] = evaluate_freshness(
+                last_successful_fetch_at=prior_success,
+                fetch_failed=True,
+                window=window,
+                now=current,
+                consecutive_failures=failures,
+                manual_access_required=True,
+            )
+            alt_id = config.alternate_official_monitoring_sources.get(source_id, "")
+            notes = (
+                "PRIMARY_AUTHORITATIVE_SOURCE returned HTTP "
+                f"{fetch.status_code}; fetch_status=MANUAL_ACCESS_REQUIRED "
+                "(not endless SOURCE_UNAVAILABLE). "
+                "Do not treat as CURRENT. Taiwan-recognised IFRS conclusions "
+                "require manual confirmation against the authoritative SFB source."
+            )
+            if alt_id:
+                notes += (
+                    f" ALTERNATE_OFFICIAL_MONITORING_SOURCE={alt_id} may provide "
+                    "early-warning only; never auto-activates recognition."
+                )
+            changes.append(
+                {
+                    "change_id": f"chg_{source_id}_{change_stamp}",
+                    "source_id": source_id,
+                    "detected_at": checked_at,
+                    "previous_hash": prior.get("content_hash", ""),
+                    "new_hash": "",
+                    "change_type": "MANUAL_ACCESS_REQUIRED",
+                    "previous_version": prior.get("current_source_version", ""),
+                    "new_version": prior.get("current_source_version", ""),
+                    "affected_rule_ids": "",
+                    "review_status": "INFO",
+                    "reviewed_by": "",
+                    "reviewed_at": "",
+                    "activation_status": "NOT_ACTIVATED",
+                    "notes": notes,
+                }
+            )
+            # Early-warning probe of alternate official source (no TLS weakening).
+            if alternate_source_row is not None:
+                alt_url = str(alternate_source_row.get("official_url", "")).strip()
+                alt_sid = str(alternate_source_row.get("source_id", alt_id))
+                if alt_url:
+                    alt_fetch = fetch_with_retries(alt_url, config, fetch_fn=fetch_fn)
+                    if alt_fetch.ok:
+                        alt_hash = content_hash(alt_fetch.body)
+                        alt_prior_hash = (alternate_prior or {}).get("content_hash", "")
+                        if alt_prior_hash and alt_prior_hash != alt_hash:
+                            changes.append(
+                                {
+                                    "change_id": (
+                                        f"chg_{source_id}_alt_{change_stamp}"
+                                    ),
+                                    "source_id": source_id,
+                                    "detected_at": checked_at,
+                                    "previous_hash": alt_prior_hash,
+                                    "new_hash": alt_hash,
+                                    "change_type": "ALTERNATE_OFFICIAL_SIGNAL",
+                                    "previous_version": "",
+                                    "new_version": "",
+                                    "affected_rule_ids": "",
+                                    "review_status": "PENDING_REVIEW",
+                                    "reviewed_by": "",
+                                    "reviewed_at": "",
+                                    "activation_status": "NOT_ACTIVATED",
+                                    "notes": (
+                                        "ALTERNATE_OFFICIAL_SIGNAL from "
+                                        f"{alt_sid}. PENDING_REVIEW only — does "
+                                        "NOT auto-activate Taiwan-recognised IFRS "
+                                        "version. Confirm against primary "
+                                        "authoritative SFB source "
+                                        f"({source_id})."
+                                    ),
+                                }
+                            )
+            return updated, changes
+
+        updated["fetch_status"] = "FETCH_FAILED"
+        updated["fetch_error"] = redact_secrets(
+                fetch.error or f"HTTP {fetch.status_code}"
+            )
         updated["freshness_status"] = evaluate_freshness(
             last_successful_fetch_at=prior_success,
             fetch_failed=True,
@@ -1447,27 +2156,28 @@ def check_source(
             now=current,
             consecutive_failures=failures,
         )
-        change_stamp = checked_at.replace(":", "").replace("-", "")
-        change = {
-            "change_id": f"chg_{source_row['source_id']}_{change_stamp}",
-            "source_id": source_row["source_id"],
-            "detected_at": checked_at,
-            "previous_hash": prior.get("content_hash", ""),
-            "new_hash": "",
-            "change_type": "SOURCE_UNAVAILABLE",
-            "previous_version": prior.get("current_source_version", ""),
-            "new_version": prior.get("current_source_version", ""),
-            "affected_rule_ids": "",
-            "review_status": "INFO",
-            "reviewed_by": "",
-            "reviewed_at": "",
-            "activation_status": "NOT_ACTIVATED",
-            "notes": (
-                "Fetch failed; last_successful_fetch_at unchanged. "
-                f"Error: {updated['fetch_error']}"
-            ),
-        }
-        return updated, change
+        changes.append(
+            {
+                "change_id": f"chg_{source_id}_{change_stamp}",
+                "source_id": source_id,
+                "detected_at": checked_at,
+                "previous_hash": prior.get("content_hash", ""),
+                "new_hash": "",
+                "change_type": "SOURCE_UNAVAILABLE",
+                "previous_version": prior.get("current_source_version", ""),
+                "new_version": prior.get("current_source_version", ""),
+                "affected_rule_ids": "",
+                "review_status": "INFO",
+                "reviewed_by": "",
+                "reviewed_at": "",
+                "activation_status": "NOT_ACTIVATED",
+                "notes": (
+                    "Fetch failed; last_successful_fetch_at unchanged. "
+                    f"Error: {redact_secrets(updated['fetch_error'])}"
+                ),
+            }
+        )
+        return updated, changes
 
     new_hash = content_hash(fetch.body)
     new_version = str(
@@ -1493,61 +2203,61 @@ def check_source(
     updated["fetch_status"] = "OK"
     updated["fetch_error"] = ""
     updated["consecutive_failures"] = "0"
-    updated["freshness_status"] = "CURRENT"
+    updated["freshness_status"] = "AUTOMATED_CURRENT"
     updated["previous_source_version"] = prior.get("current_source_version", "")
     updated["current_source_version"] = str(
         source_row.get("current_source_version") or source_row.get("version") or ""
     )
 
-    change_event = None
+    changes = []
     if change_type != "NO_CHANGE":
         if change_type in {
             "POTENTIAL_REGULATORY_CHANGE",
             "CONFIRMED_REGULATORY_CHANGE",
             "METADATA_CHANGE",
             "COSMETIC_CHANGE",
+            "BASELINE_CAPTURED",
         }:
-            updated["last_changed_at"] = checked_at
+            if change_type != "BASELINE_CAPTURED":
+                updated["last_changed_at"] = checked_at
             updated["content_hash"] = new_hash
         else:
             updated["content_hash"] = new_hash
         change_stamp = checked_at.replace(":", "").replace("-", "")
-        change_event = {
-            "change_id": f"chg_{source_row['source_id']}_{change_stamp}",
-            "source_id": source_row["source_id"],
-            "detected_at": checked_at,
-            "previous_hash": prior.get("content_hash", ""),
-            "new_hash": new_hash,
-            "change_type": change_type,
-            "previous_version": prior.get("current_source_version", ""),
-            "new_version": updated["current_source_version"],
-            "affected_rule_ids": "",
-            "review_status": (
-                "PENDING_REVIEW"
-                if is_reviewable_change(
-                    {
-                        "change_type": change_type,
-                        "previous_version": prior.get("current_source_version", ""),
-                        "new_version": updated["current_source_version"],
-                    }
-                )
-                else "INFO"
-            ),
-            "reviewed_by": "",
-            "reviewed_at": "",
-            "activation_status": "NOT_ACTIVATED",
-            "notes": (
-                "Detected change recorded; legal rules are NOT auto-activated."
-                if is_reviewable_change(
-                    {
-                        "change_type": change_type,
-                        "previous_version": prior.get("current_source_version", ""),
-                        "new_version": updated["current_source_version"],
-                    }
-                )
-                else "Non-reviewable / non-activating change event."
-            ),
-        }
+        reviewable = is_reviewable_change(
+            {
+                "change_type": change_type,
+                "previous_version": prior.get("current_source_version", ""),
+                "new_version": updated["current_source_version"],
+            }
+        )
+        changes.append(
+            {
+                "change_id": f"chg_{source_id}_{change_stamp}",
+                "source_id": source_id,
+                "detected_at": checked_at,
+                "previous_hash": prior.get("content_hash", ""),
+                "new_hash": new_hash,
+                "change_type": change_type,
+                "previous_version": prior.get("current_source_version", ""),
+                "new_version": updated["current_source_version"],
+                "affected_rule_ids": "",
+                "review_status": "PENDING_REVIEW" if reviewable else "INFO",
+                "reviewed_by": "",
+                "reviewed_at": "",
+                "activation_status": "NOT_ACTIVATED",
+                "notes": (
+                    "Detected change recorded; legal rules are NOT auto-activated."
+                    if reviewable
+                    else (
+                        "BASELINE_CAPTURED: first successful hash stored; "
+                        "not a legal amendment."
+                        if change_type == "BASELINE_CAPTURED"
+                        else "Non-reviewable / non-activating change event."
+                    )
+                ),
+            }
+        )
     else:
         # Preserve prior hash on no-change; seed hash if first successful check.
         if not updated.get("content_hash"):
@@ -1555,7 +2265,7 @@ def check_source(
         else:
             updated["content_hash"] = prior.get("content_hash", new_hash)
 
-    return updated, change_event
+    return updated, changes
 
 
 def run_monitor(
@@ -1567,6 +2277,7 @@ def run_monitor(
     config_path: Path | None = None,
     now: datetime | None = None,
     write_pending_review: bool = True,
+    signal_adapter=None,
 ) -> dict[str, Any]:
     """Run on-demand / scheduler-ready official-source monitoring.
 
@@ -1653,32 +2364,85 @@ def run_monitor(
     new_changes: list[dict[str, str]] = []
     pending_rule_ids: list[str] = []
 
+    policies = load_source_access_policies(root / config.access_policies_path)
+    coverage = access_coverage_metrics(policies)
+
     selected = sources
     if authority:
         selected = selected[
             selected["authority"].str.contains(authority, case=False, na=False)
         ]
     if source_id:
+        # Explicit single-source runs still enforce access policy before HTTP.
         selected = selected[selected["source_id"] == source_id]
-    selected = selected[selected["monitor_enabled"].str.lower() == "true"]
+    else:
+        selected = selected[selected["monitor_enabled"].str.lower() == "true"]
+
+    automated_checked = 0
+    automated_successful = 0
+    automated_failed = 0
+    automated_configuration_required = 0
+    policy_skipped = 0
 
     for _, source in selected.iterrows():
         source_dict = source.to_dict()
+        sid = str(source_dict["source_id"])
         prior = prior_rows.get(
-            source_dict["source_id"],
+            sid,
             {col: "" for col in FRESHNESS_COLUMNS},
         )
-        updated, change = check_source(
+        policy = policy_for_source(sid, policies)
+        alt_id = config.alternate_official_monitoring_sources.get(sid, "")
+        alternate_source_row = None
+        alternate_prior = None
+        # Alternate HTTP probes only when BOTH primary and alternate are allowed.
+        if (
+            alt_id
+            and policy.expects_scheduled_http
+            and policy_for_source(alt_id, policies).expects_scheduled_http
+        ):
+            alt_matches = sources[sources["source_id"] == alt_id]
+            if not alt_matches.empty:
+                alternate_source_row = alt_matches.iloc[0].to_dict()
+                alternate_prior = prior_rows.get(
+                    alt_id, {col: "" for col in FRESHNESS_COLUMNS}
+                )
+        updated, changes = check_source(
             source_dict,
             prior=prior,
             config=config,
             fetch_fn=fetch_fn,
             now=now,
+            alternate_source_row=alternate_source_row,
+            alternate_prior=alternate_prior,
+            access_policy=policy,
+            access_policies=policies,
+            # Explicit --source forces due check; schedule respects next_check_at.
+            force_http=bool(source_id),
         )
-        prior_rows[source_dict["source_id"]] = updated
-        if change is not None:
+        prior_rows[sid] = updated
+        if policy.expects_scheduled_http:
+            status = updated.get("fetch_status") or ""
+            if status == FETCH_STATUS_POLICY_SKIPPED:
+                policy_skipped += 1
+            elif status == FETCH_STATUS_CREDENTIAL_REQUIRED:
+                # Configuration gap — not successful, not a network failure.
+                automated_checked += 1
+                automated_configuration_required += 1
+            elif not changes and status not in {"OK", "FETCH_FAILED"}:
+                # Schedule-not-due soft skip: do not inflate checked/failed counts.
+                pass
+            else:
+                automated_checked += 1
+                if status == "OK":
+                    automated_successful += 1
+                else:
+                    automated_failed += 1
+        else:
+            policy_skipped += 1
+        for change in changes:
             affected = rules.loc[
-                rules["source_id"] == source_dict["source_id"], "rule_id"
+                rules["source_id"] == sid, "rule_id"
             ].tolist()
             change["affected_rule_ids"] = ";".join(affected)
             new_changes.append(change)
@@ -1690,8 +2454,30 @@ def run_monitor(
                 and is_reviewable_change(change)
             ):
                 pending_rule_ids.extend(affected)
-        if config.rate_limit_seconds > 0 and fetch_fn is None:
+        if (
+            config.rate_limit_seconds > 0
+            and fetch_fn is None
+            and policy.expects_scheduled_http
+        ):
             time.sleep(config.rate_limit_seconds)
+
+    # Official email / change-signal ingestion (never scrapes ifrs.org).
+    signal_store = RegulatorySignalStore(
+        root / config.change_signals_path, repo_root=root
+    )
+    # Seed bundled signal state into durable dir when missing.
+    durable_signals = durable_dir / "change_signals_state.json"
+    if not durable_signals.is_file():
+        bundled_signals = root / config.change_signals_path
+        if bundled_signals.is_file():
+            shutil.copy2(bundled_signals, durable_signals)
+    signal_store = RegulatorySignalStore(durable_signals, repo_root=root)
+    adapter = signal_adapter if signal_adapter is not None else GmailAlertAdapter()
+    signal_ingest = ingest_alerts_from_adapter(
+        adapter,
+        signal_store,
+        require_label=True,
+    )
 
     for sid, row in prior_rows.items():
         if row.get("source_id"):
@@ -1728,16 +2514,36 @@ def run_monitor(
         _write_csv_dict(conflict_path, CONFLICT_COLUMNS, [])
     conflict_rows = _read_csv_dict(conflict_path, CONFLICT_COLUMNS)
 
-    review_needed = should_open_review_activity(new_changes)
-    interim_summary = build_monitoring_summary(
+    signal_payload = signal_store.load()
+    pending_signals = signal_store.pending_count()
+    signals_received = len(signal_store.list_signals())
+    last_verified_update = str(
+        signal_payload.get("last_verified_regulatory_update_at") or ""
+    )
+    summary_kwargs = dict(
         freshness_rows=freshness_list,
         change_rows=change_rows,
         conflict_rows=conflict_rows,
         new_changes=new_changes,
         now=now,
+        critical_source_ids=list(config.critical_source_ids),
+        coverage_metrics=coverage,
+        automated_sources_checked=automated_checked,
+        automated_sources_successful=automated_successful,
+        automated_sources_failed=automated_failed,
+        automated_sources_configuration_required=(
+            automated_configuration_required
+        ),
+        official_change_signals_received=signals_received,
+        change_signals_pending_review=pending_signals,
+        last_verified_regulatory_update_at=last_verified_update,
+    )
+
+    review_needed = should_open_review_activity(new_changes)
+    interim_summary = build_monitoring_summary(
         state_source=STATE_SOURCE_DURABLE,
         persistence_status="PENDING",
-        critical_source_ids=list(config.critical_source_ids),
+        **summary_kwargs,
     )
     review_needed = review_needed or bool(
         interim_summary.get("regulatory_conflicts")
@@ -1752,34 +2558,24 @@ def run_monitor(
 
     persistence = persist_monitoring_state(root, config=config, now=now)
     summary = build_monitoring_summary(
-        freshness_rows=freshness_list,
-        change_rows=change_rows,
-        conflict_rows=conflict_rows,
-        new_changes=new_changes,
-        now=now,
         state_source=(
             STATE_SOURCE_DURABLE if persistence.ok else STATE_SOURCE_BUNDLED
         ),
         consecutive_persistence_failures=persistence.consecutive_persistence_failures,
         persistence_status=persistence.status,
-        critical_source_ids=list(config.critical_source_ids),
+        **summary_kwargs,
     )
     write_monitoring_summary(summary_path, summary)
     if persistence.ok:
         persistence = persist_monitoring_state(root, config=config, now=now)
         if not persistence.ok:
             summary = build_monitoring_summary(
-                freshness_rows=freshness_list,
-                change_rows=change_rows,
-                conflict_rows=conflict_rows,
-                new_changes=new_changes,
-                now=now,
                 state_source=STATE_SOURCE_BUNDLED,
                 consecutive_persistence_failures=(
                     persistence.consecutive_persistence_failures
                 ),
                 persistence_status=persistence.status,
-                critical_source_ids=list(config.critical_source_ids),
+                **summary_kwargs,
             )
             write_monitoring_summary(summary_path, summary)
 
@@ -1822,6 +2618,16 @@ def run_monitor(
         },
         "monitoring_complete": monitoring_complete,
         "state_source": summary.get("state_source"),
+        "signal_ingest": signal_ingest,
+        "change_signals_pending_review": pending_signals,
+        "policy_skipped": policy_skipped,
+        "automated_sources_checked": automated_checked,
+        "automated_sources_successful": automated_successful,
+        "automated_sources_failed": automated_failed,
+        "automated_sources_configuration_required": (
+            automated_configuration_required
+        ),
+        "access_coverage": coverage,
     }
 
 

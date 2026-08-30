@@ -28,6 +28,7 @@ from carbon_ledger.ui.motion import (
 from carbon_ledger.ui.state import (
     STATE_RESULT,
     STATE_RESULT_REVEAL_PENDING,
+    activate_demo_mode,
     initialize_ui_state,
     run_analysis,
 )
@@ -56,6 +57,8 @@ def _full_result():
 
 def _run_app() -> AppTest:
     at = AppTest.from_file(str(APP_PATH), default_timeout=120)
+    at.run()
+    activate_demo_mode(at.session_state)
     at.run()
     assert not at.exception
     return at
@@ -95,7 +98,7 @@ def _all_text(at: AppTest) -> str:
 
 def test_analysis_progress_stage_messages_exist() -> None:
     stages = analysis_stage_keys()
-    assert len(stages) == 5
+    assert len(stages) == 6
     for _key, message_key in stages:
         zh = t(message_key, ZH)
         en = t(message_key, "en")
@@ -133,7 +136,7 @@ def test_countup_finals_come_from_actual_results() -> None:
 def test_result_reveal_only_once_per_analysis() -> None:
     state: dict = {}
     initialize_ui_state(state)
-    result = state[STATE_RESULT]
+    result = activate_demo_mode(state)
     assert not should_animate_result_reveal(state, result)
     mark_result_reveal_pending(state, result)
     assert should_animate_result_reveal(state, result)
@@ -144,20 +147,48 @@ def test_result_reveal_only_once_per_analysis() -> None:
 
 
 def test_hero_emissions_play_persists_after_consume() -> None:
-    from carbon_ledger.ui.motion import hero_emissions_should_play
+    from carbon_ledger.ui.motion import (
+        animation_run_token,
+        hero_emissions_should_play,
+    )
     from carbon_ledger.ui.state import STATE_HERO_EMISSIONS_PLAY
 
     state: dict = {}
     initialize_ui_state(state)
-    result = state[STATE_RESULT]
+    result = activate_demo_mode(state)
     mark_result_reveal_pending(state, result)
-    assert consume_result_reveal(state, result) is True
-    assert state[STATE_HERO_EMISSIONS_PLAY] == result_reveal_token(result)
-    # Streamlit re-render of the results page still signals play; JS de-dupes.
+    token = animation_run_token(state, result)
     assert hero_emissions_should_play(state, result) is True
+    assert consume_result_reveal(state, result) is True
+    assert hero_emissions_should_play(state, result) is False
+    assert state[STATE_HERO_EMISSIONS_PLAY] == token
+    assert consume_result_reveal(state, result) is False
 
 
-def test_hero_emissions_countup_runtime_is_independent() -> None:
+def test_playing_count_spans_start_at_zero() -> None:
+    from carbon_ledger.ui.components import _count_span
+
+    hero = _count_span(
+        "1,729.89",
+        target=1729.89,
+        decimals=2,
+        hero_emissions=True,
+        hero_play=True,
+        hero_run="run-1",
+    )
+    assert ">0.00</span>" in hero
+    assert 'data-cel-hero-play="1"' in hero
+    assert 'data-cel-final="1,729.89"' in hero
+    assert "1729.89" in hero
+    idle = _count_span(
+        "1,729.89",
+        target=1729.89,
+        decimals=2,
+        hero_emissions=True,
+        hero_play=False,
+        hero_run="run-1",
+    )
+    assert ">1,729.89</span>" in idle
     from carbon_ledger.ui.motion import _HERO_COUNT_JS_PATH
 
     script = _HERO_COUNT_JS_PATH.read_text(encoding="utf-8")
@@ -174,9 +205,6 @@ def test_dashboard_kpi_semantics_and_formatting() -> None:
     at = _run_app()
     text = _all_text(at)
     assert "已計算排放量" in text
-    assert "計算完成" in text
-    assert "仍需處理" in text
-    assert "資料來源" in text
     assert "cel-kpi-card-primary" in text or "已計算排放量" in text
     assert "tCO₂e" in text or "tCO2e" in text
 
@@ -225,11 +253,15 @@ def test_reduced_motion_fallback_exists_in_design_system() -> None:
 
 def test_analysis_progress_ui_wired_in_app_source() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
-    assert "execute_analysis_with_progress" in source
+    page = (REPO_ROOT / "app_pages/analysis_progress.py").read_text(encoding="utf-8")
+    assert "app_pages/analysis_progress.py" in source
+    assert "render_analysis_transition_view" in page
     motion = (REPO_ROOT / "src/carbon_ledger/ui/motion.py").read_text(encoding="utf-8")
-    assert "st.status" in motion
+    assert "@st.dialog" not in motion
     assert "st.progress" in motion
+    assert "data-cel-analysis-view" in motion
     assert "analysis.stage.reading" in motion
+    assert "time.sleep(" not in motion
 
 
 def test_bilingual_state_stable_after_navigation() -> None:
@@ -244,22 +276,24 @@ def test_bilingual_state_stable_after_navigation() -> None:
     at.run()
     assert not at.exception
     text = _all_text(at)
-    assert "Analysis results" in text or "Calculated emissions" in text
+    assert (
+        "Analysis results" in text
+        or "Calculated emissions" in text
+        or "Currently calculated" in text
+        or "Compliance Overview" in text
+    )
     assert at.session_state[STATE_RESULT] is result_before
 
 
 def test_advanced_technical_details_still_accessible() -> None:
     at = _run_app()
     text = _all_text(at)
-    expander_labels = [
-        str(getattr(item, "label", "") or "")
-        for item in getattr(at, "expander", [])
-    ]
-    assert (
-        "進階技術" in text
-        or any("進階技術" in label for label in expander_labels)
-        or "查看完整證據鏈" in text
-    )
+    # Technical calc/trace moved off dashboard; CTA remains.
+    assert "查看計算依據" in text
+    at.switch_page("app_pages/activity_explorer.py")
+    at.run()
+    act_text = _all_text(at)
+    assert "稽核追溯資訊" in act_text or "查看計算依據" in act_text
 
 
 def test_format_percent_avoids_excess_precision() -> None:

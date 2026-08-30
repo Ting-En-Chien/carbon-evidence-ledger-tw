@@ -1,0 +1,65 @@
+{
+  "source_name": "TWSE / TPEx official company open data",
+  "source_authority": "臺灣證券交易所、證券櫃檯買賣中心",
+  "source_url": "https://openapi.twse.com.tw/v1/swagger.json",
+  "sources": [
+    {
+      "source_name": "上市公司基本資料 t187ap03_L",
+      "source_authority": "臺灣證券交易所",
+      "source_url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "dataset_page": "https://data.gov.tw/dataset/18419",
+      "listing_status": "TWSE",
+      "record_count": 1077,
+      "source_data_date": "2026-08-15"
+    },
+    {
+      "source_name": "上櫃公司基本資料 mopsfin_t187ap03_O",
+      "source_authority": "證券櫃檯買賣中心",
+      "source_url": "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O",
+      "dataset_page": "https://data.gov.tw/dataset/25036",
+      "listing_status": "TPEX",
+      "record_count": 889,
+      "source_data_date": "2026-08-16"
+    },
+    {
+      "source_name": "公開發行公司基本資料 t187ap03_P",
+      "source_authority": "臺灣證券交易所",
+      "source_url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_P",
+      "dataset_page": "https://data.gov.tw/dataset/28567",
+      "listing_status": "PUBLIC",
+      "record_count": 296,
+      "source_data_date": "2026-08-15"
+    }
+  ],
+  "downloaded_at": "2026-08-16T10:51:01+00:00",
+  "source_data_date": "2026-08-16",
+  "record_count": 2261,
+  "fields_included": [
+    "unified_business_number",
+    "company_name",
+    "registered_address",
+    "paid_in_capital_twd",
+    "listing_status",
+    "industry_code",
+    "stock_code",
+    "source_id",
+    "source_authority",
+    "source_dataset",
+    "source_data_date"
+  ],
+  "snapshot_version": "2026-08-16.v1",
+  "coverage_statement_zh": "目前本地公司資料庫涵蓋政府公開資料中的上市／上櫃／公開發行公司。",
+  "quality": {
+    "total_records": 2261,
+    "records_with_ubn": 2261,
+    "records_with_company_name": 2261,
+    "records_with_address": 2260,
+    "records_with_paid_in_capital": 2261,
+    "records_paid_in_capital_ge_10b": 182,
+    "source_distribution": {
+      "TWSE": 1077,
+      "TPEX": 889,
+      "PUBLIC": 295
+    }
+  }
+}

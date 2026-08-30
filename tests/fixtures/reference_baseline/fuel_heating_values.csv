@@ -1,1 +1,1 @@
-heating_value_id,fuel_type,heating_value,unit,factor_year,geography,authority,valid_from,valid_to,source_reference_id,source_locator,snapshot_id,status,notes
+heating_value_id,fuel_type,fuel_subtype,heating_value,unit,high_heating_value,high_heating_value_unit,factor_year,geography,authority,valid_from,valid_to,source_reference_id,source_locator,snapshot_id,snapshot_sha256,snapshot_local_path,status,notes

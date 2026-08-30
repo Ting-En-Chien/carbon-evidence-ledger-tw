@@ -7,6 +7,7 @@ not add carbon-accounting or regulatory rules.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,6 +40,7 @@ from carbon_ledger.rules import (
     load_ghg_protocol_rules,
 )
 
+ProgressCallback = Callable[[str, int, int, str], None]
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
@@ -86,6 +88,18 @@ def _empty_rejection_frame() -> pd.DataFrame:
     return pd.DataFrame(columns=REJECTION_COLUMNS)
 
 
+def _emit_progress(
+    callback: ProgressCallback | None,
+    stage: str,
+    completed: int,
+    total: int,
+    message: str,
+) -> None:
+    if callback is None:
+        return
+    callback(stage, completed, total, message)
+
+
 def _run_validated_activity_pipeline(
     *,
     repo_root: Path,
@@ -98,6 +112,7 @@ def _run_validated_activity_pipeline(
     include_ghg: bool,
     include_cbam: bool,
     include_ifrs_s2: bool,
+    progress_callback: ProgressCallback | None = None,
 ) -> PipelineRunResult:
     """Run normalize → match → calculate → QA → optional adapters."""
     validated_run_id = validate_run_id(run_id)
@@ -113,7 +128,15 @@ def _run_validated_activity_pipeline(
     run_ghg = bool(include_ghg or include_ifrs_s2)
     run_cbam = bool(include_cbam)
     run_ifrs = bool(include_ifrs_s2)
+    total_stages = 6
 
+    _emit_progress(
+        progress_callback, "ingest", 1, total_stages, "reading activity data"
+    )
+
+    _emit_progress(
+        progress_callback, "normalize", 2, total_stages, "normalizing units"
+    )
     normalized = normalize_activity_records(accepted_activities)
 
     registry = validate_factor_registry(reference_directory)
@@ -122,21 +145,35 @@ def _run_validated_activity_pipeline(
         on="record_id",
         how="left",
     )
+    _emit_progress(
+        progress_callback, "factors", 3, total_stages, "matching emission factors"
+    )
     matching = match_activity_factors(
         activities_for_matching,
         registry.emission_factors,
         registry.calculation_dependencies,
+        heating_values=registry.fuel_heating_values,
+    )
+    _emit_progress(
+        progress_callback, "calculate", 4, total_stages, "calculating emissions"
     )
     calculations = calculate_activity_emissions(
         normalized,
         matching.candidate_matches,
         matching.activity_readiness,
         registry.emission_factors,
+        heating_values=registry.fuel_heating_values,
+        gwp_values=registry.gwp_values,
+        engineering_conversions=registry.engineering_conversions,
+        activity_records=accepted_activities,
     )
 
     ingestion_rejections = pd.concat(
         [rejected_documents, rejected_activities],
         ignore_index=True,
+    )
+    _emit_progress(
+        progress_callback, "qa", 5, total_stages, "building quality issues"
     )
     core_qa_issues = build_core_qa_issues(
         accepted_activities,
@@ -147,6 +184,9 @@ def _run_validated_activity_pipeline(
         load_qa_rules(config_directory),
     )
 
+    _emit_progress(
+        progress_callback, "rules", 6, total_stages, "evaluating framework rules"
+    )
     if run_ghg:
         ghg_evaluations = evaluate_ghg_protocol(
             accepted_activities,
@@ -207,6 +247,7 @@ def run_demo_pipeline(
     include_ghg: bool = False,
     include_cbam: bool = False,
     include_ifrs_s2: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> PipelineRunResult:
     """Run the reproducible demo pipeline without writing files.
 
@@ -219,6 +260,8 @@ def run_demo_pipeline(
     root = Path(repo_root)
     raw_directory = root / "data" / "raw"
 
+    if progress_callback is not None:
+        progress_callback("ingest", 0, 6, "reading source evidence")
     ingestion = ingest_evidence(
         raw_directory=raw_directory,
         ingestion_run_id=f"ingestion_{validated_run_id}",
@@ -235,6 +278,7 @@ def run_demo_pipeline(
         include_ghg=include_ghg,
         include_cbam=include_cbam,
         include_ifrs_s2=include_ifrs_s2,
+        progress_callback=progress_callback,
     )
 
 
@@ -248,6 +292,7 @@ def run_uploaded_pipeline(
     include_ghg: bool = False,
     include_cbam: bool = False,
     include_ifrs_s2: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> PipelineRunResult:
     """Run the validated analysis pipeline on confirmed uploaded activities.
 
@@ -267,4 +312,5 @@ def run_uploaded_pipeline(
         include_ghg=include_ghg,
         include_cbam=include_cbam,
         include_ifrs_s2=include_ifrs_s2,
+        progress_callback=progress_callback,
     )

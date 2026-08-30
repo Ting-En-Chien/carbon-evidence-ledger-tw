@@ -65,6 +65,14 @@ PROCESS_USES: tuple[str, ...] = (
     "not_applicable",
 )
 
+# Natural-gas official heating-value types. Not a process_use.
+FUEL_SUBTYPES: tuple[str, ...] = (
+    "NG1",
+    "NG2",
+    "unknown",
+    "not_applicable",
+)
+
 TRANSPORT_PAYERS: tuple[str, ...] = (
     "exporter",
     "supplier",

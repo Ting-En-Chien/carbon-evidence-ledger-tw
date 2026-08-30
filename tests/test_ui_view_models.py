@@ -9,8 +9,7 @@ import pandas as pd
 from carbon_ledger.pipeline import run_demo_pipeline
 from carbon_ledger.ui import view_models as vm
 from carbon_ledger.ui.glossary import glossary_contains
-from carbon_ledger.ui.i18n import t
-from carbon_ledger.ui.tutorial import tutorial_step_texts
+from carbon_ledger.ui.tutorial import onboarding_step_titles
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXED_INGESTED_AT = pd.Timestamp("2024-02-01T00:00:00Z")
@@ -55,8 +54,8 @@ def test_activity_names_are_human_readable() -> None:
     overview = vm.build_activity_overview(_full_result(), EN)
     names = set(overview["activity_name"])
     assert "Purchased electricity" in names
-    assert "Heat-treatment natural gas" in names
-    assert "Company-vehicle diesel" in names
+    assert "Natural gas" in names
+    assert "Diesel" in names
     assert "Purchased steel wire rod" in names
     assert "Finished-goods output" in names
 
@@ -237,9 +236,15 @@ def test_glossary_core_terms() -> None:
     assert not glossary_contains("CBAM")
 
 
-def test_tutorial_has_four_beginner_steps() -> None:
-    steps = tutorial_step_texts(ZH)
-    assert len(steps) == 4
+def test_onboarding_has_five_action_steps() -> None:
+    steps = onboarding_step_titles(ZH)
+    assert steps == [
+        "完成公司設定",
+        "上傳活動資料",
+        "確認資料內容",
+        "開始計算",
+        "查看計算結果",
+    ]
     joined = "\n".join(steps)
-    assert "猜測" in joined
-    assert "示範" in t("tut.footer", ZH)
+    assert "GHG Protocol" not in joined
+    assert "IFRS" not in joined

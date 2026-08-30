@@ -6,6 +6,7 @@ internal status codes from primary UI surfaces and honor UI language.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,24 @@ ACTIVITY_KEYS = {
     "diesel": "activity.diesel",
     "purchased_steel": "activity.purchased_steel",
     "finished_goods_output": "activity.finished_goods_output",
+    "third_party_transport": "activity.third_party_transport",
+    "scrap_output": "activity.scrap_output",
+    "other": "activity.other",
+    "unknown": "activity.unknown",
 }
+
+CUSTOMER_SCHEMA_LABEL_KEYS = {
+    "activity_type": "intake.field.activity_type",
+    "activity_value": "intake.field.activity_value",
+    "unit": "intake.field.unit",
+    "activity_start_date": "intake.field.start",
+    "activity_end_date": "intake.field.end",
+    "site_id": "intake.field.site_id",
+}
+
+_UNCONFIRMED_SITE_TOKENS = frozenset(
+    {"", "unknown", "site_main", "n/a", "na", "none"}
+)
 
 CBAM_ROLE_KEYS = {
     "supporting_energy_evidence": "cbam.role.supporting_energy",
@@ -35,6 +53,7 @@ CBAM_ROLE_KEYS = {
 
 ATTENTION_TITLE_KEYS = {
     "blocked_missing_conversion": "status.attention_blocked",
+    "blocked_natural_gas_type_required": "status.attention_blocked",
     "no_factor_configured": "status.attention_factor",
 }
 
@@ -61,6 +80,20 @@ def not_run_label(lang: str = DEFAULT_LANG) -> str:
     return t("common.not_run", lang)
 
 
+def customer_schema_label(field: str, lang: str = DEFAULT_LANG) -> str:
+    """Presentation-only label for a backend schema field name."""
+    key = CUSTOMER_SCHEMA_LABEL_KEYS.get(str(field or "").strip())
+    return t(key, lang) if key else str(field or "")
+
+
+def customer_site_display(value: Any, lang: str = DEFAULT_LANG) -> str:
+    """Human location name; unknown/internal tokens need confirmation."""
+    text = _text(value)
+    if text.casefold() in _UNCONFIRMED_SITE_TOKENS:
+        return t("intake.site_unconfirmed", lang)
+    return text
+
+
 def activity_display_name(
     activity_type: str,
     lang: str = DEFAULT_LANG,
@@ -85,6 +118,7 @@ def calculation_explanation(status: str, lang: str = DEFAULT_LANG) -> str:
     if msg in {
         "explain.calculated",
         "explain.blocked_missing_conversion",
+        "explain.blocked_natural_gas_type_required",
         "explain.no_factor_configured",
         "explain.not_emissions_activity",
     }:
@@ -99,6 +133,7 @@ def calculation_next_action(status: str, lang: str = DEFAULT_LANG) -> str:
     known = {
         "next.calculated",
         "next.blocked_missing_conversion",
+        "next.blocked_natural_gas_type_required",
         "next.no_factor_configured",
         "next.not_emissions_activity",
     }
@@ -320,6 +355,253 @@ def calculated_emissions_summary(
     }
 
 
+def calculated_emissions_by_ghg_scope(
+    result: PipelineRunResult,
+) -> dict[str, float]:
+    """Sum calculated tCO2e by GHG scope. Blocked rows are excluded."""
+    calculations = result.calculation_results.copy()
+    ghg = result.ghg_evaluations.copy()
+    totals: dict[str, float] = {}
+    if calculations.empty or ghg.empty:
+        return totals
+    calculated = calculations[
+        calculations["calculation_status"].astype(str) == "calculated"
+    ].copy()
+    if calculated.empty:
+        return totals
+    merged = calculated.merge(
+        ghg[["record_id", "ghg_scope"]],
+        on="record_id",
+        how="left",
+    )
+    merged["calculated_tco2e"] = pd.to_numeric(
+        merged["calculated_tco2e"], errors="coerce"
+    )
+    merged = merged.dropna(subset=["calculated_tco2e"])
+    for scope, group in merged.groupby(merged["ghg_scope"].astype(str)):
+        totals[str(scope)] = float(group["calculated_tco2e"].sum())
+    return totals
+
+
+_ACTIVITY_PRODUCT_SCOPE = {
+    "grid_electricity": "scope_2",
+    "natural_gas": "scope_1",
+    "diesel": "scope_1",
+}
+
+
+def calculated_emissions_by_product_scope(
+    result: PipelineRunResult,
+) -> dict[str, float | None]:
+    """Customer Scope totals from calculated rows only.
+
+    Prefers mapped GHG scopes. Falls back to V1 activity-type paths so
+    Scope 1/2 still display when GHG needs review. Scope 3 is omitted
+    unless a calculated row actually maps to it.
+    """
+    calculations = result.calculation_results.copy()
+    activities = result.activity_records_accepted.copy()
+    totals: dict[str, float | None] = {"scope_1": 0.0, "scope_2": 0.0}
+    if calculations.empty or activities.empty:
+        return totals
+    calculated = calculations[
+        calculations["calculation_status"].astype(str) == "calculated"
+    ].copy()
+    if calculated.empty:
+        return totals
+    keep = ["record_id", "activity_type"]
+    merged = calculated.merge(
+        activities[keep],
+        on="record_id",
+        how="left",
+    )
+    ghg = result.ghg_evaluations.copy()
+    if not ghg.empty:
+        ghg_cols = ["record_id"]
+        if "ghg_scope" in ghg.columns:
+            ghg_cols.append("ghg_scope")
+        if "mapping_status" in ghg.columns:
+            ghg_cols.append("mapping_status")
+        merged = merged.merge(ghg[ghg_cols], on="record_id", how="left")
+    merged["calculated_tco2e"] = pd.to_numeric(
+        merged["calculated_tco2e"], errors="coerce"
+    )
+    merged = merged.dropna(subset=["calculated_tco2e"])
+    scope_3 = 0.0
+    has_scope_3 = False
+    for _, row in merged.iterrows():
+        value = float(row["calculated_tco2e"])
+        mapping_status = _text(row.get("mapping_status"))
+        ghg_scope = _text(row.get("ghg_scope"))
+        if mapping_status == "mapped" and ghg_scope in {
+            "scope_1",
+            "scope_2",
+            "scope_3",
+        }:
+            scope = ghg_scope
+        else:
+            scope = _ACTIVITY_PRODUCT_SCOPE.get(
+                _text(row.get("activity_type")), ""
+            )
+        if scope == "scope_3":
+            has_scope_3 = True
+            scope_3 += value
+        elif scope in {"scope_1", "scope_2"}:
+            totals[scope] = float(totals.get(scope) or 0.0) + value
+    if has_scope_3:
+        totals["scope_3"] = scope_3
+    return totals
+
+
+def should_show_coverage_chart(calculated: int, total: int) -> bool:
+    """Show compact coverage only when calculation is partial, never at 100%."""
+    return 0 < int(calculated) < int(total)
+
+
+def should_show_unresolved_cta(unresolved: int) -> bool:
+    """Issue CTAs exist only when the customer has something to fix."""
+    return int(unresolved) > 0
+
+
+def executive_emissions_insights(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> list[str]:
+    """At most two deterministic sentences. Source share first. No LLM."""
+    summary = calculated_emissions_summary(result, lang)
+    total = float(summary.get("calculated_tco2e") or 0.0)
+    if total <= 0:
+        return []
+    scopes = calculated_emissions_by_product_scope(result)
+    scope_1 = float(scopes.get("scope_1") or 0.0)
+    scope_2 = float(scopes.get("scope_2") or 0.0)
+    leading_scope = "Scope 1" if scope_1 >= scope_2 else "Scope 2"
+    leading_value = max(scope_1, scope_2)
+    leading_share = leading_value / total
+    overview = build_activity_overview(result, lang)
+    top_name = ""
+    top_value = 0.0
+    if not overview.empty:
+        calculated = overview[
+            overview["calculation_status"].astype(str) == "calculated"
+        ].copy()
+        if not calculated.empty:
+            calculated["tco2e"] = pd.to_numeric(
+                calculated["calculated_tco2e"], errors="coerce"
+            )
+            grouped = (
+                calculated.dropna(subset=["tco2e"])
+                .groupby("activity_name", dropna=False)["tco2e"]
+                .sum()
+                .sort_values(ascending=False)
+            )
+            if not grouped.empty:
+                top_name = str(grouped.index[0] or "")
+                top_value = float(grouped.iloc[0] or 0.0)
+    items: list[str] = []
+    if top_name and top_value > 0:
+        percent = int(round(100.0 * top_value / total))
+        items.append(
+            t(
+                "dash.insight.top_source_share",
+                lang,
+                name=top_name,
+                percent=percent,
+            )
+        )
+    elif top_name:
+        items.append(t("dash.insight.top_source", lang, name=top_name))
+    if 0.5 <= leading_share < 0.95:
+        percent = int(round(100.0 * leading_share))
+        items.append(
+            t(
+                "dash.insight.top_scope",
+                lang,
+                scope=leading_scope,
+                percent=percent,
+            )
+        )
+    elif not items and leading_value > 0:
+        percent = int(round(100.0 * leading_share))
+        items.append(
+            t(
+                "dash.insight.top_scope",
+                lang,
+                scope=leading_scope,
+                percent=percent,
+            )
+        )
+    return items[:2]
+
+
+def executive_emissions_insight(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> str:
+    """Primary deterministic insight. No LLM."""
+    items = executive_emissions_insights(result, lang)
+    return items[0] if items else ""
+
+
+def scope_kpi_states(result: PipelineRunResult) -> dict[str, dict[str, Any]]:
+    """Distinguish calculated Scope totals from unresolved / unsupported."""
+    totals = calculated_emissions_by_product_scope(result)
+    activities = result.activity_records_accepted.copy()
+    calculations = result.calculation_results.copy()
+    status_by_id: dict[str, str] = {}
+    if not calculations.empty:
+        for _, row in calculations.iterrows():
+            status_by_id[_text(row.get("record_id"))] = _text(
+                row.get("calculation_status")
+            )
+    ghg_by_id: dict[str, Any] = {}
+    ghg = result.ghg_evaluations.copy()
+    if not ghg.empty:
+        for _, row in ghg.iterrows():
+            ghg_by_id[_text(row.get("record_id"))] = row
+    calculated_present = {"scope_1": False, "scope_2": False}
+    if not activities.empty:
+        for _, row in activities.iterrows():
+            record_id = _text(row.get("record_id"))
+            ghg_row = ghg_by_id.get(record_id)
+            mapping_status = ""
+            ghg_scope = ""
+            if ghg_row is not None:
+                mapping_status = _text(ghg_row.get("mapping_status"))
+                ghg_scope = _text(ghg_row.get("ghg_scope"))
+            if mapping_status == "mapped" and ghg_scope in {
+                "scope_1",
+                "scope_2",
+                "scope_3",
+            }:
+                scope = ghg_scope
+            else:
+                scope = _ACTIVITY_PRODUCT_SCOPE.get(
+                    _text(row.get("activity_type")), ""
+                )
+            if scope not in {"scope_1", "scope_2"}:
+                continue
+            if status_by_id.get(record_id) == "calculated":
+                calculated_present[scope] = True
+    states: dict[str, dict[str, Any]] = {}
+    for key in ("scope_1", "scope_2"):
+        if calculated_present[key]:
+            states[key] = {
+                "state": "calculated",
+                "value": float(totals.get(key) or 0.0),
+            }
+        else:
+            states[key] = {"state": "pending", "value": None}
+    if totals.get("scope_3") is not None:
+        states["scope_3"] = {
+            "state": "calculated",
+            "value": float(totals["scope_3"]),
+        }
+    else:
+        states["scope_3"] = {"state": "unsupported", "value": None}
+    return states
+
+
 def attention_issue_cards(
     result: PipelineRunResult,
     lang: str = DEFAULT_LANG,
@@ -410,6 +692,7 @@ def issues_table(
     """Build the Issues & Actions display table."""
     issues = result.core_qa_issues.copy()
     activities = result.activity_records_accepted.copy()
+    documents = result.source_documents_accepted.copy()
     columns = [
         "Priority",
         "Activity",
@@ -423,6 +706,8 @@ def issues_table(
         "allowed_use",
         "prohibited_use",
         "source_document_id",
+        "document_label",
+        "period_label",
     ]
     if issues.empty:
         return pd.DataFrame(columns=columns)
@@ -433,10 +718,29 @@ def issues_table(
         )
         for _, row in activities.iterrows()
     }
+    period_by_record = {
+        _text(row.get("record_id")): (
+            f"{_text(row.get('activity_start_date'))[:7]}"
+            if _text(row.get("activity_start_date"))
+            else "—"
+        )
+        for _, row in activities.iterrows()
+    }
+    doc_name_by_id = {
+        _text(row.get("source_document_id")): (
+            _text(row.get("file_name")) or _text(row.get("issuer")) or "—"
+        )
+        for _, row in documents.iterrows()
+    }
     rows: list[dict[str, Any]] = []
     for _, issue in issues.iterrows():
         record_id = _text(issue.get("record_id"))
         severity_code = _text(issue.get("severity"))
+        doc_id = _text(issue.get("source_document_id"))
+        if not doc_id and not activities.empty:
+            act = activities[activities["record_id"].astype(str) == record_id]
+            if not act.empty:
+                doc_id = _text(act.iloc[0].get("source_document_id"))
         rows.append(
             {
                 "Priority": t(f"severity.{severity_code}", lang),
@@ -451,7 +755,9 @@ def issues_table(
                 "issue_code": _text(issue.get("issue_code")),
                 "allowed_use": _text(issue.get("allowed_use")),
                 "prohibited_use": _text(issue.get("prohibited_use")),
-                "source_document_id": _text(issue.get("source_document_id")),
+                "source_document_id": doc_id,
+                "document_label": doc_name_by_id.get(doc_id, "—"),
+                "period_label": period_by_record.get(record_id, "—"),
                 "blocking_dependency": _text(issue.get("blocking_dependency")),
                 "rule_id": _text(issue.get("rule_id")),
             }
@@ -568,45 +874,219 @@ def ifrs_framework_table(
     return pd.DataFrame(rows)
 
 
-def evidence_documents_table(result: PipelineRunResult) -> pd.DataFrame:
-    """Build the accepted source-document evidence table."""
+def _document_type_label(document_type: str, lang: str) -> str:
+    key = f"ev.doc_type.{document_type}"
+    labeled = t(key, lang)
+    if labeled != key:
+        return labeled
+    return document_type.replace("_", " ") or "—"
+
+
+def _document_review_status(
+    doc: pd.Series,
+    *,
+    activity_statuses: list[str],
+    lang: str,
+) -> str:
+    """Derive customer-facing review status — never hard-code synthetic."""
+    is_synthetic = bool(doc.get("is_synthetic"))
+    origin = _text(doc.get("data_origin")).lower()
+    if is_synthetic or origin in {"synthetic", "synthetic_demo", "demo"}:
+        return t("ev.status.demo", lang)
+    if any(status == "needs_review" for status in activity_statuses):
+        return t("ev.status.needs_action", lang)
+    if activity_statuses and all(
+        status in {"approved", "not_required"} for status in activity_statuses
+    ):
+        return t("ev.status.verified", lang)
+    if activity_statuses:
+        return t("ev.status.pending", lang)
+    return t("ev.status.imported", lang)
+
+
+def _document_reuse_labels(
+    result: PipelineRunResult,
+    source_document_id: str,
+    lang: str,
+) -> list[str]:
+    """Return verified reuse labels for one evidence document (no fabrication)."""
+    activities = result.activity_records_accepted
+    if activities.empty or "source_document_id" not in activities.columns:
+        return []
+    linked = activities[
+        activities["source_document_id"].astype(str) == source_document_id
+    ]
+    if linked.empty:
+        return []
+    labels: list[str] = []
+    record_ids = {_text(row.get("record_id")) for _, row in linked.iterrows()}
+    calcs = result.calculation_results
+    calculated = False
+    if not calcs.empty and "record_id" in calcs.columns:
+        matched = calcs[calcs["record_id"].astype(str).isin(record_ids)]
+        if not matched.empty:
+            if "calculation_status" in matched.columns:
+                calculated = (
+                    matched["calculation_status"].astype(str).eq("calculated").any()
+                )
+            else:
+                calculated = True
+    if result.include_ghg and not result.ghg_evaluations.empty:
+        ghg = result.ghg_evaluations
+        ghg_linked = ghg[ghg["record_id"].astype(str).isin(record_ids)]
+        if not ghg_linked.empty:
+            labels.append(t("ev.reuse.ghg", lang))
+            scopes = {
+                _text(row.get("ghg_scope")).lower()
+                for _, row in ghg_linked.iterrows()
+            }
+            if calculated and "scope_2" in scopes:
+                labels.append(t("ev.reuse.scope2", lang))
+            elif calculated and "scope_1" in scopes:
+                labels.append(t("ev.reuse.scope1", lang))
+            elif calculated:
+                labels.append(t("ev.reuse.calculation", lang))
+    elif calculated:
+        labels.append(t("ev.reuse.calculation", lang))
+    if result.include_ifrs_s2 and not result.ifrs_s2_evaluations.empty:
+        ifrs = result.ifrs_s2_evaluations
+        if "record_id" in ifrs.columns and ifrs["record_id"].astype(str).isin(
+            record_ids
+        ).any():
+            labels.append(t("ev.reuse.ifrs", lang))
+    # Preserve order, drop duplicates
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for label in labels:
+        if label not in seen:
+            seen.add(label)
+            ordered.append(label)
+    return ordered
+
+
+def evidence_documents_table(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> pd.DataFrame:
+    """Customer-facing evidence register (no hash / raw IDs as lead columns)."""
     docs = result.source_documents_accepted.copy()
+    columns = [
+        "file_name",
+        "document_type_label",
+        "period",
+        "source_name",
+        "used_for",
+        "status",
+        "source_document_id",
+        "sha256",
+        "data_origin",
+        "ingested_at",
+        "is_synthetic",
+        "document_date",
+        "issuer",
+        "source_locator",
+    ]
     if docs.empty:
-        return pd.DataFrame(
-            columns=[
-                "Document ID",
-                "Document type",
-                "Source name",
-                "Evidence hash",
-                "Data origin",
-                "Review status",
-            ]
-        )
+        return pd.DataFrame(columns=columns)
+
+    activities = result.activity_records_accepted
+    review_by_doc: dict[str, list[str]] = {}
+    if not activities.empty and "source_document_id" in activities.columns:
+        for _, act in activities.iterrows():
+            doc_id = _text(act.get("source_document_id"))
+            review_by_doc.setdefault(doc_id, []).append(
+                _text(act.get("human_review_status"))
+            )
+
     rows: list[dict[str, Any]] = []
     for _, doc in docs.iterrows():
+        doc_id = _text(doc.get("source_document_id"))
+        period = _text(doc.get("document_date"))
+        if period and len(period) >= 7:
+            period = period[:7]
+        reuse = _document_reuse_labels(result, doc_id, lang)
         rows.append(
             {
-                "Document ID": _text(doc.get("source_document_id")),
-                "Document type": _text(doc.get("document_type")).replace("_", " "),
-                "Source name": _text(doc.get("issuer"))
-                or _text(doc.get("file_name")),
-                "Evidence hash": _text(doc.get("sha256")),
-                "Data origin": _text(doc.get("data_origin")).replace("_", " "),
-                "Review status": "Synthetic demonstration",
+                "file_name": _text(doc.get("file_name")) or "—",
+                "document_type_label": _document_type_label(
+                    _text(doc.get("document_type")), lang
+                ),
+                "period": period or "—",
+                "source_name": _text(doc.get("issuer"))
+                or _text(doc.get("file_name"))
+                or "—",
+                "used_for": " · ".join(reuse) if reuse else t("ev.reuse.none", lang),
+                "status": _document_review_status(
+                    doc,
+                    activity_statuses=review_by_doc.get(doc_id, []),
+                    lang=lang,
+                ),
+                "source_document_id": doc_id,
+                "sha256": _text(doc.get("sha256")),
+                "data_origin": _text(doc.get("data_origin")),
+                "ingested_at": _text(doc.get("ingested_at")),
+                "is_synthetic": bool(doc.get("is_synthetic")),
+                "document_date": _text(doc.get("document_date")),
+                "issuer": _text(doc.get("issuer")),
+                "source_locator": _text(doc.get("source_path"))
+                or _text(doc.get("source_locator")),
             }
         )
     return pd.DataFrame(rows)
 
 
+def evidence_documents_customer_view(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> pd.DataFrame:
+    """Default customer columns only (no hash / IDs)."""
+    full = evidence_documents_table(result, lang)
+    if full.empty:
+        return pd.DataFrame(
+            columns=[
+                t("ev.col.name", lang),
+                t("ev.col.type", lang),
+                t("ev.col.period", lang),
+                t("ev.col.source", lang),
+                t("ev.col.used_for", lang),
+                t("ev.col.status", lang),
+            ]
+        )
+    return full[
+        [
+            "file_name",
+            "document_type_label",
+            "period",
+            "source_name",
+            "used_for",
+            "status",
+        ]
+    ].rename(
+        columns={
+            "file_name": t("ev.col.name", lang),
+            "document_type_label": t("ev.col.type", lang),
+            "period": t("ev.col.period", lang),
+            "source_name": t("ev.col.source", lang),
+            "used_for": t("ev.col.used_for", lang),
+            "status": t("ev.col.status", lang),
+        }
+    )
+
+
 def audit_summary(result: PipelineRunResult) -> dict[str, Any]:
     """Build compact audit metrics and run metadata."""
+    ingested = result.ingested_at
+    if ingested is None or (isinstance(ingested, float) and pd.isna(ingested)):
+        ingested_at = "unavailable"
+    else:
+        ingested_at = str(ingested)
     return {
         "accepted_source_documents": int(len(result.source_documents_accepted)),
         "accepted_activities": int(len(result.activity_records_accepted)),
         "calculation_rows": int(len(result.calculation_results)),
         "qa_issues": int(len(result.core_qa_issues)),
         "run_id": result.run_id,
-        "ingested_at": "2024-02-01T00:00:00+00:00",
+        "ingested_at": ingested_at,
         "include_ghg": bool(result.include_ghg),
         "include_cbam": bool(result.include_cbam),
         "include_ifrs_s2": bool(result.include_ifrs_s2),
@@ -805,6 +1285,8 @@ def priority_action_cards(
         seen_types.add(activity_type)
         if status == "blocked_missing_conversion":
             reason = t("dash.priority.missing_conversion", lang)
+        elif status == "blocked_natural_gas_type_required":
+            reason = t("explain.blocked_natural_gas_type_required", lang)
         elif status == "no_factor_configured":
             reason = t("dash.priority.missing_factor", lang)
         else:
@@ -908,6 +1390,260 @@ def beginner_result_summary(
     }
 
 
+DISPOSITION_CALCULATED = "calculated"
+DISPOSITION_NEEDS_CONFIRMATION = "needs_confirmation"
+DISPOSITION_EXCLUDED_DUPLICATE = "excluded_duplicate"
+DISPOSITION_EXCLUDED_OUT_OF_SCOPE = "excluded_out_of_scope"
+DISPOSITION_UNSUPPORTED = "unsupported"
+DISPOSITION_INVALID = "invalid"
+
+_DISPOSITIONS = (
+    DISPOSITION_CALCULATED,
+    DISPOSITION_NEEDS_CONFIRMATION,
+    DISPOSITION_EXCLUDED_DUPLICATE,
+    DISPOSITION_EXCLUDED_OUT_OF_SCOPE,
+    DISPOSITION_UNSUPPORTED,
+    DISPOSITION_INVALID,
+)
+
+_INVALID_ISSUE_CODES = frozenset(
+    {
+        "INVALID_ACTIVITY_VALUE",
+        "UNMAPPED_ACTIVITY_TYPE",
+        "UNMAPPED_UNIT",
+        "SCHEMA_VALIDATION_FAILED",
+        "INVALID_DATE",
+        "ACTIVITY_UNIT_MISMATCH",
+        "UNSUPPORTED_UNIT",
+        "invalid_normalized_input",
+    }
+)
+_HELD_ISSUE_CODES = frozenset(
+    {
+        "HELD_NG_CONTEXT",
+        "HELD_DIESEL_CONTEXT",
+        "HELD_ELEC_CONTEXT",
+        "HELD_PENDING_ACTUAL_HV",
+    }
+)
+_UNSUPPORTED_CALC_STATUSES = frozenset(
+    {
+        "unsupported_activity_type",
+        "no_factor_configured",
+        "blocked_missing_conversion",
+        "blocked_ambiguous_conversion",
+        "unsupported_conversion",
+    }
+)
+_NEEDS_CONFIRM_CALC_STATUSES = frozenset(
+    {
+        "blocked_natural_gas_type_required",
+    }
+)
+
+
+def _locator_source_row(locator: Any) -> int:
+    from carbon_ledger.potential_duplicates import source_row_from_locator
+
+    return int(source_row_from_locator(locator) or 0)
+
+
+def _in_scope_source_rows(uploaded_table: Any, intake_result: Any) -> list[int]:
+    rows: list[int] = []
+    frame = getattr(uploaded_table, "frame", None)
+    if uploaded_table is not None and frame is not None:
+        header = int(getattr(uploaded_table, "header_row_index", 0) or 0)
+        for offset, (_, row) in enumerate(frame.iterrows()):
+            texts = [str(value).strip() for value in row.tolist() if value is not None]
+            if not any(texts) or all(
+                text.lower() in {"", "nan", "<na>", "none"} for text in texts
+            ):
+                continue
+            rows.append(offset + header + 2)
+        if rows:
+            return rows
+    population: set[int] = set()
+    if intake_result is not None:
+        accepted = getattr(intake_result, "accepted_activities", None)
+        if accepted is not None and not getattr(accepted, "empty", True):
+            if "source_locator" in accepted.columns:
+                population.update(
+                    _locator_source_row(value)
+                    for value in accepted["source_locator"].tolist()
+                )
+        rejected = getattr(intake_result, "rejected_rows", None)
+        if rejected is not None and not getattr(rejected, "empty", True):
+            if "source_row" in rejected.columns:
+                population.update(
+                    int(value)
+                    for value in rejected["source_row"].tolist()
+                    if int(value or 0) > 0
+                )
+    return sorted(row for row in population if row > 0)
+
+
+def reconcile_row_dispositions(
+    *,
+    uploaded_table: Any | None = None,
+    intake_result: Any | None = None,
+    pipeline_result: PipelineRunResult | None = None,
+    duplicate_excluded_ids: Iterable[str] | None = None,
+    duplicate_candidate_ids: Iterable[str] | None = None,
+    duplicate_unresolved: bool = False,
+    is_uploaded_analysis: bool = False,
+) -> dict[str, Any]:
+    """Assign exactly one customer disposition per original uploaded row."""
+    from carbon_ledger.intake import classify_activity_analysis_readiness
+
+    excluded_ids = {str(item) for item in (duplicate_excluded_ids or ())}
+    candidate_ids = {str(item) for item in (duplicate_candidate_ids or ())}
+    population = _in_scope_source_rows(uploaded_table, intake_result)
+    if not population and pipeline_result is not None:
+        activities = pipeline_result.activity_records_accepted
+        if activities is not None and not activities.empty:
+            if "source_locator" in activities.columns:
+                population = sorted(
+                    {
+                        _locator_source_row(value)
+                        for value in activities["source_locator"].tolist()
+                        if _locator_source_row(value) > 0
+                    }
+                )
+    by_row: dict[int, str] = {}
+    record_by_row: dict[int, str] = {}
+    calc_by_record: dict[str, str] = {}
+    readiness_by_record: dict[str, str] = {}
+    activity_type_by_record: dict[str, str] = {}
+
+    if pipeline_result is not None:
+        activities = pipeline_result.activity_records_accepted
+        if activities is not None and not activities.empty:
+            for _, row in activities.iterrows():
+                record_id = _text(row.get("record_id"))
+                source_row = _locator_source_row(row.get("source_locator"))
+                if source_row:
+                    record_by_row[source_row] = record_id
+                activity_type_by_record[record_id] = _text(row.get("activity_type"))
+        calcs = pipeline_result.calculation_results
+        if calcs is not None and not calcs.empty:
+            for _, row in calcs.iterrows():
+                calc_by_record[_text(row.get("record_id"))] = _text(
+                    row.get("calculation_status")
+                )
+        readiness = pipeline_result.activity_readiness
+        if readiness is not None and not readiness.empty:
+            for _, row in readiness.iterrows():
+                readiness_by_record[_text(row.get("record_id"))] = _text(
+                    row.get("calculation_readiness")
+                )
+
+    rejected_by_row: dict[int, str] = {}
+    if intake_result is not None:
+        accepted = getattr(intake_result, "accepted_activities", None)
+        if accepted is not None and not getattr(accepted, "empty", True):
+            for _, row in accepted.iterrows():
+                source_row = _locator_source_row(row.get("source_locator"))
+                record_id = _text(row.get("record_id"))
+                if source_row and record_id:
+                    record_by_row.setdefault(source_row, record_id)
+        rejected = getattr(intake_result, "rejected_rows", None)
+        if rejected is not None and not getattr(rejected, "empty", True):
+            for _, row in rejected.iterrows():
+                source_row = int(row.get("source_row") or 0)
+                if source_row:
+                    rejected_by_row[source_row] = _text(row.get("issue_code"))
+
+    if not population:
+        population = sorted(set(record_by_row) | set(rejected_by_row))
+
+    for source_row in population:
+        record_id = record_by_row.get(source_row, "")
+        issue_code = rejected_by_row.get(source_row, "")
+        calc_status = calc_by_record.get(record_id, "")
+        ready_status = readiness_by_record.get(record_id, "")
+        if record_id and record_id in excluded_ids:
+            by_row[source_row] = DISPOSITION_EXCLUDED_DUPLICATE
+            continue
+        if issue_code in _HELD_ISSUE_CODES or (
+            duplicate_unresolved and record_id and record_id in candidate_ids
+        ):
+            by_row[source_row] = DISPOSITION_NEEDS_CONFIRMATION
+            continue
+        if calc_status == "not_emissions_activity":
+            by_row[source_row] = DISPOSITION_EXCLUDED_OUT_OF_SCOPE
+            continue
+        if (
+            calc_status in _UNSUPPORTED_CALC_STATUSES
+            or ready_status in _UNSUPPORTED_CALC_STATUSES
+            or ready_status == "unsupported"
+        ):
+            by_row[source_row] = DISPOSITION_UNSUPPORTED
+            continue
+        if record_id and not calc_status:
+            activity_type = activity_type_by_record.get(record_id, "")
+            if activity_type:
+                preview = classify_activity_analysis_readiness(
+                    activity_type=activity_type,
+                    fuel_subtype="",
+                    process_use="",
+                    activity_start=None,
+                    activity_end=None,
+                )
+                if preview == "unsupported":
+                    by_row[source_row] = DISPOSITION_UNSUPPORTED
+                    continue
+        if (
+            issue_code in _INVALID_ISSUE_CODES
+            or calc_status == "invalid_normalized_input"
+        ):
+            by_row[source_row] = DISPOSITION_INVALID
+            continue
+        if (
+            calc_status in _NEEDS_CONFIRM_CALC_STATUSES
+            or ready_status in _NEEDS_CONFIRM_CALC_STATUSES
+            or ready_status == "needs_confirm"
+            or issue_code
+        ):
+            by_row[source_row] = DISPOSITION_NEEDS_CONFIRMATION
+            continue
+        if calc_status == "calculated":
+            by_row[source_row] = DISPOSITION_CALCULATED
+            continue
+        by_row[source_row] = DISPOSITION_NEEDS_CONFIRMATION
+
+    counts = {name: 0 for name in _DISPOSITIONS}
+    for disposition in by_row.values():
+        counts[disposition] = int(counts.get(disposition, 0)) + 1
+    included = int(counts[DISPOSITION_CALCULATED])
+    remaining_open = (
+        int(counts[DISPOSITION_NEEDS_CONFIRMATION])
+        + int(counts[DISPOSITION_UNSUPPORTED])
+        + int(counts[DISPOSITION_INVALID])
+    )
+    excluded = (
+        int(counts[DISPOSITION_EXCLUDED_DUPLICATE])
+        + int(counts[DISPOSITION_EXCLUDED_OUT_OF_SCOPE])
+    )
+    total = len(population)
+    complete = bool(
+        is_uploaded_analysis
+        and included >= 1
+        and remaining_open == 0
+        and total == sum(counts.values())
+        and total == len(by_row)
+    )
+    return {
+        "by_row": by_row,
+        "counts": counts,
+        "total": total,
+        "included": included,
+        "remaining_open": remaining_open,
+        "excluded": excluded,
+        "complete": complete,
+        "preliminary": remaining_open > 0,
+    }
+
+
 def first_calculated_electricity_record_id(
     result: PipelineRunResult,
 ) -> str | None:
@@ -981,3 +1717,102 @@ def ghg_scope_counts(
         return {}
     counts = table["Scope"].value_counts().to_dict()
     return {str(key): int(value) for key, value in counts.items()}
+
+
+def labeled_scope_hero_caption(
+    scope_states: Mapping[str, Any],
+    lang: str = DEFAULT_LANG,
+) -> str:
+    """Compact hero caption: calculated scopes only, each with its Scope label."""
+    bits: list[str] = []
+    for scope_key, label_key in (
+        ("scope_1", "dash.kpi.scope1"),
+        ("scope_2", "dash.hero.scope2_location"),
+        ("scope_3", "dash.kpi.scope3"),
+    ):
+        state = scope_states.get(scope_key) or {}
+        if state.get("state") != "calculated":
+            continue
+        bits.append(
+            t(
+                "dash.hero.scope_value",
+                lang,
+                label=t(label_key, lang),
+                value=f"{float(state.get('value') or 0.0):.2f}",
+            )
+        )
+    return " · ".join(bits)
+
+
+def hero_result_status_and_disposition(
+    *,
+    uploaded: bool,
+    dispositions: Mapping[str, Any],
+    calculated_count: int,
+    activity_count: int,
+    needs_work: int,
+    lang: str = DEFAULT_LANG,
+) -> dict[str, Any]:
+    """Separate uploaded-row and demo-result copy. Never mix the two counts."""
+    if uploaded:
+        included = int(dispositions.get("included") or 0)
+        total = int(dispositions.get("total") or 0)
+        remaining_open = int(dispositions.get("remaining_open") or 0)
+        excluded_n = int(dispositions.get("excluded") or 0)
+        complete = bool(dispositions.get("complete"))
+        if remaining_open > 0:
+            status = t("dash.result_preliminary", lang)
+            disposition = (
+                t(
+                    "dash.result_preliminary_body",
+                    lang,
+                    included=included,
+                    total=total,
+                    remaining=remaining_open,
+                )
+                if included >= 1
+                else ""
+            )
+        elif complete and included >= 1:
+            status = t("dash.coverage_complete", lang, total=total)
+            disposition = t(
+                "dash.hero.included",
+                lang,
+                included=included,
+                total=total,
+            )
+        else:
+            status = t("dash.result_preliminary", lang)
+            disposition = ""
+        return {
+            "status_label": status,
+            "disposition_caption": disposition,
+            "excluded_caption": (
+                t("dash.hero.excluded", lang, n=excluded_n) if excluded_n else ""
+            ),
+            "included": included,
+            "total": total,
+            "remaining_open": remaining_open,
+            "complete": complete,
+            "hero_done": included,
+            "hero_total": total,
+            "unresolved": remaining_open,
+        }
+
+    complete_demo = int(calculated_count) > 0
+    return {
+        "status_label": (
+            t("dash.coverage_complete_demo", lang)
+            if complete_demo
+            else t("dash.result_preliminary", lang)
+        ),
+        "disposition_caption": "",
+        "excluded_caption": "",
+        "included": 0,
+        "total": int(activity_count),
+        "remaining_open": int(needs_work),
+        "complete": complete_demo,
+        "hero_done": int(calculated_count),
+        "hero_total": int(activity_count),
+        "unresolved": int(needs_work),
+    }

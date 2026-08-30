@@ -156,9 +156,20 @@ def test_run_id_preserved(tmp_path: Path) -> None:
 
 def test_synthetic_demo_true(tmp_path: Path) -> None:
     output_dir = tmp_path / "bundle_synthetic"
-    manifest_path = export_run_bundle(_core_result(), output_dir)
+    manifest_path = export_run_bundle(
+        _core_result(), output_dir, synthetic_demo=True
+    )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["synthetic_demo"] is True
+
+
+def test_synthetic_demo_false_for_company(tmp_path: Path) -> None:
+    output_dir = tmp_path / "bundle_company"
+    manifest_path = export_run_bundle(
+        _core_result(), output_dir, synthetic_demo=False
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["synthetic_demo"] is False
 
 
 def test_ingested_at_preserved(tmp_path: Path) -> None:

@@ -29,13 +29,14 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_registry_loads_expected_five_tables() -> None:
+def test_registry_loads_expected_tables() -> None:
     result = validate_factor_registry(REFERENCE_DIR)
     assert not result.emission_factors.empty
     assert not result.gwp_values.empty
     assert not result.regulatory_references.empty
     assert not result.calculation_dependencies.empty
     assert not result.engineering_conversions.empty
+    assert list(result.fuel_heating_values.columns)
     assert result.issues.empty
 
 
@@ -62,9 +63,9 @@ def test_live_registry_preserves_required_factor_invariants() -> None:
     assert "ef_tw_grid_electricity_2024" in set(elec["factor_id"])
 
 
-def test_three_gwp_rows_exist() -> None:
+def test_four_gwp_rows_exist() -> None:
     result = validate_factor_registry(REFERENCE_DIR)
-    assert len(result.gwp_values) == 3
+    assert len(result.gwp_values) == 4
 
 
 def test_two_dependency_rows_exist() -> None:
@@ -146,11 +147,20 @@ def test_diesel_n2o_factor_value() -> None:
 
 def test_gwp_values_are_expected() -> None:
     result = validate_factor_registry(REFERENCE_DIR)
+    combustion = result.gwp_values.loc[
+        result.gwp_values["emission_context"] == "fuel_combustion"
+    ]
     values = {
         row["gas"]: float(row["gwp_value"])
-        for _, row in result.gwp_values.iterrows()
+        for _, row in combustion.iterrows()
     }
     assert values == {"CO2": 1.0, "CH4": 28.0, "N2O": 265.0}
+    fossil = result.gwp_values.loc[
+        result.gwp_values["emission_context"] == "fossil_methane_process"
+    ]
+    assert len(fossil) == 1
+    assert float(fossil.iloc[0]["gwp_value"]) == 30.0
+    assert fossil.iloc[0]["gas"] == "CH4"
 
 
 def test_every_factor_references_existing_official_source() -> None:
@@ -300,6 +310,7 @@ def test_registry_validation_does_not_calculate_emissions() -> None:
         result.regulatory_references,
         result.calculation_dependencies,
         result.engineering_conversions,
+        result.fuel_heating_values,
         result.issues,
     ):
         assert forbidden.isdisjoint(set(table.columns))

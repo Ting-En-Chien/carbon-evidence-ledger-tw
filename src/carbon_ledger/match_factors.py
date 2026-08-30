@@ -11,6 +11,15 @@ from typing import Any
 
 import pandas as pd
 
+from carbon_ledger.heating import (
+    STATUS_AMBIGUOUS,
+    STATUS_INVALID_SUBTYPE,
+    STATUS_READY,
+    STATUS_SUBTYPE_REQUIRED,
+    empty_heating_values,
+    select_heating_value,
+)
+
 CANDIDATE_COLUMNS = [
     "record_id",
     "activity_type",
@@ -21,6 +30,7 @@ CANDIDATE_COLUMNS = [
     "match_status",
     "match_reason",
     "required_conversion",
+    "heating_value_id",
 ]
 
 READINESS_COLUMNS = [
@@ -47,6 +57,24 @@ KNOWN_NO_FACTOR_ACTIVITY_TYPES = {
     "purchased_steel",
     "third_party_transport",
 }
+
+ENTERPRISE_ELECTRICITY_PROCESS_USES = frozenset(
+    {
+        "general_factory",
+        "heat_treatment",
+        "forging",
+    }
+)
+ENTERPRISE_ELECTRICITY_CATEGORIES = frozenset(
+    {
+        "industrial_enterprise_inventory",
+        "industry",
+    }
+)
+REQUIRED_COMBUSTION_GASES = frozenset({"CO2", "CH4", "N2O"})
+COMBUSTION_FACTOR_STATUSES = frozenset(
+    {"registered_missing_conversion", "ready"}
+)
 
 
 @dataclass
@@ -139,6 +167,7 @@ def _candidate_row(
     activity_unit: str,
     match_status: str,
     match_reason: str,
+    heating_value_id: str = "",
 ) -> dict[str, Any]:
     return {
         "record_id": record_id,
@@ -150,7 +179,48 @@ def _candidate_row(
         "match_status": match_status,
         "match_reason": match_reason,
         "required_conversion": _text(factor_row.get("required_conversion")),
+        "heating_value_id": heating_value_id,
     }
+
+
+def _factor_category(factor_row: pd.Series) -> str:
+    if "factor_category" in factor_row.index and not _is_blank(
+        factor_row.get("factor_category")
+    ):
+        return _text(factor_row.get("factor_category"))
+    blob = " ".join(
+        [
+            _text(factor_row.get("notes")),
+            _text(factor_row.get("source_locator")),
+        ]
+    )
+    marker = "category="
+    if marker not in blob:
+        return ""
+    raw = blob.split(marker, 1)[1]
+    token = raw.split(";", 1)[0].split(" ", 1)[0].strip()
+    return token.strip(".,")
+
+
+def _activity_electricity_category(process_use: str) -> str:
+    if process_use in ENTERPRISE_ELECTRICITY_PROCESS_USES:
+        return "industrial_enterprise_inventory"
+    return ""
+
+
+def _electricity_factor_applies(
+    factor_row: pd.Series,
+    process_use: str,
+) -> bool:
+    """Do not silently pick a categorized 2025 factor without use context."""
+    category = _factor_category(factor_row)
+    if not category:
+        return True
+    activity_category = _activity_electricity_category(process_use)
+    if category in ENTERPRISE_ELECTRICITY_CATEGORIES:
+        return activity_category in ENTERPRISE_ELECTRICITY_CATEGORIES
+    # Residential / public-sales-average never apply without matching context.
+    return activity_category == category
 
 
 def _match_grid_electricity(
@@ -160,6 +230,7 @@ def _match_grid_electricity(
     activity_unit: str,
     activity_start: Any,
     activity_end: Any,
+    process_use: str,
     emission_factors: pd.DataFrame,
 ) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
@@ -170,6 +241,8 @@ def _match_grid_electricity(
         if not _factor_covers_activity_period(
             factor, activity_start, activity_end
         ):
+            continue
+        if not _electricity_factor_applies(factor, process_use):
             continue
         status = _text(factor.get("factor_status"))
         denominator = _text(factor.get("denominator_unit"))
@@ -195,6 +268,119 @@ def _match_grid_electricity(
     return candidates
 
 
+def _combustion_group_state(factor_rows: list[pd.Series]) -> str:
+    gases = {_text(row.get("gas")) for row in factor_rows}
+    if gases != REQUIRED_COMBUSTION_GASES:
+        return "incomplete"
+    sources = {_text(row.get("source_reference_id")) for row in factor_rows}
+    years = {_text(row.get("factor_year")) for row in factor_rows}
+    contexts = {_text(row.get("combustion_context")) for row in factor_rows}
+    if (
+        len(sources) != 1
+        or "" in sources
+        or len(years) != 1
+        or len(contexts) != 1
+        or "" in contexts
+    ):
+        return "conflicting"
+    return "consistent"
+
+
+def _match_fuel_combustion(
+    *,
+    record_id: str,
+    activity_type: str,
+    activity_unit: str,
+    activity_start: Any,
+    activity_end: Any,
+    emission_factors: pd.DataFrame,
+    heating_values: pd.DataFrame,
+    combustion_context: str,
+    blocked_reason_prefix: str,
+    fuel_subtype: str = "",
+) -> tuple[list[dict[str, Any]], str]:
+    """Return (candidates, group_override_status).
+
+    group_override_status is empty, incomplete, conflicting, ambiguous,
+    subtype_required, or invalid_subtype.
+    """
+    hv = select_heating_value(
+        heating_values,
+        fuel_type=activity_type,
+        activity_start=activity_start,
+        activity_end=activity_end,
+        fuel_subtype=fuel_subtype,
+    )
+    factors = _active_factors(
+        emission_factors,
+        activity_type=activity_type,
+        combustion_context=combustion_context,
+    )
+    eligible_rows: list[pd.Series] = []
+    for _, factor in factors.iterrows():
+        if not _factor_covers_activity_period(
+            factor, activity_start, activity_end
+        ):
+            continue
+        status = _text(factor.get("factor_status"))
+        if status not in COMBUSTION_FACTOR_STATUSES:
+            continue
+        eligible_rows.append(factor)
+
+    heating_ready = hv.status == STATUS_READY
+    heating_ambiguous = hv.status == STATUS_AMBIGUOUS
+    subtype_required = hv.status == STATUS_SUBTYPE_REQUIRED
+    invalid_subtype = hv.status == STATUS_INVALID_SUBTYPE
+    hv_id = hv.heating_value_id if heating_ready else ""
+
+    candidates: list[dict[str, Any]] = []
+    for factor in eligible_rows:
+        required_conversion = _text(factor.get("required_conversion"))
+        if heating_ambiguous or subtype_required or invalid_subtype:
+            match_status = "matched_blocked_dependency"
+            match_reason = hv.reason
+        elif heating_ready:
+            match_status = "matched_ready"
+            match_reason = (
+                f"{blocked_reason_prefix} uses heating value "
+                f"{hv_id} for the activity year."
+            )
+        else:
+            match_status = "matched_blocked_dependency"
+            match_reason = (
+                f"{blocked_reason_prefix} activity unit {activity_unit!r} "
+                "cannot use factor denominator "
+                f"{_text(factor.get('denominator_unit'))!r} until "
+                f"{required_conversion} is verified. {hv.reason}"
+            )
+        candidates.append(
+            _candidate_row(
+                record_id=record_id,
+                activity_type=activity_type,
+                factor_row=factor,
+                activity_unit=activity_unit,
+                match_status=match_status,
+                match_reason=match_reason,
+                heating_value_id=hv_id,
+            )
+        )
+
+    if heating_ambiguous:
+        return candidates, "ambiguous"
+    if subtype_required:
+        return candidates, "subtype_required"
+    if invalid_subtype:
+        return candidates, "invalid_subtype"
+    if not heating_ready:
+        return candidates, ""
+    group_state = _combustion_group_state(eligible_rows)
+    if group_state != "consistent":
+        for item in candidates:
+            item["match_status"] = "matched_blocked_dependency"
+        return candidates, group_state
+    return candidates, ""
+
+
 def _match_natural_gas(
     *,
     record_id: str,
@@ -203,38 +389,21 @@ def _match_natural_gas(
     activity_start: Any,
     activity_end: Any,
     emission_factors: pd.DataFrame,
-) -> list[dict[str, Any]]:
-    candidates: list[dict[str, Any]] = []
-    factors = _active_factors(
-        emission_factors,
-        activity_type="natural_gas",
+    heating_values: pd.DataFrame,
+    fuel_subtype: str = "",
+) -> tuple[list[dict[str, Any]], str]:
+    return _match_fuel_combustion(
+        record_id=record_id,
+        activity_type=activity_type,
+        activity_unit=activity_unit,
+        activity_start=activity_start,
+        activity_end=activity_end,
+        emission_factors=emission_factors,
+        heating_values=heating_values,
         combustion_context="stationary_combustion",
+        blocked_reason_prefix="Natural-gas",
+        fuel_subtype=fuel_subtype,
     )
-    for _, factor in factors.iterrows():
-        if not _factor_covers_activity_period(
-            factor, activity_start, activity_end
-        ):
-            continue
-        status = _text(factor.get("factor_status"))
-        if status != "registered_missing_conversion":
-            continue
-        required_conversion = _text(factor.get("required_conversion"))
-        candidates.append(
-            _candidate_row(
-                record_id=record_id,
-                activity_type=activity_type,
-                factor_row=factor,
-                activity_unit=activity_unit,
-                match_status="matched_blocked_dependency",
-                match_reason=(
-                    f"Natural-gas activity unit {activity_unit!r} cannot use "
-                    f"factor denominator "
-                    f"{_text(factor.get('denominator_unit'))!r} until "
-                    f"{required_conversion} is verified."
-                ),
-            )
-        )
-    return candidates
 
 
 def _match_diesel(
@@ -246,41 +415,21 @@ def _match_diesel(
     activity_start: Any,
     activity_end: Any,
     emission_factors: pd.DataFrame,
-) -> list[dict[str, Any]]:
+    heating_values: pd.DataFrame,
+) -> tuple[list[dict[str, Any]], str]:
     if process_use != "company_vehicle":
-        return []
-
-    candidates: list[dict[str, Any]] = []
-    factors = _active_factors(
-        emission_factors,
-        activity_type="diesel",
+        return [], ""
+    return _match_fuel_combustion(
+        record_id=record_id,
+        activity_type=activity_type,
+        activity_unit=activity_unit,
+        activity_start=activity_start,
+        activity_end=activity_end,
+        emission_factors=emission_factors,
+        heating_values=heating_values,
         combustion_context="mobile_combustion",
+        blocked_reason_prefix="Company-vehicle diesel",
     )
-    for _, factor in factors.iterrows():
-        if not _factor_covers_activity_period(
-            factor, activity_start, activity_end
-        ):
-            continue
-        status = _text(factor.get("factor_status"))
-        if status != "registered_missing_conversion":
-            continue
-        required_conversion = _text(factor.get("required_conversion"))
-        candidates.append(
-            _candidate_row(
-                record_id=record_id,
-                activity_type=activity_type,
-                factor_row=factor,
-                activity_unit=activity_unit,
-                match_status="matched_blocked_dependency",
-                match_reason=(
-                    "Company-vehicle diesel activity unit "
-                    f"{activity_unit!r} cannot use factor denominator "
-                    f"{_text(factor.get('denominator_unit'))!r} until "
-                    f"{required_conversion} is verified."
-                ),
-            )
-        )
-    return candidates
 
 
 def _activity_year_label(activity_start: Any, activity_end: Any) -> str:
@@ -329,6 +478,7 @@ def _build_readiness_row(
     activity_start: Any = None,
     activity_end: Any = None,
     emission_factors: pd.DataFrame | None = None,
+    group_override: str = "",
 ) -> dict[str, Any]:
     count = len(candidates)
 
@@ -400,6 +550,67 @@ def _build_readiness_row(
         }
 
     statuses = {item["match_status"] for item in candidates}
+    if group_override == "ambiguous":
+        dependency = candidates[0]["required_conversion"] if candidates else pd.NA
+        return {
+            "record_id": record_id,
+            "activity_type": activity_type,
+            "calculation_readiness": "blocked_ambiguous_conversion",
+            "candidate_factor_count": count,
+            "blocking_dependency": dependency,
+            "readiness_reason": (
+                "Multiple conflicting ready heating values match this "
+                "activity year. Newest row is not selected."
+            ),
+        }
+    if group_override == "subtype_required":
+        return {
+            "record_id": record_id,
+            "activity_type": activity_type,
+            "calculation_readiness": "blocked_natural_gas_type_required",
+            "candidate_factor_count": count,
+            "blocking_dependency": "natural_gas_type_ng1_or_ng2",
+            "readiness_reason": (
+                "Natural-gas type NG1 or NG2 is required before the official "
+                "heating value can be applied. The type is not inferred."
+            ),
+        }
+    if group_override == "invalid_subtype":
+        return {
+            "record_id": record_id,
+            "activity_type": activity_type,
+            "calculation_readiness": "factor_match_inconsistent",
+            "candidate_factor_count": count,
+            "blocking_dependency": "natural_gas_type_ng1_or_ng2",
+            "readiness_reason": (
+                "Natural-gas subtype is not a valid official type "
+                "(NG1 or NG2)."
+            ),
+        }
+    if group_override == "incomplete":
+        return {
+            "record_id": record_id,
+            "activity_type": activity_type,
+            "calculation_readiness": "blocked_incomplete_gas_factors",
+            "candidate_factor_count": count,
+            "blocking_dependency": pd.NA,
+            "readiness_reason": (
+                "A valid multi-gas group requires CO2, CH4, and N2O. "
+                "Partial totals are not calculated."
+            ),
+        }
+    if group_override == "conflicting":
+        return {
+            "record_id": record_id,
+            "activity_type": activity_type,
+            "calculation_readiness": "blocked_conflicting_factor_group",
+            "candidate_factor_count": count,
+            "blocking_dependency": pd.NA,
+            "readiness_reason": (
+                "CO2/CH4/N2O factors do not share one official source/"
+                "version family."
+            ),
+        }
     if statuses == {"matched_ready"}:
         return {
             "record_id": record_id,
@@ -447,16 +658,22 @@ def match_activity_factors(
     activity_records: pd.DataFrame,
     emission_factors: pd.DataFrame,
     calculation_dependencies: pd.DataFrame,
+    heating_values: pd.DataFrame | None = None,
 ) -> FactorMatchingResult:
     """Match registered emission factors to activities without calculating.
 
-    ``calculation_dependencies`` is accepted for future dependency checks and
-    pipeline consistency. Blocking dependency names currently come from the
-    matched factors' ``required_conversion`` values.
+    ``calculation_dependencies`` is accepted for pipeline consistency.
+    Heating-value year matching decides whether fuel combustion candidates
+    become ``matched_ready``.
     """
     activities = activity_records.copy(deep=True)
     factors = emission_factors.copy(deep=True)
     _ = calculation_dependencies.copy(deep=True)
+    heating = (
+        heating_values.copy(deep=True)
+        if heating_values is not None
+        else empty_heating_values()
+    )
 
     all_candidates: list[dict[str, Any]] = []
     readiness_rows: list[dict[str, Any]] = []
@@ -466,10 +683,12 @@ def match_activity_factors(
         activity_type = _text(activity.get("activity_type"))
         activity_unit = _activity_unit(activity)
         process_use = _text(activity.get("process_use"))
+        fuel_subtype = _text(activity.get("fuel_subtype"))
         start = activity.get("activity_start_date")
         end = activity.get("activity_end_date")
 
         candidates: list[dict[str, Any]] = []
+        group_override = ""
         if activity_type == "grid_electricity":
             candidates = _match_grid_electricity(
                 record_id=record_id,
@@ -477,19 +696,22 @@ def match_activity_factors(
                 activity_unit=activity_unit,
                 activity_start=start,
                 activity_end=end,
+                process_use=process_use,
                 emission_factors=factors,
             )
         elif activity_type == "natural_gas":
-            candidates = _match_natural_gas(
+            candidates, group_override = _match_natural_gas(
                 record_id=record_id,
                 activity_type=activity_type,
                 activity_unit=activity_unit,
                 activity_start=start,
                 activity_end=end,
                 emission_factors=factors,
+                heating_values=heating,
+                fuel_subtype=fuel_subtype,
             )
         elif activity_type == "diesel":
-            candidates = _match_diesel(
+            candidates, group_override = _match_diesel(
                 record_id=record_id,
                 activity_type=activity_type,
                 activity_unit=activity_unit,
@@ -497,6 +719,7 @@ def match_activity_factors(
                 activity_start=start,
                 activity_end=end,
                 emission_factors=factors,
+                heating_values=heating,
             )
 
         all_candidates.extend(candidates)
@@ -508,6 +731,7 @@ def match_activity_factors(
                 activity_start=start,
                 activity_end=end,
                 emission_factors=factors,
+                group_override=group_override,
             )
         )
 
