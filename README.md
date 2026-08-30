@@ -35,23 +35,19 @@ The first public MVP uses a fictional Taiwanese steel-fastener exporter:
 
 **Demo Fasteners Taiwan Ltd. (Synthetic)**
 
-The company manufactures products such as screws, nuts, and bolts. Selected
-products may fall under CN 7318 in the synthetic demonstration only. Product
-names alone are not treated as formal customs classification.
+The company manufactures products such as screws, nuts, and bolts. All
+company-level activity records used in the public demonstration are synthetic.
 
 ## Current scope and roadmap
 
 The v0.1.0 public release focuses on traceable evidence intake, data validation,
 limited emissions calculations, and a guided workflow for a synthetic Taiwanese
-exporter scenario. Framework-related features have different maturity levels:
+exporter scenario. The current public scope includes:
 
 - **GHG Protocol** — technical Scope 1 / 2 / 3 mapping for supported synthetic
   activity records is available now.
 - **Taiwan regulatory applicability** — the web app provides guided screening
   based on registered reference records, but does not make a legal determination.
-- **EU CBAM** — an experimental data-role mapping is available for a simplified
-  steel-fastener scenario. A complete declaration, embedded-emissions workflow,
-  and certificate calculation remain future work.
 - **IFRS S2** — experimental climate-data readiness signals are available. Full
   disclosures, compliance assessment, and assurance remain outside the current
   release.
@@ -66,7 +62,7 @@ exporter scenario. Framework-related features have different maturity levels:
 - deterministic factor matching and calculation-readiness checks
 - limited emissions calculations where configured factors are available
 - technical GHG Protocol mapping for supported records
-- optional experimental EU CBAM and IFRS S2 readiness mappings
+- optional experimental IFRS S2 climate-data readiness mapping
 - reproducible pipeline outputs and downloadable audit bundles
 
 This is a public research and demonstration release, not production compliance
@@ -169,12 +165,14 @@ See `docs/official_reference_sync.md`.
 
 ## Quick Demo
 
-Run the synthetic end-to-end demo with all optional adapters:
+Run the synthetic end-to-end demo with the framework adapters presented in this
+release:
 
 ```bash
 python -m carbon_ledger run-demo \
   --run-id portfolio_demo \
-  --all-adapters
+  --include-ghg \
+  --include-ifrs-s2
 ```
 
 Outputs are written to:
@@ -222,18 +220,15 @@ any future private pilot must stay out of Git.
 - Natural gas and diesel remain blocked until applicable verified heating
   values exist
 - Purchased steel still has no configured calculation factor
-- CN 7318 is a demonstration assumption, not a formal customs determination
-- CBAM is an optional downstream adapter
 - IFRS S2 evaluation is readiness only, not a compliance assessment
 - The v0.1.0 public release is not production-ready
 
 ## Limitations and disclaimer
 
-This project is not legal, customs, assurance, or compliance advice.
-It does not determine CBAM certificate liability or IFRS S2 compliance.
-Product CN codes and regulatory mappings are simplified for educational and
-technical demonstration purposes and require professional review before
-real-world use.
+This project is not legal, assurance, or compliance advice. It does not
+determine IFRS S2 compliance. Regulatory mappings are simplified for
+educational and technical demonstration purposes and require professional
+review before real-world use.
 
 ## License
 
