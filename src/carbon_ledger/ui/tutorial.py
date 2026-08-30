@@ -1102,8 +1102,12 @@ def _clear_query_token() -> None:
 def _bridge_script() -> str:
     return (
         "(function(){"
-        "var w=window;try{if(w.parent&&w.parent!==w){"
-        "void w.parent.document.documentElement;w=w.parent;}}catch(e){w=window;}"
+        "var w=window;try{var d=w.document;"
+        "var marker='.st-key-cel_onboarding_hydrate';"
+        "if(!d.querySelector(marker)&&w.parent&&w.parent!==w){"
+        "var pd=w.parent.document;"
+        "if(pd.querySelector(marker)){w=w.parent;}}}"
+        "catch(e){w=window;}"
         "var token='new';"
         "try{var raw=w.localStorage.getItem(" + json.dumps(LOCAL_STORAGE_KEY) + ");"
         "if(raw){var r=JSON.parse(raw)||{};"
@@ -1129,8 +1133,12 @@ def _persist_script(record: dict[str, Any]) -> str:
     payload = json.dumps(record, ensure_ascii=False, sort_keys=True)
     return (
         "(function(){"
-        "var w=window;try{if(w.parent&&w.parent!==w){"
-        "void w.parent.document.documentElement;w=w.parent;}}catch(e){w=window;}"
+        "var w=window;try{var d=w.document;"
+        "var marker='.st-key-cel_onboarding_persist';"
+        "if(!d.querySelector(marker)&&w.parent&&w.parent!==w){"
+        "var pd=w.parent.document;"
+        "if(pd.querySelector(marker)){w=w.parent;}}}"
+        "catch(e){w=window;}"
         "try{w.localStorage.setItem(" + json.dumps(LOCAL_STORAGE_KEY) + ","
         + json.dumps(payload)
         + ");}catch(e){}"

@@ -700,6 +700,18 @@ def test_bridge_stores_nothing_sensitive() -> None:
         assert token not in script.lower(), token
 
 
+def test_browser_bridge_stays_in_the_streamlit_app_document() -> None:
+    """Community Cloud wraps the app in a same-origin outer iframe."""
+    from carbon_ledger.ui.tutorial import _bridge_script, _persist_script
+
+    bridge = _bridge_script()
+    persist = _persist_script(onboarding_record({}))
+    assert ".st-key-cel_onboarding_hydrate" in bridge
+    assert ".st-key-cel_onboarding_persist" in persist
+    assert "!d.querySelector(marker)" in bridge
+    assert "!d.querySelector(marker)" in persist
+
+
 # --------------------------------------------------------------------------
 # DOM anchoring contract
 # --------------------------------------------------------------------------
@@ -735,6 +747,14 @@ def test_runtime_measures_live_dom_and_never_paints_a_stale_box() -> None:
     # No fixed sleeps and no normalized screenshot coordinates.
     assert "setTimeout" not in js
     assert "normalized" not in js
+
+
+def test_runtime_prefers_the_document_that_contains_the_coach_host() -> None:
+    """Do not bind to Streamlit Cloud's same-origin wrapper document."""
+    js = COACH_JS.read_text(encoding="utf-8")
+    assert 'doc.querySelector(".st-key-cel_onboarding_coach")' in js
+    assert "if (!currentHasHost" in js
+    assert 'parentDoc.querySelector(".st-key-cel_onboarding_coach")' in js
 
 
 def test_runtime_steps_aside_inside_the_real_setup_flow() -> None:

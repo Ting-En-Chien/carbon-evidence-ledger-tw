@@ -11,25 +11,23 @@
  * with a parent-document fallback when executed inside components.html.
  */
 (function () {
-  var w;
-  var doc;
+  var w = window;
+  var doc = document;
   try {
-    if (window.parent && window.parent !== window) {
-      try {
-        void window.parent.document.documentElement;
+    // st.html runs in the app document.  On Community Cloud that document is
+    // itself inside a same-origin wrapper, so climbing unconditionally would
+    // search the wrapper and leave the real coachmark parked off-screen.
+    // Only climb for the legacy components.html fallback, whose own document
+    // does not contain the Streamlit coach host.
+    var currentHasHost = !!doc.querySelector(".st-key-cel_onboarding_coach");
+    if (!currentHasHost && window.parent && window.parent !== window) {
+      var parentDoc = window.parent.document;
+      if (parentDoc.querySelector(".st-key-cel_onboarding_coach")) {
         w = window.parent;
-        doc = w.document;
-      } catch (errParent) {
-        w = window;
-        doc = document;
+        doc = parentDoc;
       }
-    } else {
-      w = window;
-      doc = document;
     }
-  } catch (err) {
-    return;
-  }
+  } catch (errParent) {}
   if (!doc || !doc.body) return;
 
   var HOST = ".st-key-cel_onboarding_coach";
