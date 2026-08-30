@@ -308,6 +308,8 @@ def test_replay_resumes_at_earliest_unfinished_step(workspace_root) -> None:
     complete_onboarding(state)
     assert onboarding_stage(state) == STAGE_DONE
     request_onboarding(state)
+    assert onboarding_stage(state) == STAGE_WELCOME
+    start_onboarding(state)
     assert onboarding_stage(state) == STAGE_RUNNING
     # Company setup is already done, so it is never asked for again.
     assert resolve_onboarding_step(state) == 2
@@ -319,6 +321,8 @@ def test_replay_shows_results_step_when_everything_is_done(workspace_root) -> No
     start_onboarding(state)
     complete_onboarding(state)
     request_onboarding(state)
+    assert onboarding_stage(state) == STAGE_WELCOME
+    start_onboarding(state)
     assert resolve_onboarding_step(state) == 5
 
 
@@ -661,8 +665,10 @@ def test_dismissed_survives_a_reload_and_can_be_reopened() -> None:
     reloaded: dict = {}
     apply_hydration_token(reloaded, token)
     assert onboarding_stage(reloaded) == STAGE_DISMISSED
-    # 操作教學 still reopens it, resuming rather than replaying Welcome.
+    # 操作教學 always gives visible feedback before resuming progress.
     request_onboarding(reloaded)
+    assert onboarding_stage(reloaded) == STAGE_WELCOME
+    start_onboarding(reloaded)
     assert onboarding_stage(reloaded) == STAGE_RUNNING
 
 

@@ -29,7 +29,7 @@ from carbon_ledger.ui.i18n import t
 
 _COACH_JS_PATH = Path(__file__).with_name("onboarding_coach.js")
 
-ONBOARDING_VERSION = "stage4-2i-scenes-20260829"
+ONBOARDING_VERSION = "stage4-2j-visible-replay-20260830"
 ONBOARDING_STEP_COUNT = 5
 
 STAGE_WELCOME = "welcome"
@@ -53,7 +53,9 @@ STATE_ONBOARDING_PERSISTED = "onboarding_persisted_record"
 STATE_APPLICABILITY_HINT_SEEN = "onboarding_applicability_hint_seen"
 
 # Durable transport for the browser bridge.
-LOCAL_STORAGE_KEY = "cel.onboarding.v1"
+# v2 intentionally gives every browser one clean first run after the original
+# Cloud deployment could persist a dismissed state before showing any UI.
+LOCAL_STORAGE_KEY = "cel.onboarding.v2"
 QUERY_PARAM = "onb"
 HYDRATE_NEW = "new"
 HYDRATE_RUN = "run"
@@ -964,14 +966,15 @@ def complete_onboarding(session_state: Any) -> None:
 
 
 def request_onboarding(session_state: Any) -> None:
-    """Reopen from 操作教學. Resumes at the earliest unfinished step."""
+    """Reopen from 操作教學 with an unmistakable visible starting surface."""
     ensure_onboarding_state(session_state)
     session_state[STATE_TUTORIAL_COMPLETED] = False
     session_state[STATE_TUTORIAL_SESSION_DISMISSED] = False
-    if bool(_ss_flag(session_state, STATE_ONBOARDING_STARTED)):
-        session_state[STATE_ONBOARDING_STAGE] = STAGE_RUNNING
-    else:
-        session_state[STATE_ONBOARDING_STAGE] = STAGE_WELCOME
+    # Always show the welcome dialog first. Previously a returning browser
+    # jumped straight to a small coachmark; if routing was still settling the
+    # click appeared to do nothing. Selecting 開始 still resumes at the earliest
+    # unfinished real-product step through ``start_onboarding`` below.
+    session_state[STATE_ONBOARDING_STAGE] = STAGE_WELCOME
     session_state[STATE_OPEN_TUTORIAL] = True
     session_state[STATE_TUTORIAL_OPEN_COUNT] = (
         int(_ss_flag(session_state, STATE_TUTORIAL_OPEN_COUNT, 0) or 0) + 1
