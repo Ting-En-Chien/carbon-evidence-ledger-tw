@@ -172,7 +172,7 @@ redirect) are **not** automatically retried with relaxed strictness.
 
 Official GET requests send a transparent application User-Agent, for example:
 
-`CarbonEvidenceLedger/0.1 (+https://github.com/AppleJustin/carbon-evidence-ledger-tw)`
+`CarbonEvidenceLedger/0.1 (+https://github.com/Ting-En-Chien/carbon-evidence-ledger-tw)`
 
 plus conservative `Accept` / `Accept-Language` headers. They do **not**
 impersonate Chrome, and they do not add cookies, authentication, referer

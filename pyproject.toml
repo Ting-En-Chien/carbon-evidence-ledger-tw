@@ -15,19 +15,36 @@ dependencies = [
     "pandera",
     "streamlit>=1.60,<2",
     "openpyxl>=3.1,<4",
+    "reportlab>=4.2.5,<5",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
     "ruff",
+    "pypdf>=5.1,<6",
+    "pypdfium2>=4.30,<5",
+]
+e2e = [
+    "playwright>=1.49",
+    "pytest-playwright>=0.6",
+    "pypdf>=5.1,<6",
+    "pypdfium2>=4.30,<5",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+carbon_ledger = ["ui/assets/fonts/*", "ui/*.js", "ui/*.css"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+markers = [
+    "e2e: browser end-to-end smoke tests (requires Playwright + Chromium)",
+    "benchmark: optional slow benchmarks; run with CEL_INTAKE_BENCH=1",
+]
 
 [tool.ruff]
 target-version = "py311"

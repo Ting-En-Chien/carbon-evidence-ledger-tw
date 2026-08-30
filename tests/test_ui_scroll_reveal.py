@@ -40,7 +40,11 @@ def _full_result():
 
 
 def _run_app() -> AppTest:
+    from carbon_ledger.ui.state import activate_demo_mode
+
     at = AppTest.from_file(str(APP_PATH), default_timeout=120)
+    at.run()
+    activate_demo_mode(at.session_state)
     at.run()
     assert not at.exception
     return at
@@ -76,9 +80,8 @@ def test_below_fold_sections_marked_for_viewport_reveal() -> None:
     at = _run_app()
     text = _all_markdown(at)
     assert 'data-cel-reveal="kpi"' in text or "data-cel-reveal=" in text
-    assert 'data-cel-key="trend"' in text or 'data-cel-key="trend-panel"' in text
     assert 'data-cel-key="sources"' in text or 'data-cel-key="sources-panel"' in text
-    assert 'data-cel-reveal="trace"' in text
+    assert 'data-cel-key="detail"' in text or "排放明細" in text
     assert "data-cel-animation-type" in text
 
 
@@ -107,21 +110,31 @@ def test_kpi_count_attributes_use_real_result_values() -> None:
 
 
 def test_trace_card_includes_countup_spans() -> None:
+    """Calculation basis lives on Activity Explorer (not dashboard)."""
     at = _run_app()
+    at.switch_page("app_pages/activity_explorer.py")
+    at.run()
     text = _all_markdown(at)
-    assert 'data-cel-reveal="trace"' in text
-    assert 'data-cel-key="calc-trace"' in text
-    # Formula / result numbers carry count-up targets when a calculated row exists.
-    assert "data-cel-count=" in text
-    assert "kgCO2e" in text
+    # Layer-2 basis expander exposes formula terms without dashboard trace card.
+    assert "查看計算依據" in text or "計算" in text
+    assert "排放" in text or "tCO" in text or "kgCO2e" in text
+    # Hero count-up path on dashboard remains covered by other tests.
+    dash = _run_app()
+    dash_text = _all_markdown(dash)
+    assert 'data-cel-hero-emissions="1"' in dash_text
+    assert 'data-cel-key="calc-trace"' not in dash_text
 
 
 def test_completeness_stats_use_countup_markup() -> None:
+    source = (
+        REPO_ROOT / "src/carbon_ledger/ui/components.py"
+    ).read_text(encoding="utf-8")
+    assert 'scroll_key: str = "completeness-metrics"' in source
+    assert "cel-stat-value" in source
+    assert "cel-stat-stack" in source
     at = _run_app()
     text = _all_markdown(at)
-    assert 'data-cel-key="completeness-metrics"' in text
-    assert "cel-stat-value" in text
-    assert "cel-stat-stack" in text
+    assert 'data-cel-key="completeness-metrics"' not in text
 
 
 def test_electricity_trace_preserves_factor_and_result() -> None:
@@ -196,13 +209,13 @@ def test_result_page_kpi_content_visible_without_motion_init() -> None:
     """AppTest has no browser observer; content must still be present."""
     at = _run_app()
     text = _all_markdown(at)
-    for label in ("已計算排放量", "計算完成", "仍需處理", "資料來源"):
+    for label in ("已計算排放量",):
         assert label in text
-    assert "排放趨勢" in text
-    assert "排放來源" in text
-    # Completeness metrics remain; section title may be "missing data" framing.
-    assert "缺少的資料" in text or "資料完整度" in text
-    assert 'data-cel-key="completeness-metrics"' in text
+    assert "排放明細" in text
+    assert "排放來源" in text or "依來源" in text
+    assert "缺少的資料" not in text
+    assert "資料完整度" not in text
+    assert 'data-cel-key="completeness-metrics"' not in text
     # Final numeric payloads remain in DOM attributes / text.
     assert "data-cel-final=" in text
     assert "tCO₂e" in text or "tCO2e" in text

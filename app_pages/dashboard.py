@@ -1,399 +1,451 @@
-"""Compliance Overview — Stage 2 IA shell over Phase 11 result components."""
+"""Compliance Overview — customer-first post-analysis home."""
 
 from __future__ import annotations
 
+import html
+
 import streamlit as st
 
+from carbon_ledger.potential_duplicates import (
+    excluded_record_ids,
+    groups_from_intake,
+    unresolved_potential_duplicate_groups,
+)
 from carbon_ledger.ui.charts import (
-    render_calculation_status_donut,
     render_emissions_source_bars,
     render_monthly_emissions_trend,
 )
 from carbon_ledger.ui.components import (
     inject_design_system,
-    render_completeness_stats,
-    render_empty_state,
-    render_issue_card,
-    render_page_header,
-    render_result_meta_strip,
     render_section_header,
-    render_success_banner,
-    render_trace_card,
     render_viz_panel_end,
     render_viz_panel_start,
 )
-from carbon_ledger.ui.formatting import (
-    format_activity_amount,
-    format_tco2e,
-    format_tco2e_parts,
+from carbon_ledger.ui.enterprise import (
+    inject_enterprise_styles,
+    render_greeting_block,
+    render_regulatory_status_chip,
+    render_workflow_journey,
 )
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.motion import (
+    analysis_phase,
+    animation_run_token,
     consume_result_reveal,
     hero_emissions_should_play,
     mark_chart_reveal,
+    render_animated_metric,
     render_hero_result_kpis,
-    result_reveal_token,
 )
 from carbon_ledger.ui.state import (
+    ANALYSIS_PHASE_ANALYZING,
+    ANALYSIS_PHASE_FAILED,
+    REPO_ROOT,
+    STATE_ANALYSIS_RUNNING,
+    STATE_INTAKE_RESULT,
+    STATE_INTAKE_SHOW_MAPPING_EDITOR,
+    STATE_INTAKE_STEP,
+    STATE_INTAKE_TABLE,
+    duplicate_review_decisions_from_state,
     get_analysis_source_summary,
+    get_applicability_assessment,
+    get_company_profile_mapping,
     get_current_result,
     get_language,
     is_uploaded_analysis,
-    set_focus_record,
 )
+from carbon_ledger.ui.tutorial import note_entered_company_setup, onboarding_target
 from carbon_ledger.ui.view_models import (
     beginner_result_summary,
-    build_activity_overview,
     calculated_emissions_summary,
-    calculation_table_rows,
-    calculation_trace_fields,
-    first_calculated_electricity_record_id,
-    priority_action_cards,
+    executive_emissions_insights,
+    hero_result_status_and_disposition,
+    labeled_scope_hero_caption,
+    reconcile_row_dispositions,
+    scope_kpi_states,
+    should_show_coverage_chart,
+    should_show_unresolved_cta,
+)
+from carbon_ledger.ui.view_models_compliance import (
+    home_requirement_summary,
+    regulatory_freshness_banner,
 )
 
 inject_design_system()
+inject_enterprise_styles()
 lang = get_language(st.session_state)
 result = get_current_result(st.session_state)
+_phase = analysis_phase(st.session_state)
+if bool(st.session_state.get(STATE_ANALYSIS_RUNNING)) or _phase in {
+    ANALYSIS_PHASE_ANALYZING,
+    ANALYSIS_PHASE_FAILED,
+}:
+    # Analysis owns the main area; never paint result KPIs underneath it.
+    st.stop()
 
 if result is None:
-    st.error(t("error.analysis_failed", lang))
+    from carbon_ledger.ui.state import activate_demo_mode
+
+    st.markdown(
+        f"""
+        <p class="cel-page-kicker">{t("dash.page_title", lang)}</p>
+        <h1 class="cel-page-title">{t("onboard.welcome_title", lang)}</h1>
+        <p class="cel-page-sub">{t("onboard.welcome_body", lang)}</p>
+        """,
+        unsafe_allow_html=True,
+    )
+    steps = [
+        t("onboard.step1", lang),
+        t("onboard.step2", lang),
+        t("onboard.step3", lang),
+        t("onboard.step4", lang),
+        t("onboard.step5", lang),
+    ]
+    render_workflow_journey(
+        [
+            {
+                "label": label,
+                "state": "current" if index == 0 else "todo",
+            }
+            for index, label in enumerate(steps)
+        ],
+        lang,
+    )
+    cta1, cta2 = st.columns([1.2, 1])
+    with cta1:
+        with onboarding_target("start-setup"):
+            if st.button(
+                t("onboard.cta_setup", lang),
+                type="primary",
+                use_container_width=True,
+                key="onboard_start_setup",
+            ):
+                note_entered_company_setup(st.session_state)
+                st.switch_page("app_pages/applicability.py")
+    with cta2:
+        if st.button(
+            t("onboard.cta_demo", lang),
+            use_container_width=True,
+            key="onboard_try_demo",
+        ):
+            activate_demo_mode(st.session_state, force=True)
+            st.rerun()
+    st.caption(t("onboard.demo_note", lang))
     st.stop()
 
 source = get_analysis_source_summary(st.session_state)
 uploaded = is_uploaded_analysis(st.session_state)
-badge = (
-    t("common.uploaded_badge", lang)
-    if uploaded
-    else t("common.demo_badge", lang)
-)
-animate = consume_result_reveal(st.session_state, result)
-analysis_token = result_reveal_token(result)
 play_hero_count = hero_emissions_should_play(st.session_state, result)
+animate = consume_result_reveal(st.session_state, result)
+analysis_token = animation_run_token(st.session_state, result)
 
-render_page_header(
-    t("dash.page_title", lang),
-    t("dash.page_subtitle", lang),
+profile = get_company_profile_mapping(st.session_state)
+assessment = get_applicability_assessment(st.session_state)
+company_name = str(profile.get("company_name") or "") or t(
+    "dash.greeting_company_fallback", lang
 )
-st.caption(t("dash.no_fake_score_note", lang))
+reporting_year = profile.get("reporting_year") or source.get("period_end") or "—"
 
-period_start = source.get("period_start")
-period_end = source.get("period_end")
-if period_start and period_end:
-    period_text = f"{period_start} — {period_end}"
-else:
-    period_text = t("dash.period_unknown", lang)
-
-if uploaded:
-    file_display = str(source.get("file_name") or "uploaded_file")
-else:
-    file_display = t("sidebar.workspace_name", lang)
-
-st.markdown(
-    (
-        '<div data-cel-reveal="section" data-cel-key="result-meta" '
-        'data-cel-animation-type="section">'
-    ),
-    unsafe_allow_html=True,
-)
-render_result_meta_strip(
-    file_name=file_display,
-    period_text=period_text,
-    badge=badge,
-)
-st.markdown("</div>", unsafe_allow_html=True)
-
+freshness = regulatory_freshness_banner(REPO_ROOT, lang=lang)
 summary = beginner_result_summary(result, lang)
 emissions = calculated_emissions_summary(result, lang)
 value = emissions["calculated_tco2e"]
 done = int(summary["calculated"])
-partial_label = (
-    t("common.partial_result", lang)
-    if done < int(summary["activities"])
-    else t("status.calculated", lang)
+unresolved_count = int(summary["needs_work"])
+total_count = int(summary["activities"])
+source_count = int(summary["source_documents"])
+insights = executive_emissions_insights(result, lang)
+req_summary = home_requirement_summary(assessment, lang)
+scope_states = scope_kpi_states(result)
+
+intake_result = st.session_state.get(STATE_INTAKE_RESULT)
+uploaded_table = st.session_state.get(STATE_INTAKE_TABLE)
+duplicate_decisions = duplicate_review_decisions_from_state(st.session_state)
+dup_groups = groups_from_intake(intake_result) if intake_result is not None else []
+excluded_ids = excluded_record_ids(dup_groups, duplicate_decisions)
+unresolved_groups = unresolved_potential_duplicate_groups(
+    dup_groups, duplicate_decisions
+)
+candidate_ids = {
+    str(record_id)
+    for group in unresolved_groups
+    for record_id in group.record_ids
+}
+dispositions = reconcile_row_dispositions(
+    uploaded_table=uploaded_table,
+    intake_result=intake_result,
+    pipeline_result=result,
+    duplicate_excluded_ids=excluded_ids,
+    duplicate_candidate_ids=candidate_ids,
+    duplicate_unresolved=bool(unresolved_groups),
+    is_uploaded_analysis=uploaded,
+)
+hero_copy = hero_result_status_and_disposition(
+    uploaded=uploaded,
+    dispositions=dispositions,
+    calculated_count=done,
+    activity_count=total_count,
+    needs_work=unresolved_count,
+    lang=lang,
+)
+included = int(hero_copy["included"])
+remaining_open = int(hero_copy["remaining_open"])
+population = int(hero_copy["hero_total"])
+complete = bool(hero_copy["complete"])
+show_issues = remaining_open > 0 if uploaded else should_show_unresolved_cta(
+    unresolved_count
+)
+show_coverage_bar = should_show_coverage_chart(
+    int(hero_copy["hero_done"]), population
 )
 
-if animate:
-    render_success_banner(
-        title=t("dash.complete_title", lang),
-        body=t(
-            "analysis.complete_detail",
-            lang,
-            total=int(summary["activities"]),
-            done=done,
-        ),
-        reveal=True,
-    )
-
-# Level 1 — what requires attention
-render_section_header(
-    t("dash.section_attention", lang),
-    t("dash.section_attention_help", lang),
-    scroll_key="priority",
+st.markdown(
+    f'<p class="cel-page-kicker">{t("dash.page_title", lang)}</p>',
+    unsafe_allow_html=True,
 )
-priority = priority_action_cards(result, lang, limit=4)
-if not priority:
-    render_empty_state(
-        t("dash.attention_empty", lang),
-        t("dash.attention_empty", lang),
-    )
-else:
-    cols = st.columns(min(4, len(priority)), gap="medium")
-    for index, card in enumerate(priority):
-        with cols[index % len(cols)]:
-            impact = int(card.get("affected_count") or 0)
-            impact_text = t("dash.priority.affected", lang, count=impact)
-            render_issue_card(
-                activity_name=card["activity_name"],
-                title=t("dash.uncalculable_title", lang),
-                severity=t("common.partial_result", lang),
-                action_hint=f"{card['reason']}\n{impact_text}",
-                scroll_key=f"priority-{index}",
-            )
-            if st.button(
-                t("dash.cta.how_to_fix", lang),
-                key=f"dash_priority_{card['record_id']}",
-                type="tertiary",
-            ):
-                set_focus_record(st.session_state, card["record_id"])
-                st.switch_page("app_pages/activity_explorer.py")
-
-# Level 2/3 — missing / review
+# 1. 排放資料摘要 — hero first
 render_section_header(
-    t("dash.section_missing", lang),
-    t("dash.section_completeness_help", lang),
-    scroll_key="completeness",
-)
-comp_left, comp_right = st.columns([1.1, 1], gap="large")
-with comp_left:
-    render_viz_panel_start(
-        t("chart.calc_status.title", lang),
-        scroll_key="completeness-donut",
-        chart_kind="donut",
-    )
-    mark_chart_reveal("completeness-donut", chart="donut")
-    render_calculation_status_donut(result, lang)
-    render_viz_panel_end()
-with comp_right:
-    render_completeness_stats(
-        note=t("dash.completeness_note", lang),
-        calculated_label=t("dash.calculated_kpi", lang),
-        calculated_value=int(done),
-        needs_work_label=t("dash.needs_work_kpi", lang),
-        needs_work_value=int(summary["needs_work"]),
-        scroll_key="completeness-metrics",
-    )
-
-cta_cols = st.columns([1, 1, 1, 1])
-with cta_cols[0]:
-    if st.button(
-        t("dash.cta.view_issues", lang),
-        key="dash_view_issues",
-        type="secondary",
-        use_container_width=True,
-    ):
-        st.switch_page("app_pages/issues_actions.py")
-with cta_cols[1]:
-    if st.button(
-        t("dash.cta.view_evidence", lang),
-        key="dash_view_evidence",
-        type="secondary",
-        use_container_width=True,
-    ):
-        st.switch_page("app_pages/data_intake.py")
-with cta_cols[2]:
-    if st.button(
-        t("dash.cta.view_ifrs", lang),
-        key="dash_open_ifrs",
-        type="tertiary",
-        use_container_width=True,
-    ):
-        st.switch_page("app_pages/frameworks.py")
-with cta_cols[3]:
-    if st.button(
-        t("dash.cta.view_taiwan", lang),
-        key="dash_open_taiwan",
-        type="tertiary",
-        use_container_width=True,
-    ):
-        st.switch_page("app_pages/taiwan_ghg.py")
-
-# Level 4 secondary — emissions evidence summary (preserve hero count-up)
-render_section_header(
-    t("dash.section_emissions_summary", lang),
-    t("dash.section_emissions_summary_help", lang),
+    t("dash.emissions_section", lang),
     scroll_key="emissions-summary",
 )
+scope_caption = labeled_scope_hero_caption(scope_states, lang)
 render_hero_result_kpis(
     emissions_value=value,
     emissions_label=t("dash.kpi.emissions", lang),
-    emissions_subtitle=partial_label,
-    done=done,
-    total=int(summary["activities"]),
+    emissions_subtitle="",
+    done=int(hero_copy["hero_done"]),
+    total=int(hero_copy["hero_total"]),
     completion_label=t("dash.kpi.completion", lang),
     completion_subtitle=t(
         "dash.emissions_ratio",
         lang,
-        done=done,
-        total=summary["activities"],
+        done=int(hero_copy["hero_done"]),
+        total=int(hero_copy["hero_total"]),
     ),
-    unresolved=int(summary["needs_work"]),
+    unresolved=int(hero_copy["unresolved"]),
     unresolved_label=t("dash.kpi.unresolved", lang),
     unresolved_subtitle=t("dash.kpi.unresolved_hint", lang),
-    sources=int(summary["source_documents"]),
+    sources=source_count,
     sources_label=t("dash.kpi.source", lang),
     sources_subtitle=t("dash.kpi.source_hint", lang),
     animate=animate,
     animation_token=analysis_token,
     play_hero_count=play_hero_count,
+    include_secondary_cards=False,
+    status_label=hero_copy["status_label"],
+    disposition_caption=hero_copy["disposition_caption"],
+    scope_caption=scope_caption,
+    excluded_caption=hero_copy["excluded_caption"],
+    meta_caption=t(
+        "dash.hero.meta",
+        lang,
+        company=company_name,
+        period=reporting_year,
+        sources=source_count,
+    ),
 )
-st.caption(t("dash.emissions_notice", lang))
+if st.button(t("dash.hero.factor_details", lang), key="dash_hero_factor_details"):
+    st.switch_page("app_pages/activity_explorer.py")
 
-left, right = st.columns(2, gap="large")
-with left:
-    render_viz_panel_start(
-        t("dash.section_trend", lang),
-        t("dash.section_trend_help", lang),
-        scroll_key="trend-panel",
-        chart_kind="area",
+render_greeting_block(
+    company=company_name,
+    reporting_year=reporting_year,
+    attention_count=0,
+    lang=lang,
+)
+render_regulatory_status_chip(freshness, lang)
+
+if show_issues:
+    if uploaded:
+        if included >= 1:
+            st.warning(
+                "⚠ "
+                + t(
+                    "dash.result_preliminary_body",
+                    lang,
+                    included=included,
+                    total=population,
+                    remaining=remaining_open,
+                )
+            )
+        if st.button(
+            t("dash.cta.resolve_remaining", lang, remaining=remaining_open),
+            key="dash_resolve_remaining",
+        ):
+            st.session_state[STATE_INTAKE_STEP] = 2
+            st.session_state[STATE_INTAKE_RESULT] = None
+            st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = False
+            st.switch_page("app_pages/data_intake.py")
+    else:
+        st.warning(
+            "⚠ " + t("dash.issues_banner", lang, count=unresolved_count)
+        )
+        if show_coverage_bar:
+            st.progress(float(done) / float(max(1, total_count)))
+            st.caption(
+                t(
+                    "dash.coverage_partial",
+                    lang,
+                    done=done,
+                    total=total_count,
+                )
+            )
+        if st.button(t("dash.cta.view_problems", lang), key="dash_view_issues"):
+            st.switch_page("app_pages/issues_actions.py")
+elif uploaded and complete and included >= 1:
+    st.success("✓ " + t("dash.coverage_complete", lang, total=population))
+    st.caption("✓ " + t("dash.coverage_all_done", lang))
+elif not uploaded and complete:
+    st.success("✓ " + t("dash.coverage_complete_demo", lang))
+    st.caption("✓ " + t("dash.coverage_all_done", lang))
+
+# 2. Scope 分解
+scope_states = scope_kpi_states(result)
+render_section_header(
+    t("dash.section_scope_main", lang),
+    scroll_key="scope-breakdown",
+)
+scope_cols = st.columns(3)
+
+
+def _render_scope_kpi(
+    scope_key: str, label_key: str, plain_key: str, metric_key: str
+) -> None:
+    st.markdown(f"**{t(label_key, lang)}**")
+    st.caption(t(plain_key, lang))
+    state = scope_states.get(scope_key) or {}
+    if state.get("state") == "calculated":
+        render_animated_metric(
+            float(state.get("value") or 0.0),
+            decimals=2,
+            suffix="tCO₂e",
+            key=metric_key,
+            play=play_hero_count,
+            run=analysis_token,
+        )
+        return
+    if state.get("state") == "unsupported":
+        st.markdown(
+            "<div data-cel-tour-target='results-scope3'>"
+            f"{html.escape(t('dash.hero.scope3_version', lang))}"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        return
+    st.write(t("dash.scope_pending", lang))
+
+
+with scope_cols[0]:
+    _render_scope_kpi(
+        "scope_1", "dash.kpi.scope1", "dash.kpi.scope1_plain", "scope-1"
     )
-    mark_chart_reveal("trend", chart="area")
+with scope_cols[1]:
+    _render_scope_kpi(
+        "scope_2", "dash.kpi.scope2", "dash.kpi.scope2_plain", "scope-2"
+    )
+with scope_cols[2]:
+    _render_scope_kpi(
+        "scope_3", "dash.kpi.scope3", "dash.kpi.scope3_plain", "scope-3"
+    )
+with st.expander(t("dash.scope_help_title", lang), expanded=False):
+    st.markdown(t("dash.scope_help_body", lang))
+
+# 3. Insights — one primary, one optional
+if insights:
+    st.info(insights[0])
+    if len(insights) > 1:
+        st.caption(insights[1])
+    st.markdown(
+        '<div data-cel-scroll="insight" id="cel-insight"></div>',
+        unsafe_allow_html=True,
+    )
+
+# 4. 下一步 — one action, not a repeated matrix
+render_section_header(t("dash.section_next", lang), scroll_key="next-step")
+if req_summary["cta"] == "complete":
+    st.markdown(f"**{t('dash.next.applicability', lang)}**")
+    st.caption(t("dash.next.applicability_body", lang))
+    if st.button(
+        t("dash.cta.complete_now", lang),
+        type="primary",
+        key="dash_start_apl",
+    ):
+        st.switch_page("app_pages/applicability.py")
+else:
+    render_section_header(
+        t("dash.section_requirements", lang),
+        scroll_key="requirements",
+    )
+    st.markdown(f"**{t('dash.req.headline', lang)}**")
+    for line in req_summary["lines"]:
+        st.markdown(f"- {line}")
+    if st.button(t("dash.cta.view_requirements", lang), key="dash_view_req"):
+        st.switch_page("app_pages/applicability.py")
+
+# 5. 排放明細 — one chart at a time
+render_section_header(
+    t("dash.section_detail", lang),
+    t("dash.section_detail_help", lang),
+    scroll_key="detail",
+)
+source_tab = t("dash.detail.source", lang)
+trend_tab = t("dash.detail.trend", lang)
+selected_detail = st.segmented_control(
+    t("dash.cta.view_detail", lang),
+    options=[source_tab, trend_tab],
+    default=source_tab,
+    key="dash_emission_detail_tab",
+)
+if selected_detail == trend_tab:
+    render_viz_panel_start(
+        t("dash.detail.trend_title", lang),
+        scroll_key="trend",
+        chart_kind="trend",
+    )
+    mark_chart_reveal("trend", chart="trend")
     render_monthly_emissions_trend(result, lang)
     render_viz_panel_end()
-with right:
+else:
     render_viz_panel_start(
         t("dash.section_sources", lang),
-        t("dash.section_sources_help", lang),
-        scroll_key="sources-panel",
+        scroll_key="sources",
         chart_kind="bars",
     )
     mark_chart_reveal("sources", chart="bars")
     render_emissions_source_bars(result, lang)
     render_viz_panel_end()
 
-render_section_header(
-    t("dash.section_calc_table", lang),
-    t("dash.section_calc_table_help", lang),
-    scroll_key="calc-table",
-)
-table = calculation_table_rows(result, lang)
-selected_rows: list[int] = []
-if table.empty:
-    render_empty_state(t("dash.section_calc_table", lang), "—")
-else:
-    display = table.drop(columns=["record_id"], errors="ignore")
-    event = st.dataframe(
-        display,
-        hide_index=True,
-        width="stretch",
-        on_select="rerun",
-        selection_mode="single-row",
-        key="dash_calc_table",
+# 6. Professional detail on request
+with st.expander(t("dash.coverage_learn", lang), expanded=False):
+    st.markdown(
+        '<div data-cel-scroll="professional" id="cel-professional"></div>',
+        unsafe_allow_html=True,
     )
-    if event is not None and getattr(event, "selection", None) is not None:
-        selected_rows = list(event.selection.rows)
-
-render_section_header(t("dash.section_trace", lang), scroll_key="trace-header")
-trace_id = None
-if selected_rows and not table.empty:
-    trace_id = str(table.iloc[selected_rows[0]]["record_id"])
-if not trace_id:
-    trace_id = first_calculated_electricity_record_id(result)
-if not trace_id and not table.empty:
-    trace_id = str(table.iloc[0]["record_id"])
-
-if trace_id:
-    trace = calculation_trace_fields(
-        result,
-        trace_id,
-        lang,
-        official_source=uploaded,
-    )
-    amount = trace.get("activity_amount")
-    factor_value = trace.get("factor_value")
-    kg = trace.get("calculated_kgco2e")
-    tco2e = trace.get("calculated_tco2e")
-    unit = trace.get("activity_unit") or ""
-    if (
-        trace.get("is_calculated")
-        and amount is not None
-        and factor_value is not None
-        and tco2e is not None
-    ):
-        amount_display = format_activity_amount(amount)
-        factor_display = f"{float(factor_value):.6g}"
-        kg_display = format_activity_amount(kg) if kg is not None else None
-        tco2e_amount, _tco2e_unit = format_tco2e_parts(tco2e)
-        formula = (
-            f"{amount_display} × {factor_display}"
-            f" = {kg_display} kgCO2e"
-            if kg_display is not None
-            else f"{amount_display} × {factor_display}"
-        )
-        render_trace_card(
-            title=str(trace.get("activity_name") or t("dash.section_trace", lang)),
-            activity_label=t("act.trace_activity", lang),
-            activity_value=f"{amount_display} {unit}",
-            factor_label=t("act.trace_factor", lang),
-            factor_value=f"{factor_display} kgCO2e/{unit or 'unit'}",
-            year_label=t("act.trace_factor_year", lang),
-            year_value=str(trace.get("factor_year") or "—"),
-            emissions_label=t("dash.col.emissions", lang),
-            emissions_value=format_tco2e(tco2e),
-            formula=formula,
-            source_label=t("act.trace_source", lang),
-            source_value=str(trace.get("source_label") or "—"),
-            activity_amount=float(amount),
-            activity_amount_display=amount_display,
-            activity_unit=str(unit or ""),
-            factor_num=float(factor_value),
-            factor_display=factor_display,
-            kg_num=float(kg) if kg is not None else None,
-            kg_display=kg_display,
-            tco2e_num=float(tco2e),
-            tco2e_display=tco2e_amount,
-        )
-        with st.expander(t("dash.trace_evidence", lang), expanded=False):
-            st.caption(t("dash.section_advanced", lang))
-            st.write(
-                {
-                    "record_id": trace_id,
-                    "factor_id": trace.get("factor_id"),
-                    "calculated_kgco2e": kg,
-                    "calculated_tco2e": tco2e,
-                }
+    st.write(t("dash.coverage_learn_body", lang))
+    st.caption(t("dash.emissions_notice", lang))
+    period_start = source.get("period_start")
+    period_end = source.get("period_end")
+    if period_start and period_end:
+        st.caption(
+            t(
+                "dash.period_line",
+                lang,
+                start=period_start,
+                end=period_end,
             )
-    else:
-        st.markdown(f"**{trace.get('activity_name', '—')}**")
-        st.warning(t("dash.uncalculable_title", lang))
-        st.write(trace.get("missing") or "—")
-        st.caption(f"{t('dash.uncalculable_next', lang)} {trace.get('next_step')}")
-else:
-    st.info(t("dash.emissions_notice", lang))
-
-with st.expander(t("dash.section_advanced", lang), expanded=False):
-    overview = build_activity_overview(result, lang)
-    tech_cols = [
-        "record_id",
-        "activity_name",
-        "calculation_label",
-        "ghg_label",
-        "ifrs_s2_label",
-        "qa_label",
-    ]
-    tech = overview[tech_cols].rename(
-        columns={
-            "activity_name": t("dash.col.activity", lang),
-            "calculation_label": t("dash.col.calc", lang),
-            "ghg_label": t("dash.col.ghg", lang),
-            "ifrs_s2_label": t("dash.col.ifrs", lang),
-            "qa_label": t("dash.col.qa", lang),
-        }
-    )
-    st.dataframe(tech, hide_index=True, width="stretch")
+        )
+    st.caption(t("dash.source_files_line", lang, count=source_count))
     if st.button(
-        t("nav.audit", lang) + " →",
-        key="dash_open_audit",
-        type="tertiary",
+        t("dash.cta.view_calc_basis", lang),
+        key="dash_go_activity",
     ):
-        st.switch_page("app_pages/audit_export.py")
+        st.switch_page("app_pages/activity_explorer.py")
+    st.markdown(
+        "<span data-cel-tour-target='results-evidence'></span>",
+        unsafe_allow_html=True,
+    )
+    if st.button(
+        t("dash.cta.view_evidence", lang),
+        key="dash_go_evidence_records",
+    ):
+        st.switch_page("app_pages/evidence_data.py")

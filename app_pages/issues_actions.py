@@ -15,10 +15,6 @@ from carbon_ledger.ui.components import (
     render_viz_panel_end,
     render_viz_panel_start,
 )
-from carbon_ledger.ui.evidence_workspace import (
-    TAB_ISSUES,
-    render_evidence_workspace_nav,
-)
 from carbon_ledger.ui.formatting import format_int
 from carbon_ledger.ui.i18n import t
 from carbon_ledger.ui.motion import mark_chart_reveal
@@ -30,12 +26,14 @@ lang = get_language(st.session_state)
 result = get_current_result(st.session_state)
 
 render_page_header(t("ev.title", lang), t("ev.subtitle", lang))
-render_evidence_workspace_nav(lang, TAB_ISSUES)
 render_section_header(t("iss.title", lang), t("iss.subtitle", lang))
 render_page_help(t("iss.help", lang))
 
 if result is None:
-    st.error(t("error.analysis_failed", lang))
+    render_empty_state(
+        t("empty.no_analysis_title", lang),
+        t("empty.no_analysis_body", lang),
+    )
     st.stop()
 
 table = issues_table(result, lang)
@@ -200,9 +198,21 @@ with detail_cols[1]:
     st.write(selected.get("allowed_use") or "—")
     st.markdown(f"**{t('iss.detail.prohibited', lang)}**")
     st.write(selected.get("prohibited_use") or "—")
-    st.markdown(f"**{t('iss.detail.related', lang)}**")
-    st.write(
-        f"{selected['Activity']}  \n"
-        f"record_id: `{selected['record_id']}`  \n"
-        f"source_document_id: `{selected.get('source_document_id') or '—'}`"
-    )
+    st.markdown(f"**{t('iss.related.activity', lang)}**")
+    st.write(selected["Activity"])
+    st.markdown(f"**{t('iss.related.document', lang)}**")
+    st.write(selected.get("document_label") or "—")
+    st.markdown(f"**{t('iss.related.period', lang)}**")
+    st.write(selected.get("period_label") or "—")
+    if st.button(t("iss.related.view_source", lang), key="iss_view_source"):
+        st.switch_page("app_pages/activity_explorer.py")
+    with st.expander(t("iss.audit_trace", lang), expanded=False):
+        st.write(
+            {
+                "record_id": selected.get("record_id"),
+                "source_document_id": selected.get("source_document_id"),
+                "issue_id": selected.get("issue_id"),
+                "rule_id": selected.get("rule_id"),
+                "issue_code": selected.get("issue_code"),
+            }
+        )

@@ -92,8 +92,15 @@ def _frame_by_logical_name(
 def export_run_bundle(
     result: PipelineRunResult,
     output_directory: Path,
+    *,
+    synthetic_demo: bool = True,
 ) -> Path:
-    """Export a deterministic run bundle and return the manifest path."""
+    """Export a deterministic run bundle and return the manifest path.
+
+    ``synthetic_demo`` must reflect the analysis source/mode:
+    demo fixtures → True; uploaded company analysis → False.
+    Do not infer this from run_id naming.
+    """
     output_dir = Path(output_directory)
 
     if output_dir.exists():
@@ -179,7 +186,7 @@ def export_run_bundle(
         "run_id": result.run_id,
         "schema_version": SCHEMA_VERSION,
         "summary": _build_summary(result),
-        "synthetic_demo": True,
+        "synthetic_demo": bool(synthetic_demo),
     }
 
     manifest_path = output_dir / "manifest.json"

@@ -19,17 +19,17 @@ from carbon_ledger.ui.view_models import (
     calculation_label,
 )
 
-# Semantic visualization palette (shared across pages)
-COLOR_CALCULATED = "#14B8A6"
-COLOR_INFO = "#3B82F6"
-COLOR_SCOPE_1 = "#6366F1"
-COLOR_SCOPE_2 = "#3B82F6"
-COLOR_SCOPE_3 = "#8B5CF6"
-COLOR_MISSING_CONVERSION = "#F59E0B"
-COLOR_MISSING_FACTOR = "#F97316"
-COLOR_CRITICAL = "#DC2626"
+# Semantic visualization palette (shared across pages; Stage 3B.2b tokens)
+COLOR_CALCULATED = "#14A39A"
+COLOR_INFO = "#3563E9"
+COLOR_SCOPE_1 = "#16324F"
+COLOR_SCOPE_2 = "#0F8A83"
+COLOR_SCOPE_3 = "#64748B"
+COLOR_MISSING_CONVERSION = "#B7791F"
+COLOR_MISSING_FACTOR = "#D97706"
+COLOR_CRITICAL = "#B42318"
 COLOR_SUPPORTING = "#94A3B8"
-COLOR_NAVY = "#172A46"
+COLOR_NAVY = "#0D2238"
 COLOR_SLATE = "#64748B"
 
 # Bounded chart heights for SaaS layout (never full-viewport)
@@ -40,6 +40,7 @@ CHART_HEIGHT_COMPACT = 120
 CALC_STATUS_COLORS: dict[str, str] = {
     "calculated": COLOR_CALCULATED,
     "blocked_missing_conversion": COLOR_MISSING_CONVERSION,
+    "blocked_natural_gas_type_required": COLOR_MISSING_CONVERSION,
     "no_factor_configured": COLOR_MISSING_FACTOR,
     "not_emissions_activity": COLOR_SUPPORTING,
 }
@@ -365,8 +366,8 @@ def _monthly_area_spec(height: int = CHART_HEIGHT_OVERVIEW) -> dict[str, Any]:
                 "y2": 0,
                 "gradient": "linear",
                 "stops": [
-                    {"offset": 0, "color": "rgba(20, 184, 166, 0.35)"},
-                    {"offset": 1, "color": "rgba(20, 184, 166, 0.02)"},
+                    {"offset": 0, "color": "rgba(20, 163, 154, 0.35)"},
+                    {"offset": 1, "color": "rgba(20, 163, 154, 0.02)"},
                 ],
             },
         },
@@ -755,6 +756,7 @@ def status_kind_for_calculation(code: str) -> str:
     mapping = {
         "calculated": "success",
         "blocked_missing_conversion": "warning",
+        "blocked_natural_gas_type_required": "warning",
         "no_factor_configured": "attention",
         "not_emissions_activity": "muted",
     }

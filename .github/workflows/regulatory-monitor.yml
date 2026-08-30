@@ -55,16 +55,30 @@ jobs:
 
       - name: Run live official-source monitor
         id: monitor
+        # Stage 3B.1 sequence (enforced in regulatory_monitor.run_monitor):
+        # 1) load access policies  2) poll authorised API/open-data
+        # 3) poll authorised web (none currently)  4) ingest official email signals
+        # 5–8) record/persist state  9) health on authorised automation coverage
+        # 10) legal activation remains human/admin only — never auto-activate.
         # Exit codes: 0 OK/partial non-critical, 3 persistence, 4 CRITICAL failure.
         # continue-on-error so persistence/integrity still run; final health gate fails.
+        # Do NOT abort before durable state is written and persisted.
         continue-on-error: true
         run: python -m carbon_ledger.regulatory_monitor --check-all
+        env:
+          # Optional Gmail alert ingestion (never required for unit tests):
+          REGULATORY_GMAIL_CLIENT_ID: ${{ secrets.REGULATORY_GMAIL_CLIENT_ID }}
+          REGULATORY_GMAIL_CLIENT_SECRET: ${{ secrets.REGULATORY_GMAIL_CLIENT_SECRET }}
+          REGULATORY_GMAIL_REFRESH_TOKEN: ${{ secrets.REGULATORY_GMAIL_REFRESH_TOKEN }}
+          REGULATORY_GMAIL_LABEL: Regulatory-IFRS
+          # Optional MOENV Open Data API key for GHG_P_01 supporting dataset only:
+          MOENV_API_KEY: ${{ secrets.MOENV_API_KEY }}
 
-      - name: Run regulatory unit tests (mocked network only)
-        run: pytest tests/test_regulatory_registry_stage3a.py tests/test_regulatory_monitor.py
-
+      # Persist evidence before unit tests / final gate. Unit-test failure must not
+      # skip STATE persistence (avoids misleading STATE_PERSISTENCE_FAILED).
       - name: Detect reviewable regulatory changes
         id: review
+        if: always()
         run: |
           python - <<'PY'
           import json
@@ -95,6 +109,7 @@ jobs:
 
       - name: Persist monitoring STATE to regulatory-monitor-state branch
         id: persist_state
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -178,6 +193,7 @@ jobs:
 
       - name: Verify persisted state matches runtime
         id: verify_persist
+        if: always() && steps.persist_state.outcome == 'success'
         run: |
           set -euo pipefail
           STATE_BRANCH="regulatory-monitor-state"
@@ -283,21 +299,44 @@ jobs:
           echo "Monitor step conclusion: ${{ steps.monitor.outcome }}"
           echo "Persist step conclusion: ${{ steps.persist_state.outcome }}"
           echo "Verify step conclusion: ${{ steps.verify_persist.outcome }}"
-          if [ "${{ steps.persist_state.outcome }}" != "success" ]; then
+          # Precedence: persistence failed → mismatch → critical source → health-gate.
+          # Persistence skipped is only a root cause when persist actually failed,
+          # not when an earlier unrelated step (e.g. unit tests) aborted the job.
+          if [ "${{ steps.persist_state.outcome }}" = "failure" ] || \
+             [ "${{ steps.persist_state.outcome }}" = "skipped" ]; then
             echo "ERROR: STATE_PERSISTENCE_FAILED"
             exit 3
           fi
-          if [ "${{ steps.verify_persist.outcome }}" != "success" ]; then
+          if [ "${{ steps.verify_persist.outcome }}" = "failure" ] || \
+             [ "${{ steps.verify_persist.outcome }}" = "skipped" ]; then
             echo "ERROR: STATE_PERSISTENCE_MISMATCH"
             exit 5
           fi
+          set +e
           python -m carbon_ledger.regulatory_monitor --health-gate
-          # Also fail if the live monitor itself reported CRITICAL failure.
-          if [ "${{ steps.monitor.outcome }}" != "success" ]; then
-            echo "ERROR: monitor step did not succeed (critical failure or crash)."
+          GATE_RC=$?
+          set -e
+          if [ "$GATE_RC" -eq 3 ]; then
+            echo "ERROR: STATE_PERSISTENCE_FAILED"
+            exit 3
+          fi
+          if [ "$GATE_RC" -eq 5 ]; then
+            echo "ERROR: STATE_PERSISTENCE_MISMATCH"
+            exit 5
+          fi
+          if [ "$GATE_RC" -eq 4 ] || [ "${{ steps.monitor.outcome }}" != "success" ]; then
+            echo "ERROR: CRITICAL_SOURCE_FAILURE"
             exit 4
           fi
+          if [ "$GATE_RC" -ne 0 ]; then
+            echo "ERROR: monitoring health gate failed (rc=$GATE_RC)"
+            exit "$GATE_RC"
+          fi
           echo "Monitoring health gate passed."
+
+      - name: Run regulatory unit tests (mocked network only)
+        if: always()
+        run: pytest tests/test_regulatory_registry_stage3a.py tests/test_regulatory_monitor.py
 
       - name: No-change completion note
         if: steps.review.outputs.REVIEW_REQUIRED != 'true' && success()

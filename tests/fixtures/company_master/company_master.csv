@@ -1,0 +1,6 @@
+unified_business_number,company_name,registered_address,paid_in_capital_twd,listing_status,industry_code,stock_code,source_id,source_authority,source_dataset,source_data_date
+11913502,台灣水泥股份有限公司,台北市中山區中山北路2段113號,77231817420,TWSE,01,1101,src_tw_twse_portal,臺灣證券交易所,上市公司基本資料 t187ap03_L,2026-08-15
+10000009,資本未公開示範股份有限公司,台北市信義區市府路1號,,TWSE,02,9991,src_tw_twse_portal,臺灣證券交易所,上市公司基本資料 t187ap03_L,2026-08-15
+10000015,地址未公開示範股份有限公司,,2500000000,TPEX,03,9992,src_tw_tpex_portal,證券櫃檯買賣中心,上櫃公司基本資料 mopsfin_t187ap03_O,2026-08-15
+22099131,快照官方名稱,台北市,12000000000,TWSE,02,9993,src_tw_twse_portal,臺灣證券交易所,上市公司基本資料 t187ap03_L,2026-08-15
+00000016,前導零合法統編示範股份有限公司,台北市中正區,1000000,TWSE,02,9990,src_tw_twse_portal,臺灣證券交易所,上市公司基本資料 t187ap03_L,2026-08-15

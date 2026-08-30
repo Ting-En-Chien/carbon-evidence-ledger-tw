@@ -177,9 +177,9 @@ def _build_from_rows(
     )
 
 
-def test_exactly_ten_qa_rule_rows_exist() -> None:
+def test_exactly_fifteen_qa_rule_rows_exist() -> None:
     rules = load_qa_rules(CONFIG_DIR)
-    assert len(rules) == 10
+    assert len(rules) == 15
 
 
 def test_qa_rule_ids_are_unique() -> None:

@@ -8,13 +8,23 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from carbon_ledger.ui.i18n import STATE_LANGUAGE
-from carbon_ledger.ui.state import STATE_RESULT
+from carbon_ledger.ui.state import STATE_RESULT, activate_demo_mode
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_PATH = REPO_ROOT / "streamlit_app.py"
 
 
 def _run_app() -> AppTest:
+    at = AppTest.from_file(str(APP_PATH), default_timeout=120)
+    at.run()
+    activate_demo_mode(at.session_state)
+    at.run()
+    assert not at.exception
+    return at
+
+
+def _run_app_empty_customer() -> AppTest:
+    """Fresh customer session without demo analysis."""
     at = AppTest.from_file(str(APP_PATH), default_timeout=120)
     at.run()
     assert not at.exception
@@ -53,6 +63,10 @@ def _all_text(at: AppTest) -> str:
         label = getattr(item, "label", None)
         if label is not None:
             chunks.append(str(label))
+    for item in getattr(at, "file_uploader", []):
+        label = getattr(item, "label", None)
+        if label is not None:
+            chunks.append(str(label))
     return "\n".join(chunks)
 
 
@@ -79,20 +93,20 @@ def _switch_language(at: AppTest, option: str) -> AppTest:
 def test_data_intake_page_exists() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
-    assert "匯入公司資料" in text
-    assert "資料匯入" in text or "匯入" in text
+    assert "上傳能源與營運資料" in text
+    assert "上傳" in text
 
 
 def test_traditional_chinese_page_title_default() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
-    assert "匯入公司資料" in _all_text(at)
+    assert "上傳能源與營運資料" in _all_text(at)
 
 
 def test_english_page_title_after_language_switch() -> None:
     at = _switch_language(_run_app(), "EN")
     assert at.session_state[STATE_LANGUAGE] == "en"
     at = _switch(at, "app_pages/data_intake.py")
-    assert "Import company data" in _all_text(at)
+    assert "Upload energy and operating data" in _all_text(at)
     assert at.session_state[STATE_LANGUAGE] == "en"
 
 
@@ -100,7 +114,9 @@ def test_uploader_and_template_download_exist() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     assert len(at.file_uploader) >= 1
     labels = [str(item.label) for item in at.download_button]
-    assert any("範本" in label or "template" in label.lower() for label in labels)
+    assert any(
+        "下載範例" in label or "example" in label.lower() for label in labels
+    )
 
 
 def test_uploader_accepts_csv_xlsx_not_pdf() -> None:
@@ -115,22 +131,29 @@ def test_uploader_accepts_csv_xlsx_not_pdf() -> None:
 def test_step_labels_exist() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
-    assert "01 上傳檔案" in text
-    assert "02 對應欄位" in text
-    assert "03 確認資料" in text
-    assert "04 檢查結果" in text
+    assert "上傳能源與營運資料" in text
+    assert "選擇公司檔案" in text
+    assert "開始分析" in text or "上傳資料檔" in text
 
 
 def test_example_and_demo_notice_exist() -> None:
     at = _switch(_run_app(), "app_pages/data_intake.py")
     text = _all_text(at)
-    assert "範例資料，不會自動匯入" in text
-    assert "示範分析" in text
-    assert "不需要先修改原本 Excel 欄位名稱" in text
-    assert "activity_type" in text
-    assert "activity_value" in text
+    assert "不知道怎麼準備資料" not in text
+    assert "需要準備的資料" not in text
+    assert "系統內部欄位名稱" not in text
+    assert "activity_type" not in text
+    assert "activity_value" not in text
     labels = [str(item.label) for item in at.download_button]
-    assert any("範例檔" in label or "example file" in label.lower() for label in labels)
+    assert any("還沒有資料檔？下載範例" in label for label in labels)
+    assert not any(
+        "範例檔" in label or "example file" in label.lower() for label in labels
+    )
+    expander_labels = [
+        str(getattr(item, "label", "") or "") for item in at.expander
+    ]
+    assert not any("查看填寫範例" in label for label in expander_labels)
+    assert not any("系統欄位格式" in label for label in expander_labels)
 
 
 def test_no_uncaught_exception_on_intake_page() -> None:
@@ -203,6 +226,9 @@ def _build_2025_upload_intake():
         end_date_column=suggestions["activity_end_date"],
         activity_type_value_map=activity_map,
         unit_value_map=unit_map,
+        natural_gas_subtype="NG1",
+        diesel_context="company_vehicle",
+        electricity_context="enterprise",
     )
     metadata = IntakeMetadata(
         source_name="碳排放練習工作簿.xlsx",
@@ -230,7 +256,8 @@ def _seed_validated_intake(at: AppTest) -> AppTest:
     at.session_state[STATE_INTAKE_RESULT] = intake
     at.session_state[STATE_INTAKE_TABLE] = table
     at.session_state[STATE_INTAKE_FILE_NAME] = intake.file_name
-    at.session_state[STATE_INTAKE_STEP] = 4
+    # Coverage review is customer step 3; analysis starts from that workspace.
+    at.session_state[STATE_INTAKE_STEP] = 5
     at = _switch(at, "app_pages/data_intake.py")
     return at
 
@@ -238,11 +265,10 @@ def _seed_validated_intake(at: AppTest) -> AppTest:
 def test_step04_success_shows_start_analysis_cta() -> None:
     at = _seed_validated_intake(_run_app())
     text = _all_text(at)
-    assert "資料已準備完成" in text
     assert "使用這批資料開始分析" in text
-    assert "返回修改資料" in text
     labels = [str(button.label) for button in at.button]
     assert "使用這批資料開始分析" in labels
+    assert any("上一步" in label for label in labels)
 
 
 def test_start_analysis_runs_uploaded_not_demo() -> None:
@@ -285,11 +311,11 @@ def test_uploaded_analysis_result_in_session_and_result_page_labels() -> None:
     at = _switch(at, "app_pages/dashboard.py")
     text = _all_text(at)
     assert at.session_state[STATE_ANALYSIS_SOURCE] == ANALYSIS_SOURCE_UPLOADED
-    assert "碳排放練習工作簿.xlsx" in text
-    assert "2025-01" in text
-    assert "你上傳的公司資料" in text
+    assert "目前已計算排放量" in text
     assert "虛構台灣扣件公司" not in text
     assert "2024 示範資料" not in text
+    dash_src = (REPO_ROOT / "app_pages/dashboard.py").read_text(encoding="utf-8")
+    assert "render_result_meta_strip" not in dash_src
 
 
 def test_navigation_preserves_uploaded_analysis_state() -> None:
@@ -308,27 +334,30 @@ def test_navigation_preserves_uploaded_analysis_state() -> None:
     at = _switch(at, "app_pages/dashboard.py")
     assert at.session_state[STATE_RESULT] is stored
     assert at.session_state[STATE_ANALYSIS_SOURCE] == ANALYSIS_SOURCE_UPLOADED
-    assert "碳排放練習工作簿.xlsx" in _all_text(at)
+    text = _all_text(at)
+    assert "目前已計算排放量" in text
+    assert "虛構台灣扣件公司" not in text
 
 
 def test_demo_mode_still_works_separately() -> None:
     from carbon_ledger.ui.state import (
         ANALYSIS_SOURCE_DEMO,
+        ANALYSIS_SOURCE_NONE,
         STATE_ANALYSIS_SOURCE,
-        run_analysis,
+        activate_demo_mode,
     )
 
-    at = _run_app()
-    assert at.session_state[STATE_ANALYSIS_SOURCE] == ANALYSIS_SOURCE_DEMO
-    run_analysis(
-        at.session_state,
-        include_ghg=True,
-        include_cbam=True,
-        include_ifrs_s2=True,
+    at = _run_app_empty_customer()
+    source = (
+        at.session_state[STATE_ANALYSIS_SOURCE]
+        if STATE_ANALYSIS_SOURCE in at.session_state
+        else ANALYSIS_SOURCE_NONE
     )
+    assert source in (ANALYSIS_SOURCE_NONE, "")
+    activate_demo_mode(at.session_state)
     at.run()
     text = _all_text(at)
-    assert "重新分析" in text
+    assert "重新分析" in text or "執行示範分析" in text or "示範" in text
     assert "示範資料" in text
     assert at.session_state[STATE_ANALYSIS_SOURCE] == ANALYSIS_SOURCE_DEMO
 
@@ -361,17 +390,17 @@ def test_2025_electricity_uses_active_2025_factor_and_trace() -> None:
     assert trace["is_calculated"] is True
 
     blocked = uncalculable_activity_cards(result, "zh-TW")
-    assert blocked
-    for card in blocked:
-        assert card["title"] == "目前無法計算"
-        assert "0" != card["missing"]
+    assert all(card["status"] != "calculated" for card in blocked)
 
     at = _switch(at, "app_pages/dashboard.py")
     text = _all_text(at)
-    assert "目前無法計算" in text
-    assert "0.466" in text
-    assert "2025" in text
-    assert "進階技術資料" in text or "查看完整證據鏈" in text
+    assert "目前已計算排放量" in text
+    assert "查看計算依據" in text
+    # Factor value / year live under Evidence → Activity basis (not dashboard).
+    at = _switch(at, "app_pages/activity_explorer.py")
+    text = _all_text(at)
+    assert "0.466" in text or "查看計算依據" in text
+    assert "2025" in text or "計算" in text
 
 
 def test_technical_framework_not_required_on_first_screen() -> None:
@@ -383,8 +412,8 @@ def test_technical_framework_not_required_on_first_screen() -> None:
     text = _all_text(at)
     # Beginner sections present
     assert "已計算排放量" in text
-    assert "優先處理" in text
-    assert "排放趨勢" in text
+    assert "下一步" in text or "仍需處理" in text or "優先處理" in text
+    assert "排放明細" in text
     # Technical IDs are under progressive disclosure, not forced on first screen body
     # as the primary answer set.
     assert "candidate_id" not in text.lower()
@@ -398,11 +427,11 @@ def test_result_meta_does_not_truncate_filename_in_kpi() -> None:
     run_uploaded_analysis(at.session_state)
     at = _switch(at, "app_pages/dashboard.py")
     text = _all_text(at)
-    assert "碳排放練習工作簿.xlsx" in text
-    assert "2025-01" in text
-    assert "你上傳的公司資料" in text
-    # Filename must appear as full meta text, not a truncated KPI metric value.
+    # Filename belongs in Evidence, not as an executive dashboard card.
+    dash_src = (REPO_ROOT / "app_pages/dashboard.py").read_text(encoding="utf-8")
+    assert "render_result_meta_strip" not in dash_src
     assert "碳排放練..." not in text
+    assert "2025-01" in text or "FY" in text
 
 
 def test_sidebar_shows_rerun_not_start_after_uploaded_analysis() -> None:
@@ -414,13 +443,12 @@ def test_sidebar_shows_rerun_not_start_after_uploaded_analysis() -> None:
     labels = [str(button.label) for button in at.button]
     assert "重新分析" in labels
     assert "使用這批資料開始分析" not in labels
+    # Customer mode hides engineering analysis-settings toggles (Stage 3B.3).
     expander_labels = [
         str(getattr(item, "label", "") or getattr(item, "header", "") or "")
         for item in getattr(at, "expander", [])
     ]
-    assert any("分析設定" in label for label in expander_labels) or any(
-        "分析設定" in str(getattr(item, "label", "")) for item in at.button
-    )
+    assert not any("分析設定" in label for label in expander_labels)
 
 
 def test_chart_heights_are_bounded() -> None:

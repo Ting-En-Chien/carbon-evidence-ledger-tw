@@ -14,6 +14,8 @@ from typing import Any
 
 import pandas as pd
 
+from carbon_ledger.heating import HEATING_VALUE_COLUMNS, empty_heating_values
+
 EMISSION_FACTOR_COLUMNS = [
     "factor_id",
     "activity_type",
@@ -37,12 +39,23 @@ GWP_COLUMNS = [
     "gwp_id",
     "gas",
     "gwp_value",
+    "emission_context",
+    "gwp_status",
     "assessment_basis",
     "source_reference_id",
     "source_locator",
     "valid_from",
     "notes",
 ]
+
+# Combustion CH4 uses GWP 28. Fossil-methane GWP 30 is a separate context
+# and must never be selected for stationary/mobile fuel combustion.
+GWP_CONTEXT_FUEL_COMBUSTION = "fuel_combustion"
+GWP_CONTEXT_FOSSIL_METHANE_PROCESS = "fossil_methane_process"
+COMBUSTION_CONTEXTS_USING_FUEL_GWP = frozenset(
+    {"stationary_combustion", "mobile_combustion"}
+)
+READY_GWP_STATUS = "ready"
 
 REGULATORY_REFERENCE_COLUMNS = [
     "reference_id",
@@ -107,6 +120,7 @@ class FactorRegistryResult:
     regulatory_references: pd.DataFrame
     calculation_dependencies: pd.DataFrame
     engineering_conversions: pd.DataFrame
+    fuel_heating_values: pd.DataFrame
     issues: pd.DataFrame
 
 
@@ -170,6 +184,17 @@ def load_gwp_values(reference_directory: Path) -> pd.DataFrame:
     """Load gwp_values.csv from a reference directory."""
     path = Path(reference_directory) / "gwp_values.csv"
     return _read_csv(path)
+
+
+def load_fuel_heating_values(reference_directory: Path) -> pd.DataFrame:
+    """Load fuel_heating_values.csv; missing/empty files are valid."""
+    path = Path(reference_directory) / "fuel_heating_values.csv"
+    if not path.exists():
+        return empty_heating_values()
+    frame = _read_csv(path)
+    if frame.empty:
+        return empty_heating_values()
+    return frame
 
 
 def load_regulatory_references(reference_directory: Path) -> pd.DataFrame:
@@ -258,6 +283,7 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
     regulatory_references = load_regulatory_references(reference_path)
     calculation_dependencies = load_calculation_dependencies(reference_path)
     engineering_conversions = load_engineering_conversions(reference_path)
+    fuel_heating_values = load_fuel_heating_values(reference_path)
 
     factors_ok = _check_required_columns(
         emission_factors, EMISSION_FACTOR_COLUMNS, "emission_factors", issues
@@ -283,6 +309,14 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
         "engineering_conversions",
         issues,
     )
+    heating_ok = True
+    if not fuel_heating_values.empty:
+        heating_ok = _check_required_columns(
+            fuel_heating_values,
+            HEATING_VALUE_COLUMNS,
+            "fuel_heating_values",
+            issues,
+        )
 
     if refs_ok:
         _check_unique_ids(
@@ -337,6 +371,27 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
                             f"source_reference_id {source_ref!r} "
                             "does not exist in regulatory_references."
                         ),
+                    )
+                )
+            if _is_blank(row.get("emission_context")):
+                issues.append(
+                    _issue(
+                        table_name="gwp_values",
+                        row_number=row_number,
+                        issue_code="MISSING_GWP_EMISSION_CONTEXT",
+                        issue_message=(
+                            "emission_context is required so combustion CH4 "
+                            "GWP 28 is not confused with fossil-methane GWP 30."
+                        ),
+                    )
+                )
+            if _is_blank(row.get("gwp_status")):
+                issues.append(
+                    _issue(
+                        table_name="gwp_values",
+                        row_number=row_number,
+                        issue_code="MISSING_GWP_STATUS",
+                        issue_message="gwp_status must be non-blank.",
                     )
                 )
 
@@ -574,6 +629,67 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
                                 f"No calculation_dependencies row found for "
                                 f"activity_type {activity_type!r}."
                             ),
+                    )
+                )
+
+    if heating_ok and not fuel_heating_values.empty:
+        _check_unique_ids(
+            fuel_heating_values,
+            "heating_value_id",
+            "fuel_heating_values",
+            issues,
+        )
+        for offset, row in enumerate(
+            fuel_heating_values.to_dict(orient="records")
+        ):
+            row_number = offset + 1
+            status = str(row.get("status", "")).strip()
+            if status != "ready":
+                continue
+            source_ref = str(row.get("source_reference_id", "")).strip()
+            if source_ref and source_ref not in reference_ids:
+                issues.append(
+                    _issue(
+                        table_name="fuel_heating_values",
+                        row_number=row_number,
+                        issue_code="MISSING_REFERENCE",
+                        issue_message=(
+                            f"source_reference_id {source_ref!r} "
+                            "does not exist in regulatory_references."
+                        ),
+                    )
+                )
+            heating_value = _parse_finite_positive(row.get("heating_value"))
+            if heating_value is None:
+                issues.append(
+                    _issue(
+                        table_name="fuel_heating_values",
+                        row_number=row_number,
+                        issue_code="NON_POSITIVE_VALUE",
+                        issue_message=(
+                            "Ready heating_value must be a finite number "
+                            f"greater than zero, got {row.get('heating_value')!r}."
+                        ),
+                    )
+                )
+            for field in (
+                "fuel_type",
+                "unit",
+                "factor_year",
+                "geography",
+                "authority",
+                "source_locator",
+                "snapshot_id",
+            ):
+                if _is_blank(row.get(field)):
+                    issues.append(
+                        _issue(
+                            table_name="fuel_heating_values",
+                            row_number=row_number,
+                            issue_code="INCOMPLETE_HEATING_VALUE_PROVENANCE",
+                            issue_message=(
+                                f"Ready heating value is missing {field}."
+                            ),
                         )
                     )
 
@@ -594,5 +710,44 @@ def validate_factor_registry(reference_directory: Path) -> FactorRegistryResult:
         regulatory_references=regulatory_references,
         calculation_dependencies=calculation_dependencies,
         engineering_conversions=engineering_conversions,
+        fuel_heating_values=fuel_heating_values,
         issues=issue_frame,
     )
+
+
+def gwp_context_for_combustion(combustion_context: str) -> str:
+    """Map a combustion context to the GWP emission_context family."""
+    if str(combustion_context).strip() in COMBUSTION_CONTEXTS_USING_FUEL_GWP:
+        return GWP_CONTEXT_FUEL_COMBUSTION
+    return ""
+
+
+def select_gwp_row(
+    gwp_values: pd.DataFrame | None,
+    *,
+    gas: str,
+    emission_context: str,
+) -> pd.Series | None:
+    """Return the unique ready GWP row for gas + emission context.
+
+    Returns None when missing or ambiguous. Combustion callers must pass
+    ``fuel_combustion``, never ``fossil_methane_process``.
+    """
+    if gwp_values is None or gwp_values.empty:
+        return None
+    if not emission_context:
+        return None
+    frame = gwp_values.copy()
+    required = {"gas", "emission_context", "gwp_value"}
+    if not required.issubset(set(frame.columns)):
+        return None
+    mask = frame["gas"].astype(str).str.strip() == str(gas).strip()
+    mask &= (
+        frame["emission_context"].astype(str).str.strip() == emission_context
+    )
+    if "gwp_status" in frame.columns:
+        mask &= frame["gwp_status"].astype(str).str.strip() == READY_GWP_STATUS
+    matched = frame.loc[mask]
+    if len(matched) != 1:
+        return None
+    return matched.iloc[0]
