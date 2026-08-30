@@ -10,6 +10,16 @@ climate-data readiness signals, and traceable data-quality exceptions.
 
 **Live app:** [carbon-evidence-ledger-tw.streamlit.app](https://carbon-evidence-ledger-tw.streamlit.app/)
 
+## Product preview
+
+### Guided onboarding
+
+![Carbon Evidence Ledger guided onboarding](docs/readme_assets/onboarding.jpg)
+
+### Company applicability workflow
+
+![Carbon Evidence Ledger company applicability workflow](docs/readme_assets/applicability.jpg)
+
 ## Purpose
 
 Companies often store operational information across utility bills, invoices,
