@@ -319,6 +319,8 @@ def test_ifrs_guided_flow_does_not_auto_choose_statements() -> None:
     assert "need_subsidiaries" in step
     assert t("boundary.wizard.reporting_entities.save_basis", ZH) == "儲存報導基礎"
     assert t("boundary.wizard.reporting_entities.confirm", ZH) == "確認此報導範圍"
+    assert t("boundary.wizard.reporting_entities.title", ZH) == "確認永續揭露報導個體"
+    assert "boundary.wizard.reporting_entities.limit" in step
     assert t("boundary.wizard.reporting_entities.need_subsidiaries", ZH) == (
         "補齊子公司法律實體範圍後，才能確認合併報導範圍。"
     )

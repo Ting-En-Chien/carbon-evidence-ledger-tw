@@ -670,7 +670,7 @@ def _walk_stage41_intake(page, csv_path: Path, *, ng_choice: str) -> None:
     review = visible_text(page)
     assert "可納入計算" in review
     assert "需要確認" in review
-    assert "已知不支援" in review
+    assert "目前不支援" in review
     assert "grid_electricity" not in review
     save_step_screenshot(page, "qa_stage41_review")
     start = page.get_by_role(

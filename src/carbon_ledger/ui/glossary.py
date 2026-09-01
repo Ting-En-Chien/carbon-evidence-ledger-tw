@@ -53,16 +53,32 @@ GLOSSARY_ENTRIES: tuple[tuple[str, str, str, str, str], ...] = (
     (
         "assurance",
         "確信（Assurance）",
-        "由獨立第三方對永續／溫室氣體資訊提供確信意見，常見於 IFRS 相關要求。",
+        (
+            "由獨立第三方對溫室氣體或永續資訊提供確信意見。"
+            "臺灣規範要求適用公司對合併個體 Scope 1／2 排放取得確信；"
+            "這不是 IFRS S1／S2 本身的完整確信結論。"
+        ),
         "Assurance",
-        "Independent third-party assurance over sustainability or GHG information.",
+        (
+            "Independent third-party assurance over sustainability or GHG "
+            "information. Taiwan rules require applicable companies to obtain "
+            "assurance over consolidated Scope 1 and Scope 2 emissions; this "
+            "is not a complete IFRS S1/S2 assurance conclusion."
+        ),
     ),
     (
         "verification",
         "查驗（Verification）",
-        "台灣環境主管機關脈絡下的溫室氣體查驗，與 IFRS 確信是不同概念。",
+        (
+            "台灣環境主管機關脈絡下的溫室氣體盤查查驗，"
+            "與臺灣規範的合併個體 Scope 1／2 確信是不同概念。"
+        ),
         "Verification",
-        "Taiwan environmental GHG verification — distinct from IFRS assurance.",
+        (
+            "Taiwan environmental GHG inventory verification — distinct from "
+            "the Taiwan requirement for assurance of consolidated Scope 1 "
+            "and Scope 2 GHG emissions."
+        ),
     ),
     (
         "carbon_fee",

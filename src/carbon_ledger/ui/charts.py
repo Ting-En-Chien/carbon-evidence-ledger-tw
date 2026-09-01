@@ -17,6 +17,7 @@ from carbon_ledger.ui.i18n import DEFAULT_LANG, t
 from carbon_ledger.ui.view_models import (
     build_activity_overview,
     calculation_label,
+    company_inventory_record_ids,
 )
 
 # Semantic visualization palette (shared across pages; Stage 3B.2b tokens)
@@ -119,12 +120,13 @@ def calculated_emissions_contributions(
     result: PipelineRunResult,
     lang: str = DEFAULT_LANG,
 ) -> pd.DataFrame:
-    """Contribution rows for currently calculated activities only."""
+    """Contribution rows for company-inventory activities only."""
     overview = build_activity_overview(result, lang)
     if overview.empty:
         return pd.DataFrame(columns=["activity_name", "tco2e"])
+    included_ids = company_inventory_record_ids(result)
     calculated = overview[
-        overview["calculation_status"].astype(str) == "calculated"
+        overview["record_id"].astype(str).isin(included_ids)
     ].copy()
     if calculated.empty:
         return pd.DataFrame(columns=["activity_name", "tco2e"])
@@ -146,19 +148,18 @@ def monthly_emissions_series(
     result: PipelineRunResult,
     lang: str = DEFAULT_LANG,
 ) -> pd.DataFrame:
-    """Monthly time-series of calculated tCO2e (presentation only)."""
+    """Monthly time-series of company-inventory tCO2e (presentation only)."""
     activities = result.activity_records_accepted.copy()
     calcs = result.calculation_results.copy()
     if activities.empty or calcs.empty:
         return pd.DataFrame(columns=["month", "tco2e"])
+    included_ids = company_inventory_record_ids(result)
     merged = activities.merge(
         calcs[["record_id", "calculation_status", "calculated_tco2e"]],
         on="record_id",
         how="left",
     )
-    ready = merged[
-        merged["calculation_status"].astype(str) == "calculated"
-    ].copy()
+    ready = merged[merged["record_id"].astype(str).isin(included_ids)].copy()
     if ready.empty:
         return pd.DataFrame(columns=["month", "tco2e"])
     ready["month_ts"] = pd.to_datetime(

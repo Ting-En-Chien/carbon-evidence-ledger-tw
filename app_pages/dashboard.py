@@ -37,16 +37,19 @@ from carbon_ledger.ui.motion import (
     render_animated_metric,
     render_hero_result_kpis,
 )
+from carbon_ledger.ui.refrigerant_boundary_form import (
+    render_confirmation_flash,
+    render_refrigerant_boundary_confirmation,
+)
 from carbon_ledger.ui.state import (
     ANALYSIS_PHASE_ANALYZING,
     ANALYSIS_PHASE_FAILED,
     REPO_ROOT,
     STATE_ANALYSIS_RUNNING,
     STATE_INTAKE_RESULT,
-    STATE_INTAKE_SHOW_MAPPING_EDITOR,
-    STATE_INTAKE_STEP,
     STATE_INTAKE_TABLE,
     duplicate_review_decisions_from_state,
+    format_data_period_label,
     get_analysis_source_summary,
     get_applicability_assessment,
     get_company_profile_mapping,
@@ -57,9 +60,10 @@ from carbon_ledger.ui.state import (
 from carbon_ledger.ui.tutorial import note_entered_company_setup, onboarding_target
 from carbon_ledger.ui.view_models import (
     beginner_result_summary,
-    calculated_emissions_summary,
+    company_inventory_emissions_summary,
     executive_emissions_insights,
     hero_result_status_and_disposition,
+    inventory_status_counts,
     labeled_scope_hero_caption,
     reconcile_row_dispositions,
     scope_kpi_states,
@@ -144,14 +148,19 @@ assessment = get_applicability_assessment(st.session_state)
 company_name = str(profile.get("company_name") or "") or t(
     "dash.greeting_company_fallback", lang
 )
-reporting_year = profile.get("reporting_year") or source.get("period_end") or "—"
+legal_year = profile.get("reporting_year") or "—"
+data_period = format_data_period_label(
+    source.get("period_start"), source.get("period_end")
+)
+reporting_year = data_period or legal_year
 
 freshness = regulatory_freshness_banner(REPO_ROOT, lang=lang)
 summary = beginner_result_summary(result, lang)
-emissions = calculated_emissions_summary(result, lang)
-value = emissions["calculated_tco2e"]
-done = int(summary["calculated"])
-unresolved_count = int(summary["needs_work"])
+inventory = company_inventory_emissions_summary(result, lang)
+inventory_counts = inventory_status_counts(result)
+value = inventory["inventory_tco2e"]
+done = int(inventory_counts["included_in_inventory"])
+unresolved_count = int(inventory_counts["needs_review"])
 total_count = int(summary["activities"])
 source_count = int(summary["source_documents"])
 insights = executive_emissions_insights(result, lang)
@@ -183,16 +192,18 @@ dispositions = reconcile_row_dispositions(
 hero_copy = hero_result_status_and_disposition(
     uploaded=uploaded,
     dispositions=dispositions,
-    calculated_count=done,
+    calculated_count=int(inventory_counts["technically_calculated"]),
     activity_count=total_count,
     needs_work=unresolved_count,
     lang=lang,
+    inventory_counts=inventory_counts,
 )
 included = int(hero_copy["included"])
 remaining_open = int(hero_copy["remaining_open"])
+actionable_open = int(hero_copy.get("actionable_open", remaining_open))
 population = int(hero_copy["hero_total"])
 complete = bool(hero_copy["complete"])
-show_issues = remaining_open > 0 if uploaded else should_show_unresolved_cta(
+show_issues = actionable_open > 0 if uploaded else should_show_unresolved_cta(
     unresolved_count
 )
 show_coverage_bar = should_show_coverage_chart(
@@ -211,7 +222,7 @@ render_section_header(
 scope_caption = labeled_scope_hero_caption(scope_states, lang)
 render_hero_result_kpis(
     emissions_value=value,
-    emissions_label=t("dash.kpi.emissions", lang),
+    emissions_label=t("dash.kpi.inventory", lang),
     emissions_subtitle="",
     done=int(hero_copy["hero_done"]),
     total=int(hero_copy["hero_total"]),
@@ -240,58 +251,51 @@ render_hero_result_kpis(
         "dash.hero.meta",
         lang,
         company=company_name,
-        period=reporting_year,
+        period=data_period or t("dash.period_unknown", lang),
         sources=source_count,
     ),
 )
 if st.button(t("dash.hero.factor_details", lang), key="dash_hero_factor_details"):
     st.switch_page("app_pages/activity_explorer.py")
 
+render_confirmation_flash(result, lang)
+render_refrigerant_boundary_confirmation(result, lang)
+
 render_greeting_block(
     company=company_name,
-    reporting_year=reporting_year,
+    reporting_year=legal_year,
+    data_period=data_period,
     attention_count=0,
     lang=lang,
 )
 render_regulatory_status_chip(freshness, lang)
 
-if show_issues:
-    if uploaded:
-        if included >= 1:
-            st.warning(
-                "⚠ "
-                + t(
-                    "dash.result_preliminary_body",
-                    lang,
-                    included=included,
-                    total=population,
-                    remaining=remaining_open,
-                )
+if uploaded and remaining_open > 0:
+    if hero_copy.get("disposition_caption"):
+        st.warning("⚠ " + str(hero_copy["disposition_caption"]))
+    if hero_copy.get("incomplete_caption") and actionable_open > 0:
+        st.caption(str(hero_copy["incomplete_caption"]))
+    if actionable_open > 0 and st.button(
+        t("dash.cta.resolve_remaining", lang, remaining=actionable_open),
+        key="dash_resolve_remaining",
+    ):
+        st.switch_page("app_pages/issues_actions.py")
+elif show_issues:
+    st.warning(
+        "⚠ " + t("dash.issues_banner", lang, count=unresolved_count)
+    )
+    if show_coverage_bar:
+        st.progress(float(done) / float(max(1, total_count)))
+        st.caption(
+            t(
+                "dash.coverage_partial",
+                lang,
+                done=done,
+                total=total_count,
             )
-        if st.button(
-            t("dash.cta.resolve_remaining", lang, remaining=remaining_open),
-            key="dash_resolve_remaining",
-        ):
-            st.session_state[STATE_INTAKE_STEP] = 2
-            st.session_state[STATE_INTAKE_RESULT] = None
-            st.session_state[STATE_INTAKE_SHOW_MAPPING_EDITOR] = False
-            st.switch_page("app_pages/data_intake.py")
-    else:
-        st.warning(
-            "⚠ " + t("dash.issues_banner", lang, count=unresolved_count)
         )
-        if show_coverage_bar:
-            st.progress(float(done) / float(max(1, total_count)))
-            st.caption(
-                t(
-                    "dash.coverage_partial",
-                    lang,
-                    done=done,
-                    total=total_count,
-                )
-            )
-        if st.button(t("dash.cta.view_problems", lang), key="dash_view_issues"):
-            st.switch_page("app_pages/issues_actions.py")
+    if st.button(t("dash.cta.view_problems", lang), key="dash_view_issues"):
+        st.switch_page("app_pages/issues_actions.py")
 elif uploaded and complete and included >= 1:
     st.success("✓ " + t("dash.coverage_complete", lang, total=population))
     st.caption("✓ " + t("dash.coverage_all_done", lang))

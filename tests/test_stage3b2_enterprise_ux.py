@@ -208,7 +208,7 @@ def test_result_cards_hide_rule_ids_by_default_structure() -> None:
     )
     cards = assessment_obligation_cards(assessment, ZH)
     titles = [c["title"] for c in cards]
-    assert any("IFRS S1/S2" in title for title in titles)
+    assert any("IFRS永續揭露準則適用時程" in title for title in titles)
     assert any("確信" in title for title in titles)
     assert any("查驗" in title for title in titles)
     assert titles.count([t for t in titles if "查驗" in t or "確信" in t][0]) >= 0
@@ -275,7 +275,7 @@ def test_no_fake_compliance_percentage_and_no_cbam() -> None:
     assert "合規分數：" not in text
     assert "80% compliant" not in text.lower()
     assert "CBAM" not in text
-    assert "目前已計算排放量" in text
+    assert "目前已納入公司盤查排放量" in text
 
 
 def test_unified_attention_merges_sources() -> None:

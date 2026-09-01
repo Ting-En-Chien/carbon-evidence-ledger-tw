@@ -367,6 +367,18 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "無法計算－GWP 版本無法確認",
         "en": "Blocked — GWP not confirmed",
     },
+    "status.blocked_unknown_refrigerant": {
+        "zh-TW": "無法計算－冷媒種類無法識別",
+        "en": "Blocked — unknown refrigerant",
+    },
+    "status.blocked_missing_refill_quantity": {
+        "zh-TW": "無法計算－補充量尚未確認",
+        "en": "Blocked — refill not confirmed",
+    },
+    "status.blocked_invalid_reporting_period": {
+        "zh-TW": "無法計算－報導年度無法唯一判定",
+        "en": "Blocked — reporting year is not unique",
+    },
     "status.ready": {"zh-TW": "資料完整", "en": "Ready"},
     "status.partial_evidence": {
         "zh-TW": "部分資料可用",
@@ -376,6 +388,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     "status.supporting_only": {"zh-TW": "僅作輔助", "en": "Supporting only"},
     "status.excluded": {"zh-TW": "不納入", "en": "Excluded"},
     "status.needs_review": {"zh-TW": "需要確認", "en": "Needs review"},
+    "status.outside_boundary": {
+        "zh-TW": "組織邊界外，不納入",
+        "en": "Outside the organizational boundary",
+    },
     "status.not_applicable": {"zh-TW": "不適用", "en": "Not applicable"},
     "status.mapped": {"zh-TW": "已對應", "en": "Mapped"},
     "status.unknown": {"zh-TW": "未知", "en": "Unknown"},
@@ -403,6 +419,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     "activity.diesel": {
         "zh-TW": "柴油",
         "en": "Diesel",
+    },
+    "activity.refrigerant_refill": {
+        "zh-TW": "冷媒實際補充",
+        "en": "Actual refrigerant refill",
     },
     "activity.purchased_steel": {
         "zh-TW": "採購鋼材",
@@ -557,9 +577,21 @@ MESSAGES: dict[str, dict[str, str]] = {
     "act.basis.result": {"zh-TW": "計算結果", "en": "Calculation result"},
     "act.basis.source": {"zh-TW": "官方來源", "en": "Official source"},
     "act.basis.diesel_use": {"zh-TW": "柴油用途", "en": "Diesel use"},
+    "act.basis.refrigerant_code": {
+        "zh-TW": "冷媒種類",
+        "en": "Refrigerant type",
+    },
+    "act.basis.refill_quantity": {
+        "zh-TW": "實際補充量",
+        "en": "Actual refill quantity",
+    },
     "dash.kpi.emissions": {
         "zh-TW": "目前已計算排放量",
         "en": "Currently calculated emissions",
+    },
+    "dash.kpi.inventory": {
+        "zh-TW": "目前已納入公司盤查排放量",
+        "en": "Currently included company inventory emissions",
     },
     "dash.kpi.completion": {"zh-TW": "計算完成", "en": "Calculation complete"},
     "dash.kpi.unresolved": {"zh-TW": "仍需處理", "en": "Still unresolved"},
@@ -658,7 +690,24 @@ MESSAGES: dict[str, dict[str, str]] = {
     "dash.period_unknown": {"zh-TW": "期間未標示", "en": "Period not labeled"},
     "dash.current_analysis": {"zh-TW": "目前分析", "en": "Current analysis"},
     "dash.file_label": {"zh-TW": "檔案：", "en": "File:"},
-    "dash.period_label": {"zh-TW": "資料期間：", "en": "Data period:"},
+    "dash.legal_year_label": {
+        "zh-TW": "法規適用年度：{year}",
+        "en": "Legal applicability year: {year}",
+    },
+    "dash.period_label": {
+        "zh-TW": "資料期間：",
+        "en": "Data period: ",
+    },
+    "ghg.rationale.refrigerant_third_party": {
+        "zh-TW": (
+            "第三方所有的冷媒設備不會自動列入 Scope 1；系統也不會自行推定為 "
+            "Scope 3，請確認實際營運控制與盤查邊界。"
+        ),
+        "en": (
+            "Third-party refrigerant equipment is not automatically mapped "
+            "to Scope 1; Scope 3 is not guessed."
+        ),
+    },
     "dash.activity_count_label": {
         "zh-TW": "{count} 筆活動資料",
         "en": "{count} activity records",
@@ -1327,12 +1376,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Review the reporting purposes, then continue.",
     },
     "onb.s1j.title": {
-        "zh-TW": "確認揭露範圍",
-        "en": "Confirm disclosure scope",
+        "zh-TW": "確認永續揭露報導個體",
+        "en": "Confirm the sustainability disclosure reporting entity",
     },
     "onb.s1j.body": {
-        "zh-TW": "確認 IFRS 報導個體後繼續。",
-        "en": "Confirm the IFRS reporting entities, then continue.",
+        "zh-TW": "確認永續揭露報導個體後繼續。",
+        "en": "Confirm the sustainability disclosure reporting entity, then continue.",
     },
     "onb.s1k.title": {
         "zh-TW": "核對政府紀錄",
@@ -1507,15 +1556,15 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "See at a glance which activities are calculated and which need action.",
     },
     "chart.emissions_contrib.help": {
-        "zh-TW": "目前已計算排放量的來源活動（缺少資料的活動不會以 0 呈現）。",
+        "zh-TW": "目前已納入公司盤查排放量的來源活動（缺少資料的活動不會以 0 呈現）。",
         "en": (
-            "Activities contributing to currently calculated emissions "
+            "Activities contributing to company inventory emissions "
             "(gaps are not shown as zero)."
         ),
     },
     "chart.emissions_contrib.empty": {
-        "zh-TW": "目前尚無已完成計算的活動排放量。",
-        "en": "No calculated activity emissions yet.",
+        "zh-TW": "目前尚無已納入公司盤查的活動排放量。",
+        "en": "No company inventory activity emissions yet.",
     },
     "chart.ghg_scope.title": {
         "zh-TW": "活動分類筆數",
@@ -1811,14 +1860,21 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "intake.ex.elec_q": {
-        "zh-TW": "這些電力列是否用於企業／廠場盤查？",
-        "en": "Are these electricity rows for enterprise / facility inventory?",
+        "zh-TW": "請確認這是公司營運使用的外購電力。",
+        "en": (
+            "Please confirm this is purchased electricity used for company "
+            "operations."
+        ),
     },
     "intake.ex.elec_why": {
-        "zh-TW": "確認用途後才能套用企業盤查係數；未確認的列會暫不計算。",
+        "zh-TW": (
+            "原始資料只有「外購電力」，系統不會只因為單位是 kWh 就當成 Scope 2。"
+            "確認為公司營運使用後才會納入企業盤查並計算；未確認的列會暫不計算。"
+        ),
         "en": (
-            "The enterprise inventory factor can be applied only after this "
-            "is answered. Unconfirmed rows are held out of calculation."
+            "The source only says purchased electricity; kWh alone is not "
+            "treated as Scope 2. Confirm company-operations use before the "
+            "enterprise inventory calculation. Unconfirmed rows are held out."
         ),
     },
     "intake.ex.activity_q": {
@@ -2121,6 +2177,22 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "intake.field.start": {"zh-TW": "開始日期", "en": "Start date"},
     "intake.field.end": {"zh-TW": "結束日期", "en": "End date"},
+    "intake.field.refrigerant_code": {
+        "zh-TW": "冷媒種類",
+        "en": "Refrigerant type",
+    },
+    "intake.field.refill_confirmed": {
+        "zh-TW": "補充量已確認",
+        "en": "Refill confirmed",
+    },
+    "intake.field.ownership_control": {
+        "zh-TW": "設備控制方式",
+        "en": "Equipment control",
+    },
+    "intake.field.organizational_boundary_status": {
+        "zh-TW": "組織盤查邊界",
+        "en": "Organizational inventory boundary",
+    },
     "intake.field.year_month": {
         "zh-TW": "年月（月報期間）",
         "en": "Year-month (monthly period)",
@@ -2450,14 +2522,19 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Electricity inventory type",
     },
     "intake.electricity_enterprise": {
-        "zh-TW": "企業／廠場盤查",
-        "en": "Enterprise / site inventory",
+        "zh-TW": "這是公司營運使用的外購電力",
+        "en": "This is purchased electricity used for company operations",
     },
     "intake.electricity_context_help": {
-        "zh-TW": "2025 年企業盤查電力係數需確認用途後才能套用。",
+        "zh-TW": (
+            "請確認這是公司營運使用的外購電力。"
+            "系統不會只因為單位是 kWh 就當成 Scope 2。"
+            "確認後才會納入企業盤查並計算。"
+        ),
         "en": (
-            "The 2025 enterprise electricity factor can be applied only "
-            "after this use is confirmed."
+            "Confirm this is purchased electricity used for company operations. "
+            "kWh alone is not treated as Scope 2. Calculation starts only after "
+            "this confirmation."
         ),
     },
     "intake.review.ready": {
@@ -2469,8 +2546,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Needs confirmation",
     },
     "intake.review.unsupported": {
-        "zh-TW": "已知不支援",
-        "en": "Known unsupported",
+        "zh-TW": "目前不支援",
+        "en": "Currently unsupported",
     },
     "intake.value_map_unit": {"zh-TW": "單位對應", "en": "Unit mapping"},
     "intake.choose": {"zh-TW": "請選擇", "en": "Please choose"},
@@ -2522,6 +2599,48 @@ MESSAGES: dict[str, dict[str, str]] = {
     "intake.result_needs_confirm": {
         "zh-TW": "需要確認",
         "en": "Needs confirmation",
+    },
+    "intake.result_unsupported": {
+        "zh-TW": "目前不支援",
+        "en": "Currently unsupported",
+    },
+    "intake.result_invalid": {
+        "zh-TW": "格式錯誤",
+        "en": "Invalid data",
+    },
+    "intake.issue.context_required": {
+        "zh-TW": "需要補充活動內容或盤查情境後才能計算。",
+        "en": "Activity context or inventory treatment must be confirmed.",
+    },
+    "intake.issue.unsupported_activity": {
+        "zh-TW": "此活動類型目前尚未提供排放計算；原始資料仍會保留。",
+        "en": (
+            "Calculation is not yet available for this activity type; "
+            "the source row is retained."
+        ),
+    },
+    "intake.unsupported.summary": {
+        "zh-TW": "目前不支援的活動：{names}。資料會保留，但不會計入排放量。",
+        "en": (
+            "Currently unsupported activities: {names}. Source rows are "
+            "retained but excluded from emissions totals."
+        ),
+    },
+    "intake.empty.ready": {
+        "zh-TW": "目前沒有可直接計算的資料。",
+        "en": "No rows are ready for calculation.",
+    },
+    "intake.empty.needs_confirm": {
+        "zh-TW": "目前沒有需要確認的資料。",
+        "en": "No rows need confirmation.",
+    },
+    "intake.empty.unsupported": {
+        "zh-TW": "目前沒有產品尚未支援的活動類型。",
+        "en": "No rows use currently unsupported activity types.",
+    },
+    "intake.empty.invalid": {
+        "zh-TW": "目前沒有格式錯誤的資料。",
+        "en": "No rows have data-format errors.",
     },
     "intake.result_total": {"zh-TW": "總筆數", "en": "Total rows"},
     "intake.success": {
@@ -2968,7 +3087,13 @@ MESSAGES: dict[str, dict[str, str]] = {
     "apl.basis.version": {"zh-TW": "規則版本", "en": "Rule version"},
     "apl.basis.verified": {"zh-TW": "最後驗證日期", "en": "Last verified date"},
     "apl.basis.source": {"zh-TW": "官方來源編號", "en": "Official source"},
-    "apl.obligation_ifrs": {"zh-TW": "IFRS S1/S2", "en": "IFRS S1/S2"},
+    "apl.obligation_ifrs": {
+        "zh-TW": "IFRS永續揭露準則適用時程（S1＋S2）",
+        "en": (
+            "IFRS Sustainability Disclosure Standards applicability "
+            "timeline (S1 and S2)"
+        ),
+    },
     "apl.obligation_inventory": {
         "zh-TW": "台灣溫室氣體盤查",
         "en": "Taiwan GHG inventory",
@@ -3181,12 +3306,25 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "tw.track.carbon_fee": {"zh-TW": "碳費", "en": "Carbon Fee"},
     "tw.track.ifrs_assurance": {
-        "zh-TW": "IFRS Scope 1/2 確信",
-        "en": "IFRS Scope 1/2 assurance",
+        "zh-TW": "臺灣規範：合併個體Scope 1／2溫室氣體排放確信",
+        "en": (
+            "Taiwan requirement: Assurance of consolidated Scope 1 and "
+            "Scope 2 GHG emissions"
+        ),
     },
     "tw.ifrs_assurance_note": {
-        "zh-TW": "這是永續揭露的第三方確信，與環境部溫室氣體查驗不同。",
-        "en": "This is disclosure assurance, distinct from MOENV GHG verification.",
+        "zh-TW": (
+            "此結果反映臺灣主管機關對適用公司之合併個體Scope 1／2溫室氣體排放"
+            "確信要求，並非IFRS S1或S2本身的完整確信結論，也不同於環境部列管"
+            "事業的盤查查驗。"
+        ),
+        "en": (
+            "This result reflects the Taiwan authority's requirement for "
+            "applicable companies to obtain assurance over consolidated-entity "
+            "Scope 1 and Scope 2 GHG emissions. It is not a complete IFRS S1 "
+            "or S2 assurance conclusion, and it is distinct from inventory "
+            "verification for MOENV-regulated entities."
+        ),
     },
     "tw.track.empty": {
         "zh-TW": "此軌道尚無判定結果；請先完成公司設定。",
@@ -3360,18 +3498,142 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "dash.result_preliminary_body": {
         "zh-TW": (
-            "目前納入 {included}／{total} 筆；{remaining} 筆尚未納入計算。"
-            "本結果不代表完整盤查總量。"
+            "技術上已計算：{calculated} 筆；已納入公司盤查：{included} 筆；"
+            "待使用者確認：{needs_review} 筆；目前產品尚未支援：{unsupported} 筆；"
+            "邊界外：{outside} 筆。"
         ),
         "en": (
-            "{included} of {total} rows are currently included; "
-            "{remaining} rows are not yet calculated. "
-            "This is not the complete inventory total."
+            "Technically calculated: {calculated} rows; included in the "
+            "company inventory: {included} rows; awaiting confirmation: "
+            "{needs_review} rows; not supported yet: {unsupported} rows; "
+            "outside the boundary: {outside} rows."
         ),
     },
+    "dash.result_incomplete_sources": {
+        "zh-TW": "目前結果尚未涵蓋全部待確認來源，不代表完整盤查總量。",
+        "en": (
+            "The current result does not yet cover every source that still "
+            "needs confirmation, and is not the complete inventory total."
+        ),
+    },
+    "boundary.confirm.title": {
+        "zh-TW": "待確認冷媒的組織邊界",
+        "en": "Refrigerant organizational boundary confirmation",
+    },
+    "boundary.confirm.help": {
+        "zh-TW": (
+            "請確認法律所有權、實際營運控制與盤查邊界。系統不會讓您直接選擇 "
+            "Scope；確認後會依既有規則重新分析。"
+        ),
+        "en": (
+            "Confirm legal ownership, operational control, and inventory "
+            "boundary. You do not choose Scope directly; existing mapping "
+            "rules re-run after you save."
+        ),
+    },
+    "boundary.confirm.record_id": {"zh-TW": "紀錄編號", "en": "Record ID"},
+    "boundary.confirm.refrigerant": {"zh-TW": "冷媒種類", "en": "Refrigerant"},
+    "boundary.confirm.quantity": {
+        "zh-TW": "實際補充量",
+        "en": "Actual refill quantity",
+    },
+    "boundary.confirm.tco2e": {
+        "zh-TW": "已計算 tCO₂e",
+        "en": "Calculated tCO₂e",
+    },
+    "boundary.confirm.current_mapping": {
+        "zh-TW": "目前判定與未納入原因",
+        "en": "Current classification and exclusion reason",
+    },
+    "boundary.confirm.legal_owner": {
+        "zh-TW": "法律所有人",
+        "en": "Legal owner",
+    },
+    "boundary.confirm.controller": {
+        "zh-TW": "實際營運控制者",
+        "en": "Operational controller",
+    },
+    "boundary.confirm.boundary_status": {
+        "zh-TW": "是否位於盤查邊界",
+        "en": "Organizational boundary status",
+    },
+    "boundary.confirm.boundary_basis": {
+        "zh-TW": "本次邊界依據",
+        "en": "Boundary basis for this confirmation",
+    },
+    "boundary.confirm.evidence": {
+        "zh-TW": "佐證文件／紀錄編號",
+        "en": "Supporting document or record ID",
+    },
+    "boundary.confirm.rationale": {"zh-TW": "判定理由", "en": "Rationale"},
+    "boundary.confirm.save": {
+        "zh-TW": "儲存判定並重新分析",
+        "en": "Save decision and re-analyze",
+    },
+    "boundary.confirm.withdraw": {
+        "zh-TW": "撤銷判定並重新分析",
+        "en": "Withdraw decision and re-analyze",
+    },
+    "boundary.confirm.evidence_required": {
+        "zh-TW": "佐證文件／紀錄編號為必填，空白時無法完成確認。",
+        "en": (
+            "A supporting document or record ID is required; confirmation "
+            "cannot be completed while it is blank."
+        ),
+    },
+    "boundary.confirm.incomplete": {
+        "zh-TW": "請完整填寫所有判定欄位後再儲存。",
+        "en": "Complete every confirmation field before saving.",
+    },
+    "boundary.confirm.no_upload": {
+        "zh-TW": "請先完成上傳分析，才能儲存判定並重新分析。",
+        "en": "Upload and analyze data before saving a decision.",
+    },
+    "boundary.outcome.included_scope_1": {
+        "zh-TW": "已納入 Scope 1",
+        "en": "Included in Scope 1",
+    },
+    "boundary.outcome.excluded_outside": {
+        "zh-TW": "已排除於盤查邊界外",
+        "en": "Excluded as outside the inventory boundary",
+    },
+    "boundary.outcome.still_needs_review": {
+        "zh-TW": "仍需補充資料",
+        "en": "Still needs more information",
+    },
+    "boundary.owner.company": {"zh-TW": "本公司", "en": "The company"},
+    "boundary.owner.third_party": {"zh-TW": "第三方", "en": "Third party"},
+    "boundary.owner.unknown": {"zh-TW": "不確定", "en": "Unknown"},
+    "boundary.controller.company": {"zh-TW": "本公司", "en": "The company"},
+    "boundary.controller.third_party": {"zh-TW": "第三方", "en": "Third party"},
+    "boundary.controller.shared": {"zh-TW": "共同控制", "en": "Shared"},
+    "boundary.controller.unknown": {"zh-TW": "不確定", "en": "Unknown"},
+    "boundary.status.inside": {"zh-TW": "位於盤查邊界內", "en": "Inside"},
+    "boundary.status.outside": {
+        "zh-TW": "位於盤查邊界外",
+        "en": "Outside",
+    },
+    "boundary.status.unknown": {"zh-TW": "不確定", "en": "Unknown"},
+    "boundary.basis.taiwan_statutory_facility": {
+        "zh-TW": "台灣法定廠場",
+        "en": "Taiwan statutory facility",
+    },
+    "boundary.basis.operational_control": {
+        "zh-TW": "營運控制",
+        "en": "Operational control",
+    },
+    "boundary.basis.financial_control": {
+        "zh-TW": "財務控制",
+        "en": "Financial control",
+    },
+    "boundary.basis.equity_share": {
+        "zh-TW": "權益比例",
+        "en": "Equity share",
+    },
+    "boundary.basis.unknown": {"zh-TW": "尚不確定", "en": "Unknown"},
     "dash.cta.resolve_remaining": {
-        "zh-TW": "處理尚未納入的 {remaining} 筆",
-        "en": "Resolve {remaining} rows",
+        "zh-TW": "處理待確認的 {remaining} 筆",
+        "en": "Resolve {remaining} rows awaiting confirmation",
     },
     "dash.hero.excluded": {
         "zh-TW": "已排除 {n} 筆",
@@ -3442,10 +3704,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "dash.insight.top_scope": {
-        "zh-TW": "目前排放主要來自 {scope}，約占已計算排放量的 {percent}%。",
+        "zh-TW": "目前排放主要來自 {scope}，約占已納入公司盤查排放量的 {percent}%。",
         "en": (
             "Emissions currently come mainly from {scope}, "
-            "about {percent}% of calculated emissions."
+            "about {percent}% of company inventory emissions."
         ),
     },
     "dash.insight.top_source": {
@@ -3453,10 +3715,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "{name} is currently the largest single emissions source.",
     },
     "dash.insight.top_source_share": {
-        "zh-TW": "{name}是目前最大的排放來源，占已計算排放量 {percent}%。",
+        "zh-TW": "{name}是目前最大的排放來源，占已納入公司盤查排放量 {percent}%。",
         "en": (
             "{name} is currently the largest emissions source, "
-            "{percent}% of calculated emissions."
+            "{percent}% of company inventory emissions."
         ),
     },
     "dash.section_detail": {"zh-TW": "排放明細", "en": "Emissions detail"},
@@ -3467,8 +3729,8 @@ MESSAGES: dict[str, dict[str, str]] = {
     "dash.detail.source": {"zh-TW": "依來源", "en": "By source"},
     "dash.detail.trend": {"zh-TW": "依月份", "en": "By month"},
     "dash.detail.trend_title": {
-        "zh-TW": "每月已計算排放量",
-        "en": "Monthly calculated emissions",
+        "zh-TW": "每月已納入公司盤查排放量",
+        "en": "Monthly company inventory emissions",
     },
     "dash.cta.view_detail": {"zh-TW": "查看排放明細", "en": "View emissions detail"},
     "dash.cta.view_all_attention": {"zh-TW": "查看全部", "en": "View all"},
@@ -3628,12 +3890,22 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Some companies may need third-party verification.",
     },
     "tw.explain.assurance.title": {
-        "zh-TW": "IFRS Scope 1/2 確信",
-        "en": "IFRS Scope 1/2 assurance",
+        "zh-TW": "臺灣規範：合併個體Scope 1／2溫室氣體排放確信",
+        "en": (
+            "Taiwan requirement: Assurance of consolidated Scope 1 and "
+            "Scope 2 GHG emissions"
+        ),
     },
     "tw.explain.assurance.body": {
-        "zh-TW": "永續揭露的第三方確信。",
-        "en": "Third-party assurance for the sustainability disclosure.",
+        "zh-TW": (
+            "臺灣主管機關對適用公司合併個體Scope 1／2溫室氣體排放的確信要求，"
+            "與環境部列管事業盤查查驗不同。"
+        ),
+        "en": (
+            "A Taiwan-authority assurance requirement over consolidated-entity "
+            "Scope 1 and Scope 2 GHG emissions, distinct from inventory "
+            "verification for MOENV-regulated entities."
+        ),
     },
     "tw.explain.fee.title": {"zh-TW": "碳費", "en": "Carbon fee"},
     "tw.explain.fee.body": {
@@ -3700,16 +3972,25 @@ MESSAGES: dict[str, dict[str, str]] = {
     "apl.money.unit.wan": {"zh-TW": "萬元", "en": "10k TWD"},
     "apl.money.unit.yi": {"zh-TW": "億元", "en": "100m TWD"},
     "apl.obligation_ifrs_assurance": {
-        "zh-TW": "IFRS Scope 1/2 確信",
-        "en": "IFRS Scope 1/2 Assurance",
+        "zh-TW": "臺灣規範：合併個體Scope 1／2溫室氣體排放確信",
+        "en": (
+            "Taiwan requirement: Assurance of consolidated Scope 1 and "
+            "Scope 2 GHG emissions"
+        ),
     },
     "apl.obligation_env_verification": {
         "zh-TW": "環境部溫室氣體查驗",
         "en": "MOENV GHG verification",
     },
     "apl.kind.ifrs_assurance": {
-        "zh-TW": "類型：IFRS 相關確信（與環境查驗不同）",
-        "en": "Type: IFRS-related assurance (distinct from environmental verification)",
+        "zh-TW": (
+            "類型：臺灣規範之合併個體Scope 1／2溫室氣體排放確信（與環境部盤查查驗不同）"
+        ),
+        "en": (
+            "Type: Taiwan requirement for assurance of consolidated Scope 1 "
+            "and Scope 2 GHG emissions (distinct from MOENV inventory "
+            "verification)"
+        ),
     },
     "apl.kind.env_verification": {
         "zh-TW": "類型：台灣環境主管機關查驗",
@@ -3835,20 +4116,47 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Clarify Taiwan facilities and reporting boundary.",
     },
     "apl.reason.verification_assurance.APPLICABLE": {
-        "zh-TW": "IFRS Scope 1/2 確信要求與此公司適用時程相關。",
-        "en": "IFRS Scope 1/2 assurance follows the IFRS adoption timing.",
+        "zh-TW": (
+            "此結果反映臺灣主管機關對適用公司之合併個體Scope 1／2溫室氣體排放"
+            "確信要求，並非IFRS S1或S2本身的完整確信結論，也不同於環境部列管"
+            "事業的盤查查驗。"
+        ),
+        "en": (
+            "This result reflects the Taiwan authority's requirement for "
+            "applicable companies to obtain assurance over consolidated-entity "
+            "Scope 1 and Scope 2 GHG emissions. It is not a complete IFRS S1 "
+            "or S2 assurance conclusion, and it is distinct from inventory "
+            "verification for MOENV-regulated entities."
+        ),
     },
     "apl.reason.verification_assurance.NEEDS_INFORMATION": {
-        "zh-TW": "IFRS 確信判定仍取決於 IFRS 適用性與公司資料。",
-        "en": "IFRS assurance still depends on the IFRS adoption assessment.",
+        "zh-TW": (
+            "臺灣規範的合併個體Scope 1／2確信時程，仍取決於IFRS適用性與公司資料。"
+        ),
+        "en": (
+            "Timing of the Taiwan consolidated Scope 1 and Scope 2 assurance "
+            "requirement still depends on the IFRS applicability assessment."
+        ),
     },
     "apl.reason.verification_assurance.FUTURE_REQUIREMENT": {
-        "zh-TW": "IFRS Scope 1/2 確信將依適用時程於未來年度發生。",
-        "en": "IFRS Scope 1/2 assurance will apply in a future year.",
+        "zh-TW": (
+            "臺灣規範的合併個體Scope 1／2溫室氣體排放確信，將依適用時程於未來年度發生。"
+        ),
+        "en": (
+            "The Taiwan requirement for assurance of consolidated Scope 1 and "
+            "Scope 2 GHG emissions will apply in a future year."
+        ),
     },
     "apl.reason.env_verification.NEEDS_INFORMATION": {
-        "zh-TW": "台灣溫室氣體查驗與 IFRS 確信不同；目前還需要確認是否收到查驗要求。",
-        "en": "Taiwan environmental verification is distinct from IFRS assurance; confirm any notice received.",  # noqa: E501
+        "zh-TW": (
+            "台灣溫室氣體查驗與臺灣規範的合併個體Scope 1／2確信不同；目前還需要"
+            "確認是否收到查驗要求。"
+        ),
+        "en": (
+            "Taiwan environmental verification is distinct from the Taiwan "
+            "consolidated Scope 1 and Scope 2 assurance requirement; confirm "
+            "any notice received."
+        ),
     },
     "apl.reason.env_verification.NEEDS_REVIEW": {
         "zh-TW": "你已表示收到查驗要求。",
@@ -4350,14 +4658,26 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Your company is in the current first-phase scope.",
     },
     "cust.explain.ifrs_assurance.needs_company_data": {
-        "zh-TW": "IFRS 適用時程確認後，才能判斷 Scope 1/2 確信準備時點。",
-        "en": "Assurance timing follows the IFRS adoption timeline.",
+        "zh-TW": (
+            "IFRS適用時程確認後，才能判斷臺灣規範的合併個體Scope 1／2確信準備時點。"
+        ),
+        "en": (
+            "Timing of the Taiwan consolidated Scope 1 and Scope 2 assurance "
+            "requirement follows the IFRS applicability timeline."
+        ),
     },
     "cust.explain.ifrs_assurance.applicable": {
-        "zh-TW": "永續揭露中的 Scope 1/2 排放資料需要準備第三方確信。",
+        "zh-TW": (
+            "此結果反映臺灣主管機關對適用公司之合併個體Scope 1／2溫室氣體排放"
+            "確信要求，並非IFRS S1或S2本身的完整確信結論，也不同於環境部列管"
+            "事業的盤查查驗。"
+        ),
         "en": (
-            "Scope 1/2 emissions in the sustainability disclosure need "
-            "third-party assurance."
+            "This result reflects the Taiwan authority's requirement for "
+            "applicable companies to obtain assurance over consolidated-entity "
+            "Scope 1 and Scope 2 GHG emissions. It is not a complete IFRS S1 "
+            "or S2 assurance conclusion, and it is distinct from inventory "
+            "verification for MOENV-regulated entities."
         ),
     },
     "cust.explain.ghg_inventory.needs_company_data": {
@@ -4654,20 +4974,504 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "ifrs.timeline.heading": {
-        "zh-TW": "你的 IFRS 永續揭露時程",
-        "en": "Your IFRS sustainability disclosure timeline",
+        "zh-TW": "IFRS永續揭露法規時程（非公司完成度）",
+        "en": (
+            "IFRS sustainability disclosure regulatory timeline "
+            "(not company completion)"
+        ),
     },
     "ifrs.timeline.rows_heading": {
         "zh-TW": "適用結果",
         "en": "Applicability results",
+    },
+    "ifrs.result.product_scope": {
+        "zh-TW": (
+            "目前系統支援：\n"
+            "✓ 適用年度與首次申報年度判定\n"
+            "✓ 永續揭露報導個體確認\n"
+            "尚未支援：\n"
+            "— IFRS S1／S2完整揭露內容編製\n"
+            "— 合規聲明或第三方確信結論"
+        ),
+        "en": (
+            "Currently supported:\n"
+            "✓ Determination of the applicable reporting year and first "
+            "filing year\n"
+            "✓ Confirmation of the sustainability disclosure reporting entity\n"
+            "Not currently supported:\n"
+            "— Preparation of complete IFRS S1/S2 disclosures\n"
+            "— Compliance statements or third-party assurance conclusions"
+        ),
+    },
+    "ifrs.readiness.title": {
+        "zh-TW": "IFRS S1／S2 揭露準備清單",
+        "en": "IFRS S1/S2 disclosure readiness checklist",
+    },
+    "ifrs.readiness.note": {
+        "zh-TW": (
+            "以下僅整理目前系統中可取得的資料，不代表已符合 IFRS S1／S2，"
+            "也不是公司實際完成率。"
+        ),
+        "en": (
+            "This list only summarises data currently available in the system. "
+            "It does not mean the company meets IFRS S1/S2 and is not a "
+            "company completion rate."
+        ),
+    },
+    "ifrs.readiness.status.available": {
+        "zh-TW": "系統已有資料",
+        "en": "Data available in the system",
+    },
+    "ifrs.readiness.status.missing": {
+        "zh-TW": "尚未提供資料",
+        "en": "Information not yet provided",
+    },
+    "ifrs.readiness.status.unsupported": {
+        "zh-TW": "目前產品尚未支援",
+        "en": "Not supported by the current product",
+    },
+    "ifrs.readiness.section.s1": {
+        "zh-TW": "S1 共通編製基礎",
+        "en": "S1 general preparation foundations",
+    },
+    "ifrs.readiness.section.s2": {
+        "zh-TW": "S2 氣候相關揭露資料",
+        "en": "S2 climate-related disclosure information",
+    },
+    "ifrs.readiness.item.reporting_period.name": {
+        "zh-TW": "報導期間",
+        "en": "Reporting period",
+    },
+    "ifrs.readiness.item.reporting_period.why.available": {
+        "zh-TW": "系統已有本期報導年度或期間資料。",
+        "en": "A reporting year or period is already recorded in the system.",
+    },
+    "ifrs.readiness.item.reporting_period.next.available": {
+        "zh-TW": "建議下一步：請確認期間起迄與相關財務報表期間一致。",
+        "en": (
+            "Suggested next step: Confirm that the period matches the related "
+            "financial statements."
+        ),
+    },
+    "ifrs.readiness.item.reporting_period.why.missing": {
+        "zh-TW": "系統尚未取得有效的報導年度或期間。",
+        "en": "No valid reporting year or period is available in the system yet.",
+    },
+    "ifrs.readiness.item.reporting_period.next.missing": {
+        "zh-TW": "建議下一步：請在公司設定中確認報導年度。",
+        "en": "Suggested next step: Confirm the reporting year in company setup.",
+    },
+    "ifrs.readiness.item.reporting_entity.name": {
+        "zh-TW": "永續揭露報導個體",
+        "en": "Sustainability disclosure reporting entity",
+    },
+    "ifrs.readiness.item.reporting_entity.why.available": {
+        "zh-TW": "系統已有已確認的永續揭露報導個體資料。",
+        "en": (
+            "A confirmed sustainability disclosure reporting entity is already "
+            "recorded in the system."
+        ),
+    },
+    "ifrs.readiness.item.reporting_entity.next.available": {
+        "zh-TW": "建議下一步：請核對法律實體範圍是否與實際使用的財務報表一致。",
+        "en": (
+            "Suggested next step: Check that the legal-entity coverage matches "
+            "the financial statements actually used."
+        ),
+    },
+    "ifrs.readiness.item.reporting_entity.why.missing": {
+        "zh-TW": "系統尚未確認本期永續揭露報導個體。",
+        "en": (
+            "The sustainability disclosure reporting entity for this period "
+            "has not yet been confirmed."
+        ),
+    },
+    "ifrs.readiness.item.reporting_entity.next.missing": {
+        "zh-TW": "建議下一步：請依實際使用的個別或合併財務報表確認報導個體。",
+        "en": (
+            "Suggested next step: Confirm the reporting entity from the "
+            "standalone or consolidated financial statements actually used."
+        ),
+    },
+    "ifrs.readiness.item.materiality.name": {
+        "zh-TW": "重大永續風險與機會辨認",
+        "en": "Identification of material sustainability risks and opportunities",
+    },
+    "ifrs.readiness.item.materiality.why.unsupported": {
+        "zh-TW": "系統目前未蒐集重大永續風險與機會辨認資料。",
+        "en": (
+            "The system does not currently collect identification of material "
+            "sustainability risks and opportunities."
+        ),
+    },
+    "ifrs.readiness.item.materiality.next.unsupported": {
+        "zh-TW": (
+            "建議下一步：由永續與財務部門辨認可能影響現金流、融資或資本成本的"
+            "重大議題。"
+        ),
+        "en": (
+            "Suggested next step: Have sustainability and finance teams identify "
+            "topics that may affect cash flows, financing or cost of capital."
+        ),
+    },
+    "ifrs.readiness.item.governance.name": {
+        "zh-TW": "治理",
+        "en": "Governance",
+    },
+    "ifrs.readiness.item.governance.why.unsupported": {
+        "zh-TW": "系統目前未蒐集永續治理職權與監督資料。",
+        "en": (
+            "The system does not currently collect sustainability governance "
+            "and oversight information."
+        ),
+    },
+    "ifrs.readiness.item.governance.next.unsupported": {
+        "zh-TW": "建議下一步：請整理董事會或管理階層如何監督永續相關風險與機會。",
+        "en": (
+            "Suggested next step: Document how the board or management oversees "
+            "sustainability-related risks and opportunities."
+        ),
+    },
+    "ifrs.readiness.item.strategy.name": {
+        "zh-TW": "策略",
+        "en": "Strategy",
+    },
+    "ifrs.readiness.item.strategy.why.unsupported": {
+        "zh-TW": "系統目前未蒐集永續策略與商業模式影響資料。",
+        "en": (
+            "The system does not currently collect sustainability strategy or "
+            "business-model impact information."
+        ),
+    },
+    "ifrs.readiness.item.strategy.next.unsupported": {
+        "zh-TW": "建議下一步：請說明重大永續議題如何影響策略、商業模式與財務規劃。",
+        "en": (
+            "Suggested next step: Explain how material sustainability topics "
+            "affect strategy, the business model and financial planning."
+        ),
+    },
+    "ifrs.readiness.item.risk_management.name": {
+        "zh-TW": "風險管理",
+        "en": "Risk management",
+    },
+    "ifrs.readiness.item.risk_management.why.unsupported": {
+        "zh-TW": "系統目前未蒐集永續風險管理流程資料。",
+        "en": (
+            "The system does not currently collect sustainability risk-management "
+            "process information."
+        ),
+    },
+    "ifrs.readiness.item.risk_management.next.unsupported": {
+        "zh-TW": "建議下一步：請說明如何辨認、評估、優先排序及監控永續相關風險。",
+        "en": (
+            "Suggested next step: Describe how sustainability-related risks are "
+            "identified, assessed, prioritised and monitored."
+        ),
+    },
+    "ifrs.readiness.item.metrics_targets.name": {
+        "zh-TW": "指標與目標",
+        "en": "Metrics and targets",
+    },
+    "ifrs.readiness.item.metrics_targets.why.unsupported": {
+        "zh-TW": "系統目前未蒐集永續指標與目標的正式揭露資料。",
+        "en": (
+            "The system does not currently collect formal sustainability metrics "
+            "and targets for disclosure."
+        ),
+    },
+    "ifrs.readiness.item.metrics_targets.next.unsupported": {
+        "zh-TW": "建議下一步：請整理用以監督重大永續風險與機會的指標及目標。",
+        "en": (
+            "Suggested next step: Compile the metrics and targets used to "
+            "monitor material sustainability risks and opportunities."
+        ),
+    },
+    "ifrs.readiness.item.financial_connectivity.name": {
+        "zh-TW": "與財務報表及其他一般用途財務報告的連結",
+        "en": (
+            "Connectivity with financial statements and other general-purpose "
+            "financial reports"
+        ),
+    },
+    "ifrs.readiness.item.financial_connectivity.why.unsupported": {
+        "zh-TW": "系統目前未蒐集永續資訊與財務報表的連結說明。",
+        "en": (
+            "The system does not currently collect explanations linking "
+            "sustainability information to the financial statements."
+        ),
+    },
+    "ifrs.readiness.item.financial_connectivity.next.unsupported": {
+        "zh-TW": (
+            "建議下一步：請核對永續揭露與相關財務報表及其他一般用途財務報告的"
+            "連結。"
+        ),
+        "en": (
+            "Suggested next step: Check the links between sustainability "
+            "disclosures and the related financial statements and other "
+            "general-purpose financial reports."
+        ),
+    },
+    "ifrs.readiness.item.physical_risk.name": {
+        "zh-TW": "氣候相關實體風險",
+        "en": "Climate-related physical risks",
+    },
+    "ifrs.readiness.item.physical_risk.why.unsupported": {
+        "zh-TW": "系統目前未蒐集氣候相關實體風險。",
+        "en": "The system does not currently collect climate-related physical risks.",
+    },
+    "ifrs.readiness.item.physical_risk.next.unsupported": {
+        "zh-TW": (
+            "建議下一步：由永續、營運及風險管理部門辨認可能影響資產或營運的"
+            "實體風險。"
+        ),
+        "en": (
+            "Suggested next step: Have sustainability, operations and risk teams "
+            "identify physical risks that may affect assets or operations."
+        ),
+    },
+    "ifrs.readiness.item.transition_risk.name": {
+        "zh-TW": "氣候相關轉型風險",
+        "en": "Climate-related transition risks",
+    },
+    "ifrs.readiness.item.transition_risk.why.unsupported": {
+        "zh-TW": "系統目前未蒐集政策、技術、市場及法規轉型風險。",
+        "en": (
+            "The system does not currently collect policy, technology, market "
+            "or regulatory transition risks."
+        ),
+    },
+    "ifrs.readiness.item.transition_risk.next.unsupported": {
+        "zh-TW": (
+            "建議下一步：由永續、財務及風險管理部門共同辨認可能影響現金流、"
+            "融資或資本成本的轉型風險。"
+        ),
+        "en": (
+            "Suggested next step: Have sustainability, finance and risk teams "
+            "jointly identify transition risks that may affect cash flows, "
+            "financing or cost of capital."
+        ),
+    },
+    "ifrs.readiness.item.climate_opportunity.name": {
+        "zh-TW": "氣候相關機會",
+        "en": "Climate-related opportunities",
+    },
+    "ifrs.readiness.item.climate_opportunity.why.unsupported": {
+        "zh-TW": "系統目前未蒐集氣候相關機會資料。",
+        "en": (
+            "The system does not currently collect climate-related opportunity "
+            "information."
+        ),
+    },
+    "ifrs.readiness.item.climate_opportunity.next.unsupported": {
+        "zh-TW": "建議下一步：請辨認可能影響策略或財務績效的氣候相關機會。",
+        "en": (
+            "Suggested next step: Identify climate-related opportunities that "
+            "may affect strategy or financial performance."
+        ),
+    },
+    "ifrs.readiness.item.scope_1.name": {
+        "zh-TW": "Scope 1 排放資料",
+        "en": "Scope 1 emissions data",
+    },
+    "ifrs.readiness.item.scope_2.name": {
+        "zh-TW": "Scope 2 排放資料",
+        "en": "Scope 2 emissions data",
+    },
+    "ifrs.readiness.item.scope_1.why.available": {
+        "zh-TW": (
+            "系統已有排放計算資料；仍需確認報導邊界、衡量方法、假設及揭露所需佐證。"
+        ),
+        "en": (
+            "Calculated emissions data is available in the system; reporting "
+            "boundary, measurement methods, assumptions, and supporting evidence "
+            "for disclosure still need to be confirmed."
+        ),
+    },
+    "ifrs.readiness.item.scope_2.why.available": {
+        "zh-TW": (
+            "系統已有排放計算資料；仍需確認報導邊界、衡量方法、假設及揭露所需佐證。"
+        ),
+        "en": (
+            "Calculated emissions data is available in the system; reporting "
+            "boundary, measurement methods, assumptions, and supporting evidence "
+            "for disclosure still need to be confirmed."
+        ),
+    },
+    "ifrs.readiness.item.scope_1.next.available": {
+        "zh-TW": "建議下一步：請核對組織邊界、方法與佐證是否足以支持揭露。",
+        "en": (
+            "Suggested next step: Check whether the organisational boundary, "
+            "methods and evidence are sufficient to support disclosure."
+        ),
+    },
+    "ifrs.readiness.item.scope_2.next.available": {
+        "zh-TW": "建議下一步：請核對組織邊界、方法與佐證是否足以支持揭露。",
+        "en": (
+            "Suggested next step: Check whether the organisational boundary, "
+            "methods and evidence are sufficient to support disclosure."
+        ),
+    },
+    "ifrs.readiness.item.scope_1.why.missing": {
+        "zh-TW": "系統尚未有此 Scope 的排放計算結果。",
+        "en": "No calculated emissions result for this scope is in the system yet.",
+    },
+    "ifrs.readiness.item.scope_2.why.missing": {
+        "zh-TW": "系統尚未有此 Scope 的排放計算結果。",
+        "en": "No calculated emissions result for this scope is in the system yet.",
+    },
+    "ifrs.readiness.item.scope_1.next.missing": {
+        "zh-TW": "建議下一步：請上傳活動資料並完成計算後再回到此清單。",
+        "en": (
+            "Suggested next step: Upload activity data, complete the calculation, "
+            "then return to this checklist."
+        ),
+    },
+    "ifrs.readiness.item.scope_2.next.missing": {
+        "zh-TW": "建議下一步：請上傳活動資料並完成計算後再回到此清單。",
+        "en": (
+            "Suggested next step: Upload activity data, complete the calculation, "
+            "then return to this checklist."
+        ),
+    },
+    "ifrs.readiness.item.scope_3.name": {
+        "zh-TW": "Scope 3 排放資料",
+        "en": "Scope 3 emissions data",
+    },
+    "ifrs.readiness.item.scope_3.why.unsupported": {
+        "zh-TW": "目前產品尚未支援 Scope 3 排放資料蒐集與計算。",
+        "en": (
+            "The current product does not support Scope 3 emissions collection "
+            "or calculation."
+        ),
+    },
+    "ifrs.readiness.item.scope_3.next.unsupported": {
+        "zh-TW": (
+            "建議下一步：請另以公司既有流程整理重大 Scope 3 類別，"
+            "勿將本系統結果視為 Scope 3 揭露。"
+        ),
+        "en": (
+            "Suggested next step: Compile material Scope 3 categories through "
+            "existing company processes. Do not treat this system's result as "
+            "a Scope 3 disclosure."
+        ),
+    },
+    "ifrs.readiness.item.measurement_methods.name": {
+        "zh-TW": "排放衡量方法、係數、估計與假設",
+        "en": "Measurement methods, factors, estimates and assumptions",
+    },
+    "ifrs.readiness.item.measurement_methods.why.available": {
+        "zh-TW": (
+            "系統計算結果中已有係數、來源或方法紀錄；揭露時仍須檢視估計與假設。"
+        ),
+        "en": (
+            "Factor, source or method records are present in the calculation "
+            "results; estimates and assumptions still need review for disclosure."
+        ),
+    },
+    "ifrs.readiness.item.measurement_methods.next.available": {
+        "zh-TW": "建議下一步：請核對係數版本、來源與重大估計是否足以支持揭露。",
+        "en": (
+            "Suggested next step: Check whether factor versions, sources and "
+            "significant estimates are sufficient to support disclosure."
+        ),
+    },
+    "ifrs.readiness.item.measurement_methods.why.missing": {
+        "zh-TW": "系統尚未有可用的排放衡量方法、係數或來源紀錄。",
+        "en": (
+            "No usable measurement-method, factor or source records are in the "
+            "system yet."
+        ),
+    },
+    "ifrs.readiness.item.measurement_methods.next.missing": {
+        "zh-TW": "建議下一步：請完成排放計算，使結果包含係數與方法資訊。",
+        "en": (
+            "Suggested next step: Complete the emissions calculation so the "
+            "result includes factor and method information."
+        ),
+    },
+    "ifrs.readiness.item.climate_metrics_targets.name": {
+        "zh-TW": "氣候相關指標與目標",
+        "en": "Climate-related metrics and targets",
+    },
+    "ifrs.readiness.item.climate_metrics_targets.why.unsupported": {
+        "zh-TW": "系統目前未蒐集氣候相關指標與目標。",
+        "en": (
+            "The system does not currently collect climate-related metrics and "
+            "targets."
+        ),
+    },
+    "ifrs.readiness.item.climate_metrics_targets.next.unsupported": {
+        "zh-TW": "建議下一步：請整理用以監督氣候風險與機會的指標、目標及進度。",
+        "en": (
+            "Suggested next step: Compile the metrics, targets and progress used "
+            "to monitor climate risks and opportunities."
+        ),
+    },
+    "ifrs.readiness.item.scenario_analysis.name": {
+        "zh-TW": "氣候情境分析與韌性評估",
+        "en": "Climate scenario analysis and resilience assessment",
+    },
+    "ifrs.readiness.item.scenario_analysis.why.unsupported": {
+        "zh-TW": "系統目前未蒐集氣候情境分析與韌性評估。",
+        "en": (
+            "The system does not currently collect climate scenario analysis or "
+            "resilience assessment."
+        ),
+    },
+    "ifrs.readiness.item.scenario_analysis.next.unsupported": {
+        "zh-TW": "建議下一步：請由永續與風險管理部門評估策略在不同氣候情境下的韌性。",
+        "en": (
+            "Suggested next step: Have sustainability and risk teams assess "
+            "strategy resilience under different climate scenarios."
+        ),
+    },
+    "ifrs.readiness.item.transition_plan.name": {
+        "zh-TW": "轉型計畫資訊",
+        "en": "Transition-plan information",
+    },
+    "ifrs.readiness.item.transition_plan.why.unsupported": {
+        "zh-TW": "系統目前未蒐集轉型計畫資訊。",
+        "en": "The system does not currently collect transition-plan information.",
+    },
+    "ifrs.readiness.item.transition_plan.next.unsupported": {
+        "zh-TW": "建議下一步：請整理減碳路徑、資本配置或轉型行動等公司既有資料。",
+        "en": (
+            "Suggested next step: Compile existing company information such as "
+            "decarbonisation pathways, capital allocation or transition actions."
+        ),
+    },
+    "ifrs.readiness.item.assurance_evidence.name": {
+        "zh-TW": "確信／查核佐證資料",
+        "en": "Assurance / verification supporting evidence",
+    },
+    "ifrs.readiness.item.assurance_evidence.why.unsupported": {
+        "zh-TW": (
+            "系統目前未蒐集確信或查核佐證資料；適用確信要求不代表已有證據。"
+        ),
+        "en": (
+            "The system does not currently collect assurance or verification "
+            "evidence. An applicable assurance requirement does not mean "
+            "evidence is on hand."
+        ),
+    },
+    "ifrs.readiness.item.assurance_evidence.next.unsupported": {
+        "zh-TW": (
+            "建議下一步：請依主管機關時程另行準備合併個體 Scope 1／2 排放確信"
+            "所需佐證。"
+        ),
+        "en": (
+            "Suggested next step: Separately prepare supporting evidence for "
+            "consolidated Scope 1 and Scope 2 emissions assurance according "
+            "to the authority timeline."
+        ),
     },
     "ifrs.timeline.evidence": {
         "zh-TW": "查看官方時程依據",
         "en": "View official timeline sources",
     },
     "ifrs.timeline.past": {
-        "zh-TW": "時程已經過",
-        "en": "This scheduled window has passed",
+        "zh-TW": "官方時程已經過",
+        "en": "The official timeline window has passed",
     },
     "ifrs.timeline.conditional": {
         "zh-TW": "條件期限",
@@ -4710,8 +5514,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "How the 2029 Scope 3 year is derived",
     },
     "ifrs.timeline.now": {
-        "zh-TW": "目前應進行：{task}",
-        "en": "Currently scheduled: {task}",
+        "zh-TW": "依官方時程，目前建議階段：{task}",
+        "en": (
+            "Based on the official timeline, the current recommended stage is: {task}"
+        ),
     },
     "ifrs.timeline.next": {
         "zh-TW": "下一官方時程：{period} — {task}",
@@ -4725,11 +5531,15 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
     },
     "ifrs.timeline.note": {
-        "zh-TW": "此進度依官方時程與今天日期推估，不代表公司已完成前述工作。",
+        "zh-TW": (
+            "此時程依主管機關導入時程與今天日期顯示目前位置，不代表公司已完成"
+            "前述工作，也不是公司實際完成率。"
+        ),
         "en": (
-            "This progress is estimated from the official schedule and "
-            "today's date. It does not mean the company has completed "
-            "the work."
+            "This timeline shows the current position based on the regulatory "
+            "implementation schedule and today's date. It does not indicate "
+            "that the company has completed the preceding work and is not a "
+            "company completion rate."
         ),
     },
     "ifrs.timeline.phase_first": {
@@ -5034,8 +5844,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Purpose review",
     },
     "boundary.wizard.step.reporting_entities": {
-        "zh-TW": "IFRS 揭露範圍",
-        "en": "IFRS disclosure scope",
+        "zh-TW": "永續揭露報導個體",
+        "en": "Sustainability disclosure reporting entity",
     },
     "boundary.wizard.step.registrations": {
         "zh-TW": "政府紀錄與據點",
@@ -5183,23 +5993,39 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Legal or official review remains unresolved",
     },
     "boundary.wizard.reporting_entities.title": {
-        "zh-TW": "確認 IFRS 永續揭露涵蓋範圍",
-        "en": "Confirm the IFRS sustainability disclosure scope",
+        "zh-TW": "確認永續揭露報導個體",
+        "en": "Confirm the sustainability disclosure reporting entity",
     },
     "boundary.wizard.reporting_entities.none": {
-        "zh-TW": "本期不需確認 IFRS 永續揭露涵蓋範圍。",
-        "en": "This period does not require IFRS disclosure-scope confirmation.",
+        "zh-TW": "本期不需確認永續揭露報導個體。",
+        "en": (
+            "This period does not require confirmation of the sustainability "
+            "disclosure reporting entity."
+        ),
     },
     "boundary.wizard.reporting_entities.ifrs_notice": {
         "zh-TW": (
-            "IFRS S1／S2 的永續揭露範圍應與相關財務報表的報導個體一致。"
-            "請依貴公司實際使用的財務報表確認；系統不會自行決定採用個別或合併報表。"
+            "永續相關財務揭露原則上應與相關財務報表使用相同的報導個體。"
+            "請依公司實際使用的個別或合併財務報表確認；系統不會自行決定報導個體。"
         ),
         "en": (
-            "The IFRS S1/S2 sustainability disclosure scope should match the "
-            "reporting entity of the related financial statements. Confirm using "
-            "the statements your company actually uses. The system will not decide "
-            "standalone versus consolidated for you."
+            "Sustainability-related financial disclosures should, in principle, "
+            "use the same reporting entity as the related financial statements. "
+            "Please confirm based on the standalone or consolidated financial "
+            "statements the company actually uses; the system will not "
+            "determine the reporting entity."
+        ),
+    },
+    "boundary.wizard.reporting_entities.limit": {
+        "zh-TW": (
+            "本步驟只確認本報導期間應納入哪些法律實體，不代表已完成IFRS S1／S2"
+            "揭露，也不會取代溫室氣體盤查的組織邊界判斷。"
+        ),
+        "en": (
+            "This step only confirms which legal entities should be included "
+            "for this reporting period. It does not mean IFRS S1/S2 disclosures "
+            "are complete, and it does not replace organisational-boundary "
+            "determination for the GHG inventory."
         ),
     },
     "boundary.wizard.reporting_entities.question": {
@@ -7024,14 +7850,17 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "report.cover.company": {"zh-TW": "公司名稱", "en": "Company"},
     "report.cover.period": {"zh-TW": "報導期間", "en": "Reporting period"},
-    "report.cover.year": {"zh-TW": "報導年度", "en": "Reporting year"},
+    "report.cover.year": {
+        "zh-TW": "法規適用年度",
+        "en": "Legal applicability year",
+    },
     "report.cover.status": {
         "zh-TW": "碳排結果狀態",
         "en": "Emissions result status",
     },
     "report.cover.coverage": {
-        "zh-TW": "資料涵蓋期間",
-        "en": "Data coverage period",
+        "zh-TW": "上傳資料／排放分析期間",
+        "en": "Uploaded data / emissions analysis period",
     },
     "report.cover.generated": {"zh-TW": "產生日期", "en": "Generated"},
     "report.cover.version": {"zh-TW": "系統版本", "en": "System version"},
@@ -7292,8 +8121,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Scope 3 is not included in this version.",
     },
     "report.limit.refrigerant": {
-        "zh-TW": "冷媒逸散等尚未支援來源不在目前結果中。",
-        "en": "Unsupported sources such as refrigerant leakage are not in this result.",
+        "zh-TW": "冷媒僅計算已確認的實際補充量；設備逸散率估算法尚未納入。",
+        "en": (
+            "Refrigerant totals include confirmed actual refill only; "
+            "equipment leak-rate estimation is not included."
+        ),
     },
     "report.limit.no_assurance": {
         "zh-TW": "本報告未經第三方查驗。",

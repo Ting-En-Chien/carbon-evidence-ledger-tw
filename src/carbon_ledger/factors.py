@@ -50,8 +50,11 @@ GWP_COLUMNS = [
 
 # Combustion CH4 uses GWP 28. Fossil-methane GWP 30 is a separate context
 # and must never be selected for stationary/mobile fuel combustion.
+# Refrigerant fugitive GWP is a third context and must not be mixed with
+# fuel-combustion rows.
 GWP_CONTEXT_FUEL_COMBUSTION = "fuel_combustion"
 GWP_CONTEXT_FOSSIL_METHANE_PROCESS = "fossil_methane_process"
+GWP_CONTEXT_REFRIGERANT_FUGITIVE = "refrigerant_fugitive"
 COMBUSTION_CONTEXTS_USING_FUEL_GWP = frozenset(
     {"stationary_combustion", "mobile_combustion"}
 )

@@ -135,7 +135,7 @@ def test_four_obligation_result_cards_render() -> None:
     presented = present_assessment(assessment, ZH)
     titles = [item.title for item in presented.presentations]
     domains = [item.domain for item in presented.presentations]
-    assert "IFRS S1/S2" in titles
+    assert "IFRS永續揭露準則適用時程（S1＋S2）" in titles
     assert "台灣溫室氣體盤查" not in titles
     assert "環境部溫室氣體查驗" not in titles
     assert "碳費" not in titles

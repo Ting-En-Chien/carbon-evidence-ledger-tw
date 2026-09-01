@@ -22,6 +22,7 @@ ACTIVITY_KEYS = {
     "grid_electricity": "activity.grid_electricity",
     "natural_gas": "activity.natural_gas",
     "diesel": "activity.diesel",
+    "refrigerant_refill": "activity.refrigerant_refill",
     "purchased_steel": "activity.purchased_steel",
     "finished_goods_output": "activity.finished_goods_output",
     "third_party_transport": "activity.third_party_transport",
@@ -37,6 +38,12 @@ CUSTOMER_SCHEMA_LABEL_KEYS = {
     "activity_start_date": "intake.field.start",
     "activity_end_date": "intake.field.end",
     "site_id": "intake.field.site_id",
+    "refrigerant_code": "intake.field.refrigerant_code",
+    "refill_confirmed": "intake.field.refill_confirmed",
+    "ownership_control": "intake.field.ownership_control",
+    "organizational_boundary_status": (
+        "intake.field.organizational_boundary_status"
+    ),
 }
 
 _UNCONFIRMED_SITE_TOKENS = frozenset(
@@ -61,6 +68,10 @@ ATTENTION_ACTION_KEYS = {
     "natural_gas": "dash.attention_gas_action",
     "diesel": "dash.attention_diesel_action",
     "purchased_steel": "dash.attention_steel_action",
+}
+
+GHG_RATIONALE_KEYS = {
+    "refrigerant_third_party_unmapped": "ghg.rationale.refrigerant_third_party",
 }
 
 
@@ -153,6 +164,20 @@ def status_presentation(code: str, lang: str = DEFAULT_LANG) -> dict[str, str]:
     }
 
 
+def ghg_rationale_display(
+    ghg_row: pd.Series | None,
+    lang: str = DEFAULT_LANG,
+) -> str:
+    """Customer-facing GHG rationale via i18n. Never hard-code language here."""
+    if ghg_row is None:
+        return ""
+    mapping_code = _text(ghg_row.get("mapping_code"))
+    key = GHG_RATIONALE_KEYS.get(mapping_code)
+    if key:
+        return t(key, lang)
+    return _text(ghg_row.get("rationale"))
+
+
 def ghg_display_label(
     ghg_row: pd.Series | None,
     lang: str = DEFAULT_LANG,
@@ -160,6 +185,11 @@ def ghg_display_label(
     """Build a GHG Protocol label from an evaluation row."""
     if ghg_row is None:
         return not_run_label(lang)
+    mapping_status = _text(ghg_row.get("mapping_status"))
+    if mapping_status == "outside_boundary":
+        return t("status.outside_boundary", lang)
+    if mapping_status == "needs_review":
+        return t("status.needs_review", lang)
     scope = _text(ghg_row.get("ghg_scope"))
     category = _text(ghg_row.get("scope3_category"))
     if scope == "scope_3" and "category_1" in category:
@@ -282,6 +312,15 @@ def build_activity_overview(
                 "activity_type": activity_type,
                 "activity_amount": amount_value,
                 "activity_unit": _text(activity.get("unit")),
+                "refrigerant_code": _text(activity.get("refrigerant_code"))
+                or (
+                    _text(calc_row.get("refrigerant_code"))
+                    if calc_row is not None
+                    else ""
+                ),
+                "gwp_value": (
+                    calc_row.get("gwp_value") if calc_row is not None else None
+                ),
                 "calculation_status": calc_status,
                 "calculation_label": calculation_label(calc_status, lang),
                 "calculated_tco2e": calculated_tco2e,
@@ -331,7 +370,10 @@ def calculated_emissions_summary(
     result: PipelineRunResult,
     lang: str = DEFAULT_LANG,
 ) -> dict[str, Any]:
-    """Summarize currently calculated emissions only."""
+    """Summarize technically calculated emissions, including excluded rows.
+
+    This is an audit/detail total. It is not the company inventory total.
+    """
     calculations = result.calculation_results.copy()
     empty = {
         "calculated_tco2e": None,
@@ -355,6 +397,229 @@ def calculated_emissions_summary(
     }
 
 
+def _company_inventory_rows(result: PipelineRunResult) -> pd.DataFrame:
+    """Calculated rows that are mapped Scope 1 or Scope 2 inside the inventory."""
+    calculations = result.calculation_results.copy()
+    ghg = result.ghg_evaluations.copy()
+    empty = pd.DataFrame(columns=["record_id", "ghg_scope", "calculated_tco2e"])
+    if calculations.empty or ghg.empty:
+        return empty
+    calculated = calculations[
+        calculations["calculation_status"].astype(str) == "calculated"
+    ].copy()
+    if calculated.empty:
+        return empty
+    keep = ["record_id"]
+    if "ghg_scope" in ghg.columns:
+        keep.append("ghg_scope")
+    if "mapping_status" in ghg.columns:
+        keep.append("mapping_status")
+    overlap = [
+        column
+        for column in keep
+        if column != "record_id" and column in calculated.columns
+    ]
+    if overlap:
+        calculated = calculated.drop(columns=overlap)
+    merged = calculated.merge(ghg[keep], on="record_id", how="left")
+    merged["calculated_tco2e"] = pd.to_numeric(
+        merged["calculated_tco2e"], errors="coerce"
+    )
+    merged = merged.dropna(subset=["calculated_tco2e"])
+    mapped = merged[
+        (merged["mapping_status"].astype(str) == "mapped")
+        & (merged["ghg_scope"].astype(str).isin(["scope_1", "scope_2"]))
+    ].copy()
+    if mapped.empty:
+        return empty
+    return mapped[["record_id", "ghg_scope", "calculated_tco2e"]].reset_index(
+        drop=True
+    )
+
+
+def inventory_source_shares(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> list[dict[str, Any]]:
+    """Share of company-inventory tCO2e by activity name. Dynamic, never hardcoded."""
+    summary = company_inventory_emissions_summary(result, lang)
+    total = float(summary.get("inventory_tco2e") or 0.0)
+    if total <= 0:
+        return []
+    overview = build_activity_overview(result, lang)
+    if overview.empty:
+        return []
+    included_ids = set(_company_inventory_rows(result)["record_id"].astype(str))
+    calculated = overview[
+        overview["record_id"].astype(str).isin(included_ids)
+    ].copy()
+    if calculated.empty:
+        return []
+    calculated["tco2e"] = pd.to_numeric(
+        calculated["calculated_tco2e"], errors="coerce"
+    )
+    grouped = (
+        calculated.dropna(subset=["tco2e"])
+        .groupby("activity_name", dropna=False)["tco2e"]
+        .sum()
+        .sort_values(ascending=False)
+    )
+    rows: list[dict[str, Any]] = []
+    for name, value in grouped.items():
+        amount = float(value or 0.0)
+        rows.append(
+            {
+                "activity_name": str(name or ""),
+                "tco2e": amount,
+                "percent": round(100.0 * amount / total, 2),
+            }
+        )
+    return rows
+
+
+def company_inventory_record_ids(result: PipelineRunResult) -> set[str]:
+    """Record IDs currently included in the company inventory total."""
+    rows = _company_inventory_rows(result)
+    if rows.empty:
+        return set()
+    return set(rows["record_id"].astype(str).tolist())
+
+
+def company_inventory_emissions_summary(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> dict[str, Any]:
+    """Company inventory total: mapped Scope 1 + mapped Scope 2 only."""
+    rows = _company_inventory_rows(result)
+    empty = {
+        "inventory_tco2e": None,
+        "inventory_row_count": 0,
+        "scope_1": 0.0,
+        "scope_2": 0.0,
+        "partial": True,
+        "label": t("dash.kpi.inventory", lang),
+    }
+    if rows.empty:
+        return empty
+    scope_1 = float(
+        rows.loc[rows["ghg_scope"].astype(str) == "scope_1", "calculated_tco2e"].sum()
+    )
+    scope_2 = float(
+        rows.loc[rows["ghg_scope"].astype(str) == "scope_2", "calculated_tco2e"].sum()
+    )
+    return {
+        "inventory_tco2e": float(scope_1 + scope_2),
+        "inventory_row_count": int(len(rows)),
+        "scope_1": scope_1,
+        "scope_2": scope_2,
+        "partial": True,
+        "label": t("dash.kpi.inventory", lang),
+    }
+
+
+def inventory_status_counts(result: PipelineRunResult) -> dict[str, int]:
+    """Split technical calculation from inventory inclusion."""
+    calculations = result.calculation_results.copy()
+    ghg = result.ghg_evaluations.copy()
+    counts = {
+        "technically_calculated": 0,
+        "included_in_inventory": 0,
+        "needs_review": 0,
+        "outside_boundary": 0,
+        "activities": int(len(result.activity_records_accepted)),
+    }
+    if calculations.empty:
+        return counts
+    status = calculations["calculation_status"].astype(str)
+    counts["technically_calculated"] = int((status == "calculated").sum())
+    if ghg.empty:
+        return counts
+    keep = ["record_id"]
+    if "mapping_status" in ghg.columns:
+        keep.append("mapping_status")
+    if "ghg_scope" in ghg.columns:
+        keep.append("ghg_scope")
+    overlap = [
+        column
+        for column in keep
+        if column != "record_id" and column in calculations.columns
+    ]
+    left = calculations
+    if overlap:
+        left = calculations.drop(columns=overlap)
+    merged = left.merge(ghg[keep], on="record_id", how="left")
+    mapping = merged["mapping_status"].astype(str)
+    scope = merged["ghg_scope"].astype(str)
+    calc_ok = merged["calculation_status"].astype(str) == "calculated"
+    counts["included_in_inventory"] = int(
+        (
+            calc_ok
+            & (mapping == "mapped")
+            & scope.isin(["scope_1", "scope_2"])
+        ).sum()
+    )
+    counts["needs_review"] = int((mapping == "needs_review").sum())
+    counts["outside_boundary"] = int((mapping == "outside_boundary").sum())
+    return counts
+
+
+def pending_refrigerant_boundary_rows(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> list[dict[str, Any]]:
+    """Refrigerant refill rows whose GHG mapping still needs human confirmation."""
+    from carbon_ledger.activity_boundary_decisions import reporting_year_from_activity
+
+    activities = result.activity_records_accepted.copy()
+    calculations = result.calculation_results.copy()
+    ghg = result.ghg_evaluations.copy()
+    if activities.empty or ghg.empty:
+        return []
+    rows: list[dict[str, Any]] = []
+    for _, activity in activities.iterrows():
+        if _text(activity.get("activity_type")) != "refrigerant_refill":
+            continue
+        record_id = _text(activity.get("record_id"))
+        ghg_row = _row_by_record(ghg, record_id)
+        if ghg_row is None:
+            continue
+        if _text(ghg_row.get("mapping_status")) != "needs_review":
+            continue
+        calc_row = _row_by_record(calculations, record_id)
+        tco2e = None
+        calc_status = ""
+        if calc_row is not None:
+            calc_status = _text(calc_row.get("calculation_status"))
+            if calc_status == "calculated":
+                try:
+                    value = calc_row.get("calculated_tco2e")
+                    if value is not None and not pd.isna(value):
+                        tco2e = float(value)
+                except (TypeError, ValueError):
+                    tco2e = None
+        rows.append(
+            {
+                "record_id": record_id,
+                "refrigerant_code": _text(activity.get("refrigerant_code")),
+                "activity_value": activity.get("activity_value"),
+                "unit": _text(activity.get("unit")) or "kg",
+                "calculated_tco2e": tco2e,
+                "calculation_status": calc_status,
+                "mapping_status": _text(ghg_row.get("mapping_status")),
+                "ghg_scope": _text(ghg_row.get("ghg_scope")),
+                "ghg_label": ghg_display_label(ghg_row, lang),
+                "rationale": ghg_rationale_display(ghg_row, lang),
+                "ownership_control": _text(activity.get("ownership_control")),
+                "organizational_boundary_status": _text(
+                    activity.get("organizational_boundary_status")
+                ),
+                "reporting_year": reporting_year_from_activity(activity),
+                "reporting_period_id": _text(activity.get("reporting_period_id")),
+            }
+        )
+    return rows
+
+
 def calculated_emissions_by_ghg_scope(
     result: PipelineRunResult,
 ) -> dict[str, float]:
@@ -369,8 +634,11 @@ def calculated_emissions_by_ghg_scope(
     ].copy()
     if calculated.empty:
         return totals
+    ghg_right = ghg[["record_id", "ghg_scope"]].copy()
+    if "ghg_scope" in calculated.columns:
+        calculated = calculated.drop(columns=["ghg_scope"])
     merged = calculated.merge(
-        ghg[["record_id", "ghg_scope"]],
+        ghg_right,
         on="record_id",
         how="left",
     )
@@ -383,73 +651,23 @@ def calculated_emissions_by_ghg_scope(
     return totals
 
 
-_ACTIVITY_PRODUCT_SCOPE = {
-    "grid_electricity": "scope_2",
-    "natural_gas": "scope_1",
-    "diesel": "scope_1",
-}
-
-
 def calculated_emissions_by_product_scope(
     result: PipelineRunResult,
 ) -> dict[str, float | None]:
-    """Customer Scope totals from calculated rows only.
+    """Customer Scope totals for the company inventory.
 
-    Prefers mapped GHG scopes. Falls back to V1 activity-type paths so
-    Scope 1/2 still display when GHG needs review. Scope 3 is omitted
-    unless a calculated row actually maps to it.
+    Only mapped Scope 1 and Scope 2 enter the total. Activity-type fallback
+    is not used, so refrigerant and other unmapped rows cannot be silently
+    included. Scope 3 is omitted from this inventory total.
     """
-    calculations = result.calculation_results.copy()
-    activities = result.activity_records_accepted.copy()
+    rows = _company_inventory_rows(result)
     totals: dict[str, float | None] = {"scope_1": 0.0, "scope_2": 0.0}
-    if calculations.empty or activities.empty:
+    if rows.empty:
         return totals
-    calculated = calculations[
-        calculations["calculation_status"].astype(str) == "calculated"
-    ].copy()
-    if calculated.empty:
-        return totals
-    keep = ["record_id", "activity_type"]
-    merged = calculated.merge(
-        activities[keep],
-        on="record_id",
-        how="left",
-    )
-    ghg = result.ghg_evaluations.copy()
-    if not ghg.empty:
-        ghg_cols = ["record_id"]
-        if "ghg_scope" in ghg.columns:
-            ghg_cols.append("ghg_scope")
-        if "mapping_status" in ghg.columns:
-            ghg_cols.append("mapping_status")
-        merged = merged.merge(ghg[ghg_cols], on="record_id", how="left")
-    merged["calculated_tco2e"] = pd.to_numeric(
-        merged["calculated_tco2e"], errors="coerce"
-    )
-    merged = merged.dropna(subset=["calculated_tco2e"])
-    scope_3 = 0.0
-    has_scope_3 = False
-    for _, row in merged.iterrows():
-        value = float(row["calculated_tco2e"])
-        mapping_status = _text(row.get("mapping_status"))
-        ghg_scope = _text(row.get("ghg_scope"))
-        if mapping_status == "mapped" and ghg_scope in {
-            "scope_1",
-            "scope_2",
-            "scope_3",
-        }:
-            scope = ghg_scope
-        else:
-            scope = _ACTIVITY_PRODUCT_SCOPE.get(
-                _text(row.get("activity_type")), ""
-            )
-        if scope == "scope_3":
-            has_scope_3 = True
-            scope_3 += value
-        elif scope in {"scope_1", "scope_2"}:
-            totals[scope] = float(totals.get(scope) or 0.0) + value
-    if has_scope_3:
-        totals["scope_3"] = scope_3
+    for scope in ("scope_1", "scope_2"):
+        totals[scope] = float(
+            rows.loc[rows["ghg_scope"].astype(str) == scope, "calculated_tco2e"].sum()
+        )
     return totals
 
 
@@ -468,8 +686,8 @@ def executive_emissions_insights(
     lang: str = DEFAULT_LANG,
 ) -> list[str]:
     """At most two deterministic sentences. Source share first. No LLM."""
-    summary = calculated_emissions_summary(result, lang)
-    total = float(summary.get("calculated_tco2e") or 0.0)
+    summary = company_inventory_emissions_summary(result, lang)
+    total = float(summary.get("inventory_tco2e") or 0.0)
     if total <= 0:
         return []
     scopes = calculated_emissions_by_product_scope(result)
@@ -482,8 +700,9 @@ def executive_emissions_insights(
     top_name = ""
     top_value = 0.0
     if not overview.empty:
+        included_ids = set(_company_inventory_rows(result)["record_id"].astype(str))
         calculated = overview[
-            overview["calculation_status"].astype(str) == "calculated"
+            overview["record_id"].astype(str).isin(included_ids)
         ].copy()
         if not calculated.empty:
             calculated["tco2e"] = pd.to_numeric(
@@ -500,7 +719,7 @@ def executive_emissions_insights(
                 top_value = float(grouped.iloc[0] or 0.0)
     items: list[str] = []
     if top_name and top_value > 0:
-        percent = int(round(100.0 * top_value / total))
+        percent = round(100.0 * top_value / total, 2)
         items.append(
             t(
                 "dash.insight.top_source_share",
@@ -546,42 +765,11 @@ def executive_emissions_insight(
 def scope_kpi_states(result: PipelineRunResult) -> dict[str, dict[str, Any]]:
     """Distinguish calculated Scope totals from unresolved / unsupported."""
     totals = calculated_emissions_by_product_scope(result)
-    activities = result.activity_records_accepted.copy()
-    calculations = result.calculation_results.copy()
-    status_by_id: dict[str, str] = {}
-    if not calculations.empty:
-        for _, row in calculations.iterrows():
-            status_by_id[_text(row.get("record_id"))] = _text(
-                row.get("calculation_status")
-            )
-    ghg_by_id: dict[str, Any] = {}
-    ghg = result.ghg_evaluations.copy()
-    if not ghg.empty:
-        for _, row in ghg.iterrows():
-            ghg_by_id[_text(row.get("record_id"))] = row
     calculated_present = {"scope_1": False, "scope_2": False}
-    if not activities.empty:
-        for _, row in activities.iterrows():
-            record_id = _text(row.get("record_id"))
-            ghg_row = ghg_by_id.get(record_id)
-            mapping_status = ""
-            ghg_scope = ""
-            if ghg_row is not None:
-                mapping_status = _text(ghg_row.get("mapping_status"))
-                ghg_scope = _text(ghg_row.get("ghg_scope"))
-            if mapping_status == "mapped" and ghg_scope in {
-                "scope_1",
-                "scope_2",
-                "scope_3",
-            }:
-                scope = ghg_scope
-            else:
-                scope = _ACTIVITY_PRODUCT_SCOPE.get(
-                    _text(row.get("activity_type")), ""
-                )
-            if scope not in {"scope_1", "scope_2"}:
-                continue
-            if status_by_id.get(record_id) == "calculated":
+    inventory = _company_inventory_rows(result)
+    if not inventory.empty:
+        for scope in inventory["ghg_scope"].astype(str).tolist():
+            if scope in calculated_present:
                 calculated_present[scope] = True
     states: dict[str, dict[str, Any]] = {}
     for key in ("scope_1", "scope_2"):
@@ -792,7 +980,7 @@ def ghg_framework_table(
             elif "not_emissions" in code:
                 combustion = "Not an emissions activity"
             status = status_label(_text(ghg_row.get("mapping_status")), lang)
-            reason = _text(ghg_row.get("rationale"))
+            reason = ghg_rationale_display(ghg_row, lang)
         else:
             status = not_run_label(lang)
             reason = ""
@@ -1220,8 +1408,17 @@ def calculation_trace_fields(
         "activity_name": overview.get("activity_name"),
         "activity_amount": overview.get("activity_amount"),
         "activity_unit": _text(overview.get("activity_unit")),
+        "refrigerant_code": _text(overview.get("refrigerant_code"))
+        or _text(calc.get("refrigerant_code")),
         "factor_id": factor_id,
         "factor_value": factor_value,
+        "gwp_value": calc.get("gwp_value"),
+        "gwp_id": _text(calc.get("gwp_id")) or factor_id,
+        "formula_id": _text(calc.get("formula_id")),
+        "formula_version": _text(calc.get("formula_version")),
+        "source_reference_id": _text(calc.get("source_reference_id"))
+        or _text(calc.get("gwp_source_reference_id")),
+        "calculation_trace": calc.get("calculation_trace"),
         "factor_year": factor_year,
         "calculated_kgco2e": calc.get("calculated_kgco2e"),
         "calculated_tco2e": calc.get("calculated_tco2e"),
@@ -1514,6 +1711,8 @@ def reconcile_row_dispositions(
     calc_by_record: dict[str, str] = {}
     readiness_by_record: dict[str, str] = {}
     activity_type_by_record: dict[str, str] = {}
+    mapping_by_record: dict[str, str] = {}
+    ghg_scope_by_record: dict[str, str] = {}
 
     if pipeline_result is not None:
         activities = pipeline_result.activity_records_accepted
@@ -1536,6 +1735,12 @@ def reconcile_row_dispositions(
                 readiness_by_record[_text(row.get("record_id"))] = _text(
                     row.get("calculation_readiness")
                 )
+        ghg = pipeline_result.ghg_evaluations
+        if ghg is not None and not ghg.empty:
+            for _, row in ghg.iterrows():
+                record_id = _text(row.get("record_id"))
+                mapping_by_record[record_id] = _text(row.get("mapping_status"))
+                ghg_scope_by_record[record_id] = _text(row.get("ghg_scope"))
 
     rejected_by_row: dict[int, str] = {}
     if intake_result is not None:
@@ -1607,7 +1812,18 @@ def reconcile_row_dispositions(
             by_row[source_row] = DISPOSITION_NEEDS_CONFIRMATION
             continue
         if calc_status == "calculated":
-            by_row[source_row] = DISPOSITION_CALCULATED
+            mapping_status = mapping_by_record.get(record_id, "")
+            ghg_scope = ghg_scope_by_record.get(record_id, "")
+            if mapping_status == "outside_boundary":
+                by_row[source_row] = DISPOSITION_EXCLUDED_OUT_OF_SCOPE
+                continue
+            if mapping_status == "mapped" and ghg_scope in {
+                "scope_1",
+                "scope_2",
+            }:
+                by_row[source_row] = DISPOSITION_CALCULATED
+                continue
+            by_row[source_row] = DISPOSITION_NEEDS_CONFIRMATION
             continue
         by_row[source_row] = DISPOSITION_NEEDS_CONFIRMATION
 
@@ -1615,8 +1831,9 @@ def reconcile_row_dispositions(
     for disposition in by_row.values():
         counts[disposition] = int(counts.get(disposition, 0)) + 1
     included = int(counts[DISPOSITION_CALCULATED])
+    needs_confirmation = int(counts[DISPOSITION_NEEDS_CONFIRMATION])
     remaining_open = (
-        int(counts[DISPOSITION_NEEDS_CONFIRMATION])
+        needs_confirmation
         + int(counts[DISPOSITION_UNSUPPORTED])
         + int(counts[DISPOSITION_INVALID])
     )
@@ -1637,6 +1854,9 @@ def reconcile_row_dispositions(
         "counts": counts,
         "total": total,
         "included": included,
+        "needs_confirmation": needs_confirmation,
+        "unsupported": int(counts[DISPOSITION_UNSUPPORTED]),
+        "actionable_open": needs_confirmation,
         "remaining_open": remaining_open,
         "excluded": excluded,
         "complete": complete,
@@ -1752,25 +1972,48 @@ def hero_result_status_and_disposition(
     activity_count: int,
     needs_work: int,
     lang: str = DEFAULT_LANG,
+    inventory_counts: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Separate uploaded-row and demo-result copy. Never mix the two counts."""
+    counts = dict(inventory_counts or {})
     if uploaded:
-        included = int(dispositions.get("included") or 0)
+        included = int(
+            counts.get("included_in_inventory", dispositions.get("included") or 0)
+        )
         total = int(dispositions.get("total") or 0)
         remaining_open = int(dispositions.get("remaining_open") or 0)
-        excluded_n = int(dispositions.get("excluded") or 0)
+        actionable_open = int(
+            dispositions.get("actionable_open", remaining_open) or 0
+        )
+        unsupported = int(dispositions.get("unsupported") or 0)
+        excluded_n = int(
+            counts.get("outside_boundary", dispositions.get("excluded") or 0)
+        )
         complete = bool(dispositions.get("complete"))
-        if remaining_open > 0:
+        technically = int(
+            counts.get("technically_calculated", calculated_count)
+        )
+        needs_review = int(
+            dispositions.get(
+                "needs_confirmation",
+                counts.get("needs_review", remaining_open),
+            )
+        )
+        status_line = t(
+            "dash.result_preliminary_body",
+            lang,
+            calculated=technically,
+            included=included,
+            needs_review=needs_review,
+            unsupported=unsupported,
+            outside=excluded_n,
+        )
+        if remaining_open > 0 or needs_review > 0:
             status = t("dash.result_preliminary", lang)
-            disposition = (
-                t(
-                    "dash.result_preliminary_body",
-                    lang,
-                    included=included,
-                    total=total,
-                    remaining=remaining_open,
-                )
-                if included >= 1
+            disposition = status_line if included >= 1 or technically >= 1 else ""
+            incomplete = (
+                t("dash.result_incomplete_sources", lang)
+                if actionable_open > 0
                 else ""
             )
         elif complete and included >= 1:
@@ -1781,21 +2024,26 @@ def hero_result_status_and_disposition(
                 included=included,
                 total=total,
             )
+            incomplete = ""
         else:
             status = t("dash.result_preliminary", lang)
-            disposition = ""
+            disposition = status_line if technically >= 1 else ""
+            incomplete = ""
         return {
             "status_label": status,
             "disposition_caption": disposition,
+            "incomplete_caption": incomplete,
             "excluded_caption": (
-                t("dash.hero.excluded", lang, n=excluded_n) if excluded_n else ""
+                t("dash.hero.excluded", lang, n=excluded_n)
+                if excluded_n
+                else ""
             ),
             "included": included,
-            "total": total,
-            "remaining_open": remaining_open,
-            "complete": complete,
             "hero_done": included,
             "hero_total": total,
+            "complete": complete,
+            "remaining_open": remaining_open,
+            "actionable_open": actionable_open,
             "unresolved": remaining_open,
         }
 
@@ -1807,10 +2055,12 @@ def hero_result_status_and_disposition(
             else t("dash.result_preliminary", lang)
         ),
         "disposition_caption": "",
+        "incomplete_caption": "",
         "excluded_caption": "",
         "included": 0,
         "total": int(activity_count),
         "remaining_open": int(needs_work),
+        "actionable_open": int(needs_work),
         "complete": complete_demo,
         "hero_done": int(calculated_count),
         "hero_total": int(activity_count),

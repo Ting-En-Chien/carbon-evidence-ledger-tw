@@ -114,9 +114,10 @@ def test_two_official_ghg_protocol_reference_rows_exist() -> None:
     }
 
 
-def test_five_versioned_ghg_rule_rows_exist() -> None:
+def test_six_versioned_ghg_rule_rows_exist() -> None:
     rules = load_ghg_protocol_rules(CONFIG_DIR)
-    assert len(rules) == 5
+    assert len(rules) == 6
+    assert "ghg_scope1_fugitive_refrigerant" in set(rules["rule_id"])
 
 
 def test_every_rule_references_an_existing_reference() -> None:
@@ -177,6 +178,98 @@ def test_diesel_remains_scope_1_when_calculation_blocked(tmp_path: Path) -> None
     result = _baseline_ghg(tmp_path / "ghg")
     row = result.loc[result["record_id"] == "rec_diesel_001"].iloc[0]
     assert row["ghg_scope"] == "scope_1"
+
+
+def test_refrigerant_refill_maps_to_scope_1_fugitive() -> None:
+    rules, references = _load_rules_and_refs()
+    result = evaluate_ghg_protocol(
+        _activity(
+            activity_type="refrigerant_refill",
+            process_use="not_applicable",
+            ownership_control="owned",
+            organizational_boundary_status="inside",
+        ),
+        rules,
+        references,
+    )
+    row = result.iloc[0]
+    assert row["mapping_status"] == "mapped"
+    assert row["ghg_scope"] == "scope_1"
+    assert row["mapping_code"] == "scope1_fugitive_refrigerant"
+    assert "owned or controlled" in str(row["rationale"]).lower()
+    assert "ifrs s2" in str(row["prohibited_use"]).lower()
+    assert "third-party" in str(row["prohibited_use"]).lower()
+
+
+def test_refrigerant_outside_boundary_is_not_scope_1() -> None:
+    rules, references = _load_rules_and_refs()
+    result = evaluate_ghg_protocol(
+        _activity(
+            activity_type="refrigerant_refill",
+            process_use="not_applicable",
+            ownership_control="owned",
+            organizational_boundary_status="outside",
+        ),
+        rules,
+        references,
+    )
+    row = result.iloc[0]
+    assert row["mapping_status"] == "outside_boundary"
+    assert row["ghg_scope"] == "not_applicable"
+
+
+def test_refrigerant_controlled_inside_maps_to_scope_1() -> None:
+    rules, references = _load_rules_and_refs()
+    result = evaluate_ghg_protocol(
+        _activity(
+            activity_type="refrigerant_refill",
+            process_use="not_applicable",
+            ownership_control="controlled",
+            organizational_boundary_status="inside",
+        ),
+        rules,
+        references,
+    )
+    row = result.iloc[0]
+    assert row["mapping_status"] == "mapped"
+    assert row["ghg_scope"] == "scope_1"
+    assert row["mapping_code"] == "scope1_fugitive_refrigerant"
+
+
+def test_refrigerant_third_party_inside_needs_review() -> None:
+    rules, references = _load_rules_and_refs()
+    result = evaluate_ghg_protocol(
+        _activity(
+            activity_type="refrigerant_refill",
+            process_use="not_applicable",
+            ownership_control="third_party",
+            organizational_boundary_status="inside",
+        ),
+        rules,
+        references,
+    )
+    row = result.iloc[0]
+    assert row["mapping_status"] == "needs_review"
+    assert row["ghg_scope"] == "unknown"
+    assert "scope 3" in str(row["rationale"]).lower()
+
+
+def test_refrigerant_unknown_ownership_needs_review() -> None:
+    rules, references = _load_rules_and_refs()
+    result = evaluate_ghg_protocol(
+        _activity(
+            activity_type="refrigerant_refill",
+            process_use="not_applicable",
+            ownership_control="unknown",
+            organizational_boundary_status="inside",
+        ),
+        rules,
+        references,
+    )
+    row = result.iloc[0]
+    assert row["mapping_status"] == "needs_review"
+    assert row["ghg_scope"] == "unknown"
+    assert "ownership_control" in str(row["rationale"])
 
 
 def test_purchased_steel_maps_to_scope_3(tmp_path: Path) -> None:

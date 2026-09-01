@@ -15,6 +15,17 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from carbon_ledger.activity_boundary_decisions import (
+    SCHEMA_VERSION as ACTIVITY_BOUNDARY_DECISION_SCHEMA,
+)
+from carbon_ledger.activity_boundary_decisions import (
+    ActivityBoundaryDecision,
+    decision_identity,
+    decisions_to_payload,
+    latest_decisions,
+    load_decisions,
+    period_id_for_decision,
+)
 from carbon_ledger.inventory_boundary import (
     BoundarySemanticsState,
     InventoryBoundary,
@@ -633,6 +644,81 @@ class CompanyWorkspace:
                 "reason": marker["reason"],
             },
         )
+
+    def save_activity_boundary_decision(
+        self, decision: ActivityBoundaryDecision
+    ) -> ActivityBoundaryDecision:
+        """Persist one period-isolated refrigerant boundary decision."""
+        period_id = period_id_for_decision(
+            reporting_period_id=decision.reporting_period_id,
+            reporting_year=decision.reporting_year,
+        )
+        stored = latest_decisions(self.load_activity_boundary_decisions(period_id))
+        incoming = decision_identity(
+            decision.record_id,
+            decision.reporting_year,
+            decision.reporting_period_id,
+        )
+        stored = [
+            item
+            for item in stored
+            if decision_identity(
+                item.record_id,
+                item.reporting_year,
+                item.reporting_period_id,
+            )
+            != incoming
+        ]
+        stored.append(decision)
+        period_dir = self._period_dir_from_id(period_id)
+        destination = (
+            period_dir / "activity_boundary_decisions" / "current.json"
+        )
+        self._atomic_json(
+            destination,
+            decisions_to_payload(stored, reporting_period_id=period_id),
+        )
+        self._append_event(
+            period_dir,
+            {
+                "event": (
+                    "activity_boundary_decision_withdrawn"
+                    if decision.withdrawn
+                    else "activity_boundary_decision_saved"
+                ),
+                "record_id": decision.record_id,
+                "reporting_year": decision.reporting_year,
+                "at": decision.confirmed_at,
+                "schema_version": ACTIVITY_BOUNDARY_DECISION_SCHEMA,
+            },
+        )
+        return decision
+
+    def load_activity_boundary_decisions(
+        self, reporting_period_id: str
+    ) -> list[ActivityBoundaryDecision]:
+        period_dir = self._period_dir_from_id(reporting_period_id)
+        path = period_dir / "activity_boundary_decisions" / "current.json"
+        if not path.is_file():
+            return []
+        payload = self._read_json(path)
+        stored_period = str(payload.get("reporting_period_id") or "")
+        if stored_period and stored_period != reporting_period_id:
+            raise ValueError(
+                "activity boundary decisions cross reporting-period identity"
+            )
+        return load_decisions(payload)
+
+    def load_all_activity_boundary_decisions(self) -> list[ActivityBoundaryDecision]:
+        periods_dir = self.path / "periods"
+        if not periods_dir.is_dir():
+            return []
+        loaded: list[ActivityBoundaryDecision] = []
+        for period_dir in periods_dir.iterdir():
+            if not period_dir.is_dir() or not _SAFE_ID.fullmatch(period_dir.name):
+                continue
+            loaded.extend(self.load_activity_boundary_decisions(period_dir.name))
+        return latest_decisions(loaded)
 
     def _period_dir(self, boundary: InventoryBoundary) -> Path:
         return self._period_dir_from_id(

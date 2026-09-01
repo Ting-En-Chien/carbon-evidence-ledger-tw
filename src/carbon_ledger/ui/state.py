@@ -105,6 +105,8 @@ STATE_INTAKE_SUGGESTIONS_RECORDED = "intake_suggestions_recorded_for"
 # Session-scoped mapping memory/provenance: survive _reset_for_new_file.
 STATE_INTAKE_MAPPING_MEMORY = "intake_mapping_memory"
 STATE_INTAKE_MAPPING_PROVENANCE = "intake_mapping_provenance"
+STATE_ACTIVITY_BOUNDARY_DECISIONS = "activity_boundary_decisions"
+STATE_BOUNDARY_CONFIRM_FLASH = "activity_boundary_confirm_flash"
 STATE_INTAKE_VALIDATION_REQUESTED = "intake_validation_requested"
 STATE_INTAKE_VALIDATION_RUNNING = "intake_validation_running"
 STATE_INTAKE_VALIDATION_ERROR = "intake_validation_error"
@@ -193,6 +195,30 @@ def activity_period_bounds(
     return start_label, end_label
 
 
+def format_data_period_label(start: str | None, end: str | None) -> str:
+    """Format YYYY-MM bounds as a customer-facing data-period label."""
+    start_text = str(start or "").strip()
+    end_text = str(end or "").strip()
+    if start_text and end_text:
+        return f"{start_text}－{end_text}"
+    return start_text or end_text
+
+
+def uploaded_data_period_bounds(
+    session_state: Any,
+) -> tuple[str | None, str | None]:
+    """Data period from accepted uploaded activities, never company FY."""
+    intake = get_intake_result(session_state)
+    accepted = getattr(intake, "accepted_activities", None)
+    start, end = activity_period_bounds(accepted)
+    if start and end:
+        return start, end
+    return (
+        _ss_get(session_state, STATE_ANALYSIS_PERIOD_START),
+        _ss_get(session_state, STATE_ANALYSIS_PERIOD_END),
+    )
+
+
 def _store_analysis_source_demo(session_state: Any, result: PipelineRunResult) -> None:
     session_state[STATE_ANALYSIS_SOURCE] = ANALYSIS_SOURCE_DEMO
     session_state[STATE_ANALYSIS_FILE_NAME] = None
@@ -219,7 +245,11 @@ def _store_analysis_source_uploaded(
     session_state[STATE_ANALYSIS_FILE_HASH] = str(
         _ss_get(session_state, STATE_INTAKE_FILE_HASH, "") or ""
     )
-    start, end = activity_period_bounds(result.activity_records_accepted)
+    intake = get_intake_result(session_state)
+    accepted = getattr(intake, "accepted_activities", None)
+    start, end = activity_period_bounds(
+        accepted if accepted is not None else result.activity_records_accepted
+    )
     session_state[STATE_ANALYSIS_PERIOD_START] = start
     session_state[STATE_ANALYSIS_PERIOD_END] = end
     session_state[STATE_ANALYSIS_ACTIVITY_COUNT] = int(
@@ -262,11 +292,12 @@ def get_analysis_source_summary(session_state: Any) -> dict[str, Any]:
         file_name = _ss_get(
             session_state, STATE_ANALYSIS_FILE_NAME
         ) or _ss_get(session_state, STATE_INTAKE_FILE_NAME)
+        start, end = uploaded_data_period_bounds(session_state)
         return {
             "source": source,
             "file_name": str(file_name or "").strip() or "uploaded_file",
-            "period_start": _ss_get(session_state, STATE_ANALYSIS_PERIOD_START),
-            "period_end": _ss_get(session_state, STATE_ANALYSIS_PERIOD_END),
+            "period_start": start,
+            "period_end": end,
             "activity_count": int(
                 _ss_get(session_state, STATE_ANALYSIS_ACTIVITY_COUNT) or 0
             ),
@@ -345,6 +376,8 @@ def initialize_ui_state(session_state: Any, *, force: bool = False) -> None:
         session_state[STATE_INTAKE_DUPLICATE_REVIEW] = {}
     if STATE_INTAKE_SHOW_DUPLICATE_REVIEW not in session_state:
         session_state[STATE_INTAKE_SHOW_DUPLICATE_REVIEW] = False
+    if STATE_ACTIVITY_BOUNDARY_DECISIONS not in session_state:
+        session_state[STATE_ACTIVITY_BOUNDARY_DECISIONS] = []
     if STATE_COMPANY_PROFILE not in session_state:
         session_state[STATE_COMPANY_PROFILE] = {}
     if STATE_APPLICABILITY_ASSESSMENT not in session_state:
@@ -792,8 +825,129 @@ def duplicate_review_decisions_from_state(session_state: Any) -> list[Any]:
     )
 
 
+def _company_workspace_for_session(session_state: Any) -> Any | None:
+    from carbon_ledger.company_workspace import (
+        CompanyWorkspace,
+        default_workspace_root,
+    )
+
+    master = get_company_master_mapping(session_state)
+    if not str(master.get("customer_confirmed_at") or "").strip():
+        return None
+    ubn = str(master.get("unified_business_number") or "").strip()
+    entity_id = str(master.get("company_id") or "").strip()
+    root = default_workspace_root(Path(REPO_ROOT))
+    try:
+        if ubn:
+            return CompanyWorkspace.for_company(root=root, taiwan_ubn=ubn)
+        if entity_id:
+            return CompanyWorkspace.for_company(root=root, entity_id=entity_id)
+    except ValueError:
+        return None
+    return None
+
+
+def activity_boundary_decisions_from_state(session_state: Any) -> list[Any]:
+    """Session decisions, merged with same-period workspace records."""
+    from carbon_ledger.activity_boundary_decisions import (
+        latest_decisions,
+        load_decisions,
+    )
+
+    loaded = load_decisions(
+        _ss_get(session_state, STATE_ACTIVITY_BOUNDARY_DECISIONS, [])
+    )
+    workspace = _company_workspace_for_session(session_state)
+    if workspace is not None:
+        try:
+            loaded.extend(workspace.load_all_activity_boundary_decisions())
+        except (OSError, ValueError):
+            pass
+    return latest_decisions(loaded)
+
+
+def save_activity_boundary_decision_in_session(
+    session_state: Any,
+    decision: Any,
+) -> Any:
+    """Store one decision in session and the period workspace when available."""
+    from carbon_ledger.activity_boundary_decisions import (
+        decision_identity,
+        latest_decisions,
+        load_decisions,
+    )
+
+    current = load_decisions(
+        _ss_get(session_state, STATE_ACTIVITY_BOUNDARY_DECISIONS, [])
+    )
+    incoming = decision_identity(
+        decision.record_id,
+        decision.reporting_year,
+        decision.reporting_period_id,
+    )
+    current = [
+        item
+        for item in current
+        if decision_identity(
+            item.record_id,
+            item.reporting_year,
+            item.reporting_period_id,
+        )
+        != incoming
+    ]
+    current.append(decision)
+    session_state[STATE_ACTIVITY_BOUNDARY_DECISIONS] = [
+        item.to_dict() for item in latest_decisions(current)
+    ]
+    workspace = _company_workspace_for_session(session_state)
+    if workspace is not None:
+        workspace.save_activity_boundary_decision(decision)
+    return decision
+
+
+def withdraw_activity_boundary_decision_in_session(
+    session_state: Any,
+    *,
+    record_id: str,
+    reporting_year: int,
+    reporting_period_id: str = "",
+    confirmed_by: str = "",
+) -> Any | None:
+    from dataclasses import replace
+
+    from carbon_ledger.activity_boundary_decisions import decision_identity
+
+    current = activity_boundary_decisions_from_state(session_state)
+    wanted = decision_identity(record_id, reporting_year, reporting_period_id)
+    matched = next(
+        (
+            item
+            for item in current
+            if decision_identity(
+                item.record_id,
+                item.reporting_year,
+                item.reporting_period_id,
+            )
+            == wanted
+            and not item.withdrawn
+        ),
+        None,
+    )
+    if matched is None:
+        return None
+    withdrawn = replace(
+        matched,
+        withdrawn=True,
+        confirmed_by=str(confirmed_by or matched.confirmed_by),
+    )
+    return save_activity_boundary_decision_in_session(session_state, withdrawn)
+
+
 def included_activities_for_uploaded_analysis(session_state: Any) -> pd.DataFrame:
     """Confirmed included rows for final calculation. Fail-closed if unresolved."""
+    from carbon_ledger.activity_boundary_decisions import (
+        apply_activity_boundary_decisions,
+    )
     from carbon_ledger.potential_duplicates import (
         activities_included_for_calculation,
         groups_from_intake,
@@ -812,7 +966,10 @@ def included_activities_for_uploaded_analysis(session_state: Any) -> pd.DataFram
     )
     if included is None or getattr(included, "empty", True):
         raise ValueError("Validated intake has no accepted activities.")
-    return included
+    return apply_activity_boundary_decisions(
+        included,
+        activity_boundary_decisions_from_state(session_state),
+    )
 
 
 def duplicate_review_blocks_analysis(session_state: Any) -> bool:

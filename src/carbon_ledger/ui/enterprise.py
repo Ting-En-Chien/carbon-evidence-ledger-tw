@@ -64,6 +64,7 @@ def render_app_bar(
     reporting_year: str | int | None,
     freshness_label: str,
     freshness_detail: str,
+    lang: str,
 ) -> None:
     st.markdown(
         f"""
@@ -71,7 +72,13 @@ def render_app_bar(
           <p class="cel-appbar-title">{html.escape(page_title)}</p>
           <div class="cel-appbar-meta">
             <span>{html.escape(company)}</span>
-            <span>FY{html.escape(str(reporting_year or "—"))}</span>
+            <span>{html.escape(
+                t(
+                    "dash.legal_year_label",
+                    lang,
+                    year=str(reporting_year or "—"),
+                )
+            )}</span>
             <span class="cel-freshness-chip">
               <span class="cel-freshness-dot" aria-hidden="true"></span>
               {html.escape(freshness_label)}
@@ -90,14 +97,24 @@ def render_greeting_block(
     reporting_year: str | int | None,
     attention_count: int,
     lang: str,
+    data_period: str = "",
 ) -> None:
     company_safe = html.escape(company or t("dash.greeting_company_fallback", lang))
     greeting = t("dash.greeting", lang, company=company_safe)
-    if attention_count > 0:
-        extra = t("dash.greeting_attention_count", lang, n=attention_count)
-        sub = f"FY{html.escape(str(reporting_year or '—'))} · {extra}"
+    legal = html.escape(
+        t("dash.legal_year_label", lang, year=str(reporting_year or "—"))
+    )
+    period = html.escape(str(data_period or "").strip())
+    if period:
+        period_line = html.escape(t("dash.period_label", lang)) + period
+        sub = f"{period_line} · {legal}"
     else:
-        sub = f"FY{html.escape(str(reporting_year or '—'))}"
+        sub = legal
+    if attention_count > 0:
+        extra = html.escape(
+            t("dash.greeting_attention_count", lang, n=attention_count)
+        )
+        sub = f"{sub} · {extra}"
     st.markdown(
         f"""
         <div class="cel-exec-header">
@@ -123,6 +140,7 @@ def render_context_bar(
         reporting_year=reporting_year,
         freshness_label=freshness_label,
         freshness_detail=freshness_detail,
+        lang=lang,
     )
 
 
@@ -440,6 +458,12 @@ def ifrs_timeline_markup(
         f"<p class='cel-timeline-note'>{html.escape(view.schedule_note)}</p>"
         "</div>"
     )
+
+
+def render_ifrs_product_scope(lang: str) -> None:
+    """Product capability note beside IFRS applicability results."""
+    note = html.escape(t("ifrs.result.product_scope", lang)).replace("\n", "<br>")
+    emit_html(f"<p class='cel-outcome-why'>{note}</p>")
 
 
 def render_ifrs_timeline_section(
@@ -803,8 +827,9 @@ def render_sidebar_context(
     freshness_label: str,
     lang: str,
 ) -> None:
-    year = html.escape(str(reporting_year or "—"))
-    # Compact legal status label for dark rail (avoid bare "已驗證" alone if useful)
+    legal = html.escape(
+        t("dash.legal_year_label", lang, year=str(reporting_year or "—"))
+    )
     raw = (freshness_label or "").strip()
     if raw and "法規" not in raw and lang.startswith("zh"):
         display = f"法規{raw}"
@@ -814,7 +839,7 @@ def render_sidebar_context(
     st.markdown(
         f"""
         <div class="cel-sidebar-meta-group">
-          <p class="cel-sidebar-fy">FY{year}</p>
+          <p class="cel-sidebar-fy">{legal}</p>
           <span class="cel-freshness-chip">
             <span class="cel-freshness-dot" aria-hidden="true"></span>
             {label}

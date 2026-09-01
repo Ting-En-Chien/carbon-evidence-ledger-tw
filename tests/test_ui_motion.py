@@ -204,8 +204,8 @@ def test_playing_count_spans_start_at_zero() -> None:
 def test_dashboard_kpi_semantics_and_formatting() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "已計算排放量" in text
-    assert "cel-kpi-card-primary" in text or "已計算排放量" in text
+    assert "已納入公司盤查排放量" in text
+    assert "cel-kpi-card-primary" in text or "已納入公司盤查排放量" in text
     assert "tCO₂e" in text or "tCO2e" in text
 
 

@@ -189,7 +189,7 @@ def test_review_date_maps_to_milestone_three() -> None:
     assert current.state == MILESTONE_CURRENT
     assert current.period_label == "2026 Q3–Q4"
     assert current.short_action == "試編永續資訊專章"
-    assert view.current_action == "目前應進行：試編永續資訊專章"
+    assert view.current_action == "依官方時程，目前建議階段：試編永續資訊專章"
 
 
 def test_prior_milestones_are_not_described_as_completed() -> None:
@@ -202,10 +202,15 @@ def test_prior_milestones_are_not_described_as_completed() -> None:
     assert "data-cel-timeline-state='completed'" not in markup
     for item in view.milestones[:2]:
         assert item.state == MILESTONE_PAST
-    assert "時程已經過" in markup
+    assert "官方時程已經過" in markup
     assert view.schedule_note == (
-        "此進度依官方時程與今天日期推估，不代表公司已完成前述工作。"
+        "此時程依主管機關導入時程與今天日期顯示目前位置，不代表公司已完成"
+        "前述工作，也不是公司實際完成率。"
     )
+    assert t("ifrs.timeline.heading", ZH) == "IFRS永續揭露法規時程（非公司完成度）"
+    assert t("ifrs.timeline.past", ZH) == "官方時程已經過"
+    assert "已完成" not in t("ifrs.timeline.past", ZH)
+    assert "非公司完成度" in markup
 
 
 def test_october_assurance_is_labelled_conditional() -> None:
@@ -543,7 +548,11 @@ def test_english_timeline_section_is_not_mixed_language() -> None:
     assert view is not None
     markup = ifrs_timeline_markup(view, EN, play=False, initial_pct=view.progress_pct)
     assert CJK.search(markup) is None
-    assert "Currently scheduled:" in view.current_action
+    assert "not company completion" in t("ifrs.timeline.heading", EN)
+    assert t("ifrs.timeline.heading", EN) in markup
+    assert "Based on the official timeline, the current recommended stage is:" in (
+        view.current_action
+    )
     assert "today's date" in view.schedule_note
     assert "Draft the sustainability information chapter" in view.current_action
     assert CJK.search(view.current_action) is None

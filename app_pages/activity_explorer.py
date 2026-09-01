@@ -16,6 +16,9 @@ from carbon_ledger.ui.components import (
     render_status_badge,
 )
 from carbon_ledger.ui.i18n import t
+from carbon_ledger.ui.refrigerant_boundary_form import (
+    render_refrigerant_boundary_confirmation,
+)
 from carbon_ledger.ui.state import (
     get_current_result,
     get_focus_record,
@@ -192,6 +195,16 @@ with summary_cols[0]:
         f"{overview_row.get('activity_amount', '—')} "
         f"{overview_row.get('activity_unit', '')}"
     )
+    if str(activity.get("activity_type") or "") == "refrigerant_refill":
+        st.markdown(f"**{t('act.basis.refrigerant_code', lang)}**")
+        st.write(
+            str(
+                overview_row.get("refrigerant_code")
+                or activity.get("refrigerant_code")
+                or calc.get("refrigerant_code")
+                or "—"
+            )
+        )
 with summary_cols[1]:
     st.markdown(f"**{t('act.col.period', lang)}**")
     st.write(
@@ -220,6 +233,13 @@ with summary_cols[2]:
     st.markdown(f"**{t('act.col.source_doc', lang)}**")
     st.write(doc_name)
 
+if str(activity.get("activity_type") or "") == "refrigerant_refill":
+    render_refrigerant_boundary_confirmation(
+        result,
+        lang,
+        record_filter=selected_record_id,
+    )
+
 # Layer 2 — calculation basis (business names, not raw IDs)
 with st.expander(t("act.layer.basis", lang), expanded=False):
     st.markdown(f"**{t('dash.col.calc', lang)}:** {detail['calculation_label']}")
@@ -239,6 +259,7 @@ with st.expander(t("act.layer.basis", lang), expanded=False):
         )
         activity_type = str(activity.get("activity_type") or "")
         is_combustion = activity_type in {"natural_gas", "diesel"}
+        is_refrigerant = activity_type == "refrigerant_refill"
         trace: dict = {}
         raw_trace = calc.get("calculation_trace")
         if isinstance(raw_trace, dict):
@@ -327,6 +348,50 @@ with st.expander(t("act.layer.basis", lang), expanded=False):
                 )
                 or t("act.trace_source_official", lang)
             )
+        elif is_refrigerant:
+            st.markdown(f"**{t('act.basis.refrigerant_code', lang)}**")
+            st.write(
+                str(
+                    activity.get("refrigerant_code")
+                    or calc.get("refrigerant_code")
+                    or "—"
+                )
+            )
+            st.markdown(f"**{t('act.basis.refill_quantity', lang)}**")
+            st.write(f"{amount} {unit}" if amount is not None else "—")
+            st.markdown(f"**{t('act.basis.gwp', lang)}**")
+            gwp_value = calc.get("gwp_value")
+            if gwp_value in (None, "", "nan"):
+                gwp_value = factor_value
+            gwp_id = calc.get("gwp_id") or calc.get("factor_id") or ""
+            if gwp_value not in (None, "", "nan"):
+                label = f"{float(gwp_value):.6g}"
+                if gwp_id not in (None, "", "nan"):
+                    label = f"{label} ({gwp_id})"
+                st.write(label)
+            else:
+                st.write("—")
+            st.markdown(f"**{t('act.basis.result', lang)}**")
+            st.write(
+                f"{float(tco2e):.6g} tCO₂e" if tco2e is not None else "—"
+            )
+            st.markdown(f"**{t('act.basis.source', lang)}**")
+            source_bits = [
+                calc.get("formula_id"),
+                calc.get("formula_version"),
+                calc.get("gwp_source_reference_id") or calc.get("source_reference_id"),
+            ]
+            st.write(
+                " · ".join(
+                    str(item)
+                    for item in source_bits
+                    if item not in (None, "", "nan")
+                )
+                or t("act.trace_source_official", lang)
+            )
+            raw_trace = calc.get("calculation_trace")
+            if raw_trace not in (None, "", "nan"):
+                st.caption(str(raw_trace))
         else:
             st.markdown(f"**{t('act.trace_activity', lang)}**")
             st.write(f"{amount} {unit}" if amount is not None else "—")
@@ -392,6 +457,11 @@ with st.expander(t("act.layer.audit", lang), expanded=False):
             ),
             "calculation_id": calc.get("calculation_id"),
             "factor_id": calc.get("factor_id"),
+            "gwp_id": calc.get("gwp_id"),
+            "formula_id": calc.get("formula_id"),
+            "formula_version": calc.get("formula_version"),
+            "refrigerant_code": calc.get("refrigerant_code")
+            or activity.get("refrigerant_code"),
             "normalized_value": calc.get("normalized_value"),
             "normalized_unit": calc.get("normalized_unit"),
             "evaluation_id_ghg": detail["ghg"].get("evaluation_id"),

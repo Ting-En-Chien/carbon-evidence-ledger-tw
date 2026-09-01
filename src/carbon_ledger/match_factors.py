@@ -58,6 +58,11 @@ KNOWN_NO_FACTOR_ACTIVITY_TYPES = {
     "third_party_transport",
 }
 
+REFRIGERANT_ACTIVITY_TYPES = {
+    "refrigerant_refill",
+}
+READINESS_REFRIGERANT_ACTUAL_REFILL = "refrigerant_actual_refill"
+
 ENTERPRISE_ELECTRICITY_PROCESS_USES = frozenset(
     {
         "general_factory",
@@ -505,6 +510,19 @@ def _build_readiness_row(
             "readiness_reason": (
                 f"No suitable emission factor is configured yet for "
                 f"{activity_type!r} in the current MVP."
+            ),
+        }
+
+    if activity_type in REFRIGERANT_ACTIVITY_TYPES:
+        return {
+            "record_id": record_id,
+            "activity_type": activity_type,
+            "calculation_readiness": READINESS_REFRIGERANT_ACTUAL_REFILL,
+            "candidate_factor_count": 0,
+            "blocking_dependency": pd.NA,
+            "readiness_reason": (
+                "Refrigerant actual-refill uses AR5 GWP, not an "
+                "emission-factor match. Leak-rate estimation is not applied."
             ),
         }
 

@@ -1219,8 +1219,8 @@ def render_global_header(lang: str) -> None:
         or str(profile.get("company_name") or "")
         or t("sidebar.company_unset", lang)
     )
-    year = html.escape(str(profile.get("reporting_year") or "—"))
-    context_detail = f"FY{year}"
+    year = str(profile.get("reporting_year") or "—")
+    context_detail = t("dash.legal_year_label", lang, year=year)
     if confirmed_ubn:
         context_detail = (
             f"{t('sidebar.company_ubn', lang, ubn=confirmed_ubn)} · "
