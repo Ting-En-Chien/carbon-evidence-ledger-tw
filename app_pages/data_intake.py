@@ -13,15 +13,21 @@ from carbon_ledger.intake import (
     CONFIDENCE_HIGH,
     CONFIDENCE_LOW,
     CONFIDENCE_MEDIUM,
+    READINESS_NEEDS_CONFIRM,
+    READINESS_READY,
+    READINESS_UNSUPPORTED,
     ColumnMapping,
     FieldSuggestion,
     IntakeError,
     IntakeMetadata,
     blank_template_csv_bytes,
     blank_template_xlsx_bytes,
+    classify_activity_analysis_readiness,
     default_value_maps,
     detect_header_row,
+    extract_diesel_vehicle_context_from_text,
     extract_natural_gas_subtype_from_text,
+    fuel_subtype_source_column,
     intake_validation_percent,
     list_xlsx_sheet_names,
     load_raw_tabular_frame,
@@ -293,6 +299,63 @@ HELD_ISSUE_CODES = frozenset(
         ISSUE_HELD_PENDING_ACTUAL_HV,
     }
 )
+
+
+def _accepted_readiness_rows(accepted: pd.DataFrame) -> pd.DataFrame:
+    """Attach the pre-analysis readiness bucket to format-valid rows."""
+    if accepted is None or accepted.empty:
+        return pd.DataFrame()
+    rows = accepted.copy()
+    rows["_analysis_readiness"] = [
+        classify_activity_analysis_readiness(
+            activity_type=str(row.get("activity_type") or ""),
+            fuel_subtype=str(row.get("fuel_subtype") or ""),
+            process_use=str(row.get("process_use") or ""),
+            activity_start=row.get("activity_start_date"),
+            activity_end=row.get("activity_end_date"),
+        )
+        for _, row in rows.iterrows()
+    ]
+    return rows
+
+
+def _accepted_review_preview(
+    rows: pd.DataFrame,
+    *,
+    status: str,
+    issue: str,
+) -> pd.DataFrame:
+    """Customer-facing preview for one accepted-row readiness bucket."""
+    preview = rows[
+        [
+            "activity_type",
+            "activity_value",
+            "unit",
+            "activity_start_date",
+            "activity_end_date",
+            "site_id",
+        ]
+    ].copy()
+    preview["activity_type"] = preview["activity_type"].map(
+        lambda code: t(f"activity.{code}", lang)
+    )
+    preview["site_id"] = preview["site_id"].map(
+        lambda value: customer_site_display(value, lang)
+    )
+    preview["status"] = status
+    preview["issue"] = issue
+    return preview.rename(
+        columns={
+            "activity_type": t("intake.field.activity_type", lang),
+            "activity_value": t("intake.field.activity_value", lang),
+            "unit": t("intake.field.unit", lang),
+            "activity_start_date": t("intake.field.start", lang),
+            "activity_end_date": t("intake.field.end", lang),
+            "site_id": t("intake.field.site_id", lang),
+            "status": t("intake.col.status", lang),
+            "issue": t("intake.col.issue", lang),
+        }
+    )
 
 
 def html_escape(value: str) -> str:
@@ -1934,86 +1997,118 @@ if result is None and step <= 2:
     mapped_types = set(activity_type_value_map.values())
     unknown_label = t("intake.ng_type_unknown", lang)
     saved_mapping = st.session_state.get(STATE_INTAKE_MAPPING)
+    committed_now = _ensure_committed(table, detailed)
+    subtype_col = fuel_subtype_column or fuel_subtype_source_column(
+        list(table.columns), saved_mapping
+    )
 
     if "natural_gas" in mapped_types:
         source_has_explicit_ng = False
+        extracted_subtypes: set[str] = set()
         if activity_type_column:
             for source_value, mapped in activity_type_value_map.items():
                 if mapped != "natural_gas":
                     continue
-                if extract_natural_gas_subtype_from_text(source_value):
+                extracted = extract_natural_gas_subtype_from_text(source_value)
+                if extracted:
                     source_has_explicit_ng = True
-        ng_label_1 = t("intake.ng_option_1", lang)
-        ng_label_2 = t("intake.ng_option_2", lang)
-        ng_options = [ng_label_1, ng_label_2, unknown_label]
-        saved_subtype = "unknown"
-        if saved_mapping is not None:
+                    extracted_subtypes.add(extracted)
+        if subtype_col and subtype_col in table.frame.columns:
+            for _, row in table.frame.iterrows():
+                source_text = str(row.get(activity_type_column) or "").strip()
+                mapped = activity_type_value_map.get(source_text) or ""
+                if mapped != "natural_gas":
+                    continue
+                extracted = extract_natural_gas_subtype_from_text(row.get(subtype_col))
+                if extracted:
+                    source_has_explicit_ng = True
+                    extracted_subtypes.add(extracted)
+        saved_subtype = str(committed_now.get("natural_gas_subtype") or "").strip()
+        if saved_subtype not in {"NG1", "NG2"} and saved_mapping is not None:
             saved_subtype = str(
                 getattr(saved_mapping, "natural_gas_subtype", "unknown") or "unknown"
             )
-        if saved_subtype == "NG1":
-            default_ng = ng_label_1
-        elif saved_subtype == "NG2":
-            default_ng = ng_label_2
-        else:
-            default_ng = unknown_label
-        st.markdown(f"**{t('intake.ng_type', lang)}**")
-        selected_ng = st.radio(
-            t("intake.ng_type", lang),
-            options=ng_options,
-            index=ng_options.index(default_ng),
-            key="intake_natural_gas_subtype",
-            label_visibility="collapsed",
-        )
-        st.caption(t("intake.ng_type_help", lang))
-        with st.expander(t("intake.ng_learn_title", lang), expanded=False):
-            st.write(t("intake.ng_learn_body", lang))
         if source_has_explicit_ng:
             st.caption(t("intake.ng_type_from_file", lang))
-        if selected_ng == ng_label_1:
-            natural_gas_subtype = "NG1"
-        elif selected_ng == ng_label_2:
-            natural_gas_subtype = "NG2"
+            if len(extracted_subtypes) == 1:
+                natural_gas_subtype = next(iter(extracted_subtypes))
+            elif saved_subtype in {"NG1", "NG2"}:
+                natural_gas_subtype = saved_subtype
+            else:
+                natural_gas_subtype = "unknown"
         else:
-            natural_gas_subtype = "unknown"
+            ng_label_1 = t("intake.ng_option_1", lang)
+            ng_label_2 = t("intake.ng_option_2", lang)
+            ng_options = [ng_label_1, ng_label_2, unknown_label]
+            if saved_subtype == "NG1":
+                default_ng = ng_label_1
+            elif saved_subtype == "NG2":
+                default_ng = ng_label_2
+            else:
+                default_ng = unknown_label
+            st.markdown(f"**{t('intake.ng_type', lang)}**")
+            selected_ng = st.radio(
+                t("intake.ng_type", lang),
+                options=ng_options,
+                index=ng_options.index(default_ng),
+                key="intake_natural_gas_subtype",
+                label_visibility="collapsed",
+            )
+            st.caption(t("intake.ng_type_help", lang))
+            with st.expander(t("intake.ng_learn_title", lang), expanded=False):
+                st.write(t("intake.ng_learn_body", lang))
+            if selected_ng == ng_label_1:
+                natural_gas_subtype = "NG1"
+            elif selected_ng == ng_label_2:
+                natural_gas_subtype = "NG2"
+            else:
+                natural_gas_subtype = "unknown"
 
     if "diesel" in mapped_types:
         diesel_options = [
             t("intake.diesel_company_vehicle", lang),
             unknown_label,
         ]
-        saved_diesel = "unknown"
-        if saved_mapping is not None:
+        source_has_vehicle_diesel = any(
+            mapped == "diesel" and extract_diesel_vehicle_context_from_text(source)
+            for source, mapped in activity_type_value_map.items()
+        )
+        saved_diesel = str(committed_now.get("diesel_context") or "").strip()
+        if saved_diesel != "company_vehicle" and saved_mapping is not None:
             saved_diesel = str(
                 getattr(saved_mapping, "diesel_context", "unknown") or "unknown"
             )
-        default_diesel = (
-            diesel_options[0]
-            if saved_diesel == "company_vehicle"
-            else unknown_label
-        )
-        st.markdown(f"**{t('intake.diesel_context', lang)}**")
-        selected_diesel = st.radio(
-            t("intake.diesel_context", lang),
-            options=diesel_options,
-            index=diesel_options.index(default_diesel),
-            key="intake_diesel_context",
-            label_visibility="collapsed",
-        )
-        st.caption(t("intake.diesel_context_help", lang))
-        diesel_context = (
-            "company_vehicle"
-            if selected_diesel == t("intake.diesel_company_vehicle", lang)
-            else "unknown"
-        )
+        if source_has_vehicle_diesel:
+            diesel_context = "company_vehicle"
+            st.caption(t("intake.diesel_company_vehicle", lang))
+        else:
+            default_diesel = (
+                diesel_options[0]
+                if saved_diesel == "company_vehicle"
+                else unknown_label
+            )
+            st.markdown(f"**{t('intake.diesel_context', lang)}**")
+            selected_diesel = st.radio(
+                t("intake.diesel_context", lang),
+                options=diesel_options,
+                index=diesel_options.index(default_diesel),
+                key="intake_diesel_context",
+                label_visibility="collapsed",
+            )
+            st.caption(t("intake.diesel_context_help", lang))
+            diesel_context = (
+                "company_vehicle"
+                if selected_diesel == t("intake.diesel_company_vehicle", lang)
+                else "unknown"
+            )
 
     if "grid_electricity" in mapped_types:
         elec_options = [
             t("intake.electricity_enterprise", lang),
             unknown_label,
         ]
-        saved_elec = "unknown"
-        if saved_mapping is not None:
+        saved_elec = str(committed_now.get("electricity_context") or "").strip()
+        if saved_elec != "enterprise" and saved_mapping is not None:
             saved_elec = str(
                 getattr(saved_mapping, "electricity_context", "unknown")
                 or "unknown"
@@ -2224,59 +2319,74 @@ if rejected is not None and not getattr(rejected, "empty", True):
             held_count += 1
         else:
             cannot_count += 1
+accepted = result.accepted_activities
+readiness_rows = _accepted_readiness_rows(accepted)
+if readiness_rows.empty:
+    ready_rows = readiness_rows.copy()
+    accepted_needs_confirm = readiness_rows.copy()
+    unsupported_rows = readiness_rows.copy()
+else:
+    ready_rows = readiness_rows[
+        readiness_rows["_analysis_readiness"] == READINESS_READY
+    ].copy()
+    accepted_needs_confirm = readiness_rows[
+        readiness_rows["_analysis_readiness"] == READINESS_NEEDS_CONFIRM
+    ].copy()
+    unsupported_rows = readiness_rows[
+        readiness_rows["_analysis_readiness"] == READINESS_UNSUPPORTED
+    ].copy()
+needs_confirm_count = held_count + len(accepted_needs_confirm)
+
 with onboarding_target("calculation-coverage"):
     render_kpi_row(
         [
-            (result.accepted_count, t("intake.result_accepted", lang), "teal"),
-            (held_count, t("intake.result_needs_confirm", lang), "amber"),
-            (cannot_count, t("intake.result_rejected", lang), "blue"),
+            (len(ready_rows), t("intake.result_accepted", lang), "teal"),
+            (
+                needs_confirm_count,
+                t("intake.result_needs_confirm", lang),
+                "amber",
+            ),
+            (
+                len(unsupported_rows),
+                t("intake.result_unsupported", lang),
+                "blue",
+            ),
+            (cannot_count, t("intake.result_invalid", lang), "blue"),
         ],
         tour_target="coverage-summary",
     )
-tab_ok, tab_fix, tab_bad = st.tabs(
+tab_ok, tab_fix, tab_unsupported, tab_bad = st.tabs(
     [
         t("intake.result_accepted", lang),
         t("intake.result_needs_confirm", lang),
-        t("intake.result_rejected", lang),
+        t("intake.result_unsupported", lang),
+        t("intake.result_invalid", lang),
     ]
 )
-accepted = result.accepted_activities
 with tab_ok:
-    if accepted is not None and not accepted.empty:
-        preview = accepted[
-            [
-                "activity_type",
-                "activity_value",
-                "unit",
-                "activity_start_date",
-                "activity_end_date",
-                "site_id",
-            ]
-        ].copy()
-        preview["activity_type"] = preview["activity_type"].map(
-            lambda code: t(f"activity.{code}", lang)
+    if not ready_rows.empty:
+        st.dataframe(
+            _accepted_review_preview(
+                ready_rows,
+                status=t("intake.result_accepted", lang),
+                issue="—",
+            ),
+            hide_index=True,
+            width="stretch",
         )
-        preview["site_id"] = preview["site_id"].map(
-            lambda value: customer_site_display(value, lang)
-        )
-        preview["status"] = t("intake.result_accepted", lang)
-        preview["issue"] = "—"
-        preview = preview.rename(
-            columns={
-                "activity_type": t("intake.field.activity_type", lang),
-                "activity_value": t("intake.field.activity_value", lang),
-                "unit": t("intake.field.unit", lang),
-                "activity_start_date": t("intake.field.start", lang),
-                "activity_end_date": t("intake.field.end", lang),
-                "site_id": t("intake.field.site_id", lang),
-                "status": t("intake.col.status", lang),
-                "issue": t("intake.col.issue", lang),
-            }
-        )
-        st.dataframe(preview, hide_index=True, width="stretch")
     else:
-        st.warning(t("intake.partial", lang))
+        st.caption(t("intake.empty.ready", lang))
 with tab_fix:
+    if not accepted_needs_confirm.empty:
+        st.dataframe(
+            _accepted_review_preview(
+                accepted_needs_confirm,
+                status=t("intake.result_needs_confirm", lang),
+                issue=t("intake.issue.context_required", lang),
+            ),
+            hide_index=True,
+            width="stretch",
+        )
     if held_count > 0 and rejected is not None:
         held_rows = rejected[
             rejected["issue_code"].astype(str).isin(HELD_ISSUE_CODES)
@@ -2314,8 +2424,34 @@ with tab_fix:
             hide_index=True,
             width="stretch",
         )
+    elif accepted_needs_confirm.empty:
+        st.caption(t("intake.empty.needs_confirm", lang))
+with tab_unsupported:
+    if not unsupported_rows.empty:
+        unsupported_names = sorted(
+            {
+                t(f"activity.{code}", lang)
+                for code in unsupported_rows["activity_type"].astype(str)
+            }
+        )
+        st.info(
+            t(
+                "intake.unsupported.summary",
+                lang,
+                names="、".join(unsupported_names),
+            )
+        )
+        st.dataframe(
+            _accepted_review_preview(
+                unsupported_rows,
+                status=t("intake.result_unsupported", lang),
+                issue=t("intake.issue.unsupported_activity", lang),
+            ),
+            hide_index=True,
+            width="stretch",
+        )
     else:
-        st.caption(t("intake.partial", lang))
+        st.caption(t("intake.empty.unsupported", lang))
 with tab_bad:
     if cannot_count > 0 and rejected is not None:
         bad_rows = rejected[
@@ -2355,7 +2491,7 @@ with tab_bad:
             width="stretch",
         )
     else:
-        st.success(t("intake.success", lang))
+        st.caption(t("intake.empty.invalid", lang))
 duplicates_ready = _render_potential_duplicate_review(result)
 
 st.write("")

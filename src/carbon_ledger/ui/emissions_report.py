@@ -27,9 +27,11 @@ from carbon_ledger.ui.view_models import (
     DISPOSITION_UNSUPPORTED,
     activity_display_name,
     beginner_result_summary,
-    calculated_emissions_summary,
+    company_inventory_emissions_summary,
+    company_inventory_record_ids,
     factor_registry_row,
     hero_result_status_and_disposition,
+    inventory_status_counts,
     reconcile_row_dispositions,
     scope_kpi_states,
 )
@@ -56,6 +58,7 @@ _SCOPE_BY_ACTIVITY = {
     "grid_electricity": "scope_2",
     "natural_gas": "scope_1",
     "diesel": "scope_1",
+    "refrigerant_refill": "scope_1",
 }
 _QUALITY_CODES = (
     DISPOSITION_CALCULATED,
@@ -289,7 +292,8 @@ def _source_breakdown(
     activities = result.activity_records_accepted
     if calcs is None or calcs.empty or activities is None or activities.empty:
         return ()
-    calculated = calcs[calcs["calculation_status"].astype(str) == "calculated"].copy()
+    included = company_inventory_record_ids(result)
+    calculated = calcs[calcs["record_id"].astype(str).isin(included)].copy()
     if calculated.empty:
         return ()
     calculated["tco2e"] = pd.to_numeric(calculated["calculated_tco2e"], errors="coerce")
@@ -336,7 +340,8 @@ def _site_breakdown(result: PipelineRunResult, lang: str) -> tuple[SourceShareRo
         or "site_id" not in activities.columns
     ):
         return ()
-    calculated = calcs[calcs["calculation_status"].astype(str) == "calculated"].copy()
+    included = company_inventory_record_ids(result)
+    calculated = calcs[calcs["record_id"].astype(str).isin(included)].copy()
     if calculated.empty:
         return ()
     calculated["tco2e"] = pd.to_numeric(calculated["calculated_tco2e"], errors="coerce")
@@ -605,22 +610,24 @@ def build_emissions_report_model(
 ) -> EmissionsReportModel:
     """Read existing session/result/view-model data into one report snapshot."""
     summary = beginner_result_summary(result, lang)
-    emissions = calculated_emissions_summary(result, lang)
+    emissions = company_inventory_emissions_summary(result, lang)
     scopes = scope_kpi_states(result)
     recon = dispositions or reconcile_row_dispositions(
         pipeline_result=result,
         is_uploaded_analysis=uploaded,
     )
+    counts = inventory_status_counts(result)
     hero = hero_result_status_and_disposition(
         uploaded=uploaded,
         dispositions=recon,
-        calculated_count=int(summary["calculated"]),
+        calculated_count=int(counts["technically_calculated"]),
         activity_count=int(summary["activities"]),
-        needs_work=int(summary["needs_work"]),
+        needs_work=int(counts["needs_review"]),
         lang=lang,
+        inventory_counts=counts,
     )
     complete = bool(hero["complete"])
-    total = emissions.get("calculated_tco2e")
+    total = emissions.get("inventory_tco2e")
     if total is not None:
         total = float(total)
     scope_1_state = scopes.get("scope_1") or {}

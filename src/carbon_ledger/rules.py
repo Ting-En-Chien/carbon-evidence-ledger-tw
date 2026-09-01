@@ -336,6 +336,45 @@ def _evaluate_one_activity(
             rule=rule,
         )
 
+    # Refrigerant refill / Scope 1 fugitive from owned or controlled equipment.
+    if activity_type == "refrigerant_refill":
+        if org_boundary == "outside":
+            return _outside_boundary(
+                record_id=record_id, activity_type=activity_type
+            )
+        if org_boundary != "inside":
+            return _needs_review(
+                record_id=record_id,
+                rationale=(
+                    "organizational_boundary_status must be inside for "
+                    "Scope 1 fugitive refrigerant mapping."
+                ),
+            )
+        if ownership_control == "third_party":
+            return _needs_review(
+                record_id=record_id,
+                mapping_code="refrigerant_third_party_unmapped",
+                rationale=(
+                    "Third-party refrigerant equipment is not automatically "
+                    "mapped to Scope 1; Scope 3 is not guessed."
+                ),
+            )
+        if ownership_control not in OWNED_OR_CONTROLLED:
+            return _needs_review(
+                record_id=record_id,
+                rationale=(
+                    "Refrigerant Scope 1 mapping requires ownership_control "
+                    "owned or controlled; "
+                    f"got {ownership_control!r}."
+                ),
+            )
+        rule = rules_by_id["ghg_scope1_fugitive_refrigerant"]
+        return _mapped_from_rule(
+            record_id=record_id,
+            mapping_status="mapped",
+            rule=rule,
+        )
+
     return _needs_review(
         record_id=record_id,
         rationale=(

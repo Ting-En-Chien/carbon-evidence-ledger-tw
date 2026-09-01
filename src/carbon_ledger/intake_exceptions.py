@@ -27,13 +27,21 @@ from carbon_ledger.intake import (
     distinct_values,
     extract_diesel_vehicle_context_from_text,
     extract_natural_gas_subtype_from_text,
+    fuel_subtype_source_column,
     ng_group_key_for_site,
     suggest_activity_type,
     suggest_unit,
 )
 
 REQUIRED_FIELDS = ("activity_type", "activity_value", "unit")
-OPTIONAL_FIELDS = ("site_id", "fuel_subtype")
+OPTIONAL_FIELDS = (
+    "site_id",
+    "fuel_subtype",
+    "refrigerant_code",
+    "refill_confirmed",
+    "ownership_control",
+    "organizational_boundary_status",
+)
 DATE_FIELDS = ("activity_start_date", "activity_end_date", "year_month")
 COLUMN_FIELDS = REQUIRED_FIELDS + OPTIONAL_FIELDS + DATE_FIELDS
 
@@ -164,6 +172,12 @@ def _draft_mapping(table: Any, committed: dict[str, Any]) -> ColumnMapping:
         electricity_context=str(
             committed.get("electricity_context") or "unknown"
         ),
+        refrigerant_code_column=columns.get("refrigerant_code", ""),
+        refill_confirmed_column=columns.get("refill_confirmed", ""),
+        ownership_control_column=columns.get("ownership_control", ""),
+        organizational_boundary_column=columns.get(
+            "organizational_boundary_status", ""
+        ),
         activity_type_value_map=dict(
             committed.get("activity_type_value_map") or {}
         ),
@@ -200,7 +214,7 @@ def unresolved_natural_gas_groups(
     if not activity_col or activity_col not in frame.columns:
         return []
     value_map = mapping.activity_type_value_map or {}
-    subtype_col = str(mapping.natural_gas_subtype_column or "").strip()
+    subtype_col = fuel_subtype_source_column(frame.columns, mapping)
     has_site = bool(str(mapping.site_column or "").strip())
     answers = dict(committed.get("natural_gas_groups") or {})
     buckets: dict[str, list[int]] = {}
@@ -311,13 +325,32 @@ def _autofill_context_from_file(table: Any, committed: dict[str, Any]) -> None:
     mapping = _draft_mapping(table, committed)
     needed = context_confirmations_needed(table, mapping)
     if not needed.get(CONTEXT_NG):
-        for source, mapped in mapping.activity_type_value_map.items():
+        activity_col = columns.get("activity_type", "")
+        subtype_col = fuel_subtype_source_column(table.frame.columns, mapping)
+        value_map = mapping.activity_type_value_map or {}
+        found: set[str] = set()
+        for _, row in table.frame.iterrows():
+            source = str(row.get(activity_col) or "").strip()
+            mapped = value_map.get(source) or suggest_activity_type(source)
             if mapped != "natural_gas":
                 continue
             subtype = extract_natural_gas_subtype_from_text(source)
-            if subtype:
-                committed["natural_gas_subtype"] = subtype
-                break
+            if not subtype and subtype_col and subtype_col in table.frame.columns:
+                subtype = extract_natural_gas_subtype_from_text(
+                    row.get(subtype_col)
+                )
+            if subtype in {"NG1", "NG2"}:
+                found.add(subtype)
+        if len(found) == 1:
+            committed["natural_gas_subtype"] = next(iter(found))
+        else:
+            for source, mapped in mapping.activity_type_value_map.items():
+                if mapped != "natural_gas":
+                    continue
+                subtype = extract_natural_gas_subtype_from_text(source)
+                if subtype:
+                    committed["natural_gas_subtype"] = subtype
+                    break
     if not needed.get(CONTEXT_DIESEL):
         for source, mapped in mapping.activity_type_value_map.items():
             if mapped == "diesel" and extract_diesel_vehicle_context_from_text(
@@ -836,7 +869,7 @@ def _ng_row_is_held(row: Any, mapping: ColumnMapping) -> bool:
     activity_source = row.get(mapping.activity_type_column)
     if extract_natural_gas_subtype_from_text(activity_source):
         return False
-    subtype_col = str(mapping.natural_gas_subtype_column or "").strip()
+    subtype_col = fuel_subtype_source_column(getattr(row, "index", []), mapping)
     if subtype_col:
         extracted = extract_natural_gas_subtype_from_text(row.get(subtype_col))
         if extracted:

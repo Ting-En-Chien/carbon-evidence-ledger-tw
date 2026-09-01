@@ -32,6 +32,8 @@ from carbon_ledger.ui.view_models import (
     beginner_result_summary,
     calculated_emissions_summary,
     executive_emissions_insights,
+    inventory_status_counts,
+    reconcile_row_dispositions,
     should_show_coverage_chart,
     should_show_unresolved_cta,
 )
@@ -192,14 +194,22 @@ def test_unresolved_positive_shows_issue_cta() -> None:
     assert should_show_unresolved_cta(int(summary["needs_work"])) is True
     at = _dashboard_with_result(result)
     text = _all_text(at)
-    assert t("dash.cta.resolve_remaining", ZH, remaining=1) in text
+    counts = inventory_status_counts(result)
+    recon = reconcile_row_dispositions(
+        pipeline_result=result,
+        is_uploaded_analysis=True,
+    )
+    assert t("dash.cta.resolve_remaining", ZH, remaining=1) not in text
     assert t(
         "dash.result_preliminary_body",
         ZH,
-        included=1,
-        total=2,
-        remaining=1,
+        calculated=int(counts["technically_calculated"]),
+        included=int(counts["included_in_inventory"]),
+        needs_review=int(recon.get("needs_confirmation") or 0),
+        unsupported=int(recon.get("unsupported") or 0),
+        outside=int(counts["outside_boundary"]),
     ) in text
+    assert t("dash.result_incomplete_sources", ZH) not in text
     assert t("dash.result_preliminary", ZH) in text
 
 
@@ -277,7 +287,7 @@ def test_post_analysis_first_viewport_has_result_coverage_insight() -> None:
     activate_demo_mode(at.session_state)
     at.run()
     text = _all_text(at)
-    assert "目前已計算排放量" in text
+    assert "目前已納入公司盤查排放量" in text
     assert "Scope 1" in text
     assert "Scope 2" in text
     assert "尚未納入計算" in text

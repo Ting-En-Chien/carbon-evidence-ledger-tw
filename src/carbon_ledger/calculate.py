@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import math
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -932,7 +933,67 @@ def _calculate_ready_row(
             "Readiness is ready but the number of matched_ready candidates "
             f"is {len(ready_candidates)}, expected exactly 1."
         ),
+        )
+
+
+def _same_calendar_reporting_year(start: Any, end: Any) -> int | None:
+    start_ts = pd.to_datetime(start, errors="coerce")
+    end_ts = pd.to_datetime(end, errors="coerce")
+    if pd.isna(start_ts) or pd.isna(end_ts):
+        return None
+    start_year = int(start_ts.year)
+    end_year = int(end_ts.year)
+    if start_year != end_year:
+        return None
+    return start_year
+
+
+_DEFAULT_REFERENCE_DIR = Path(__file__).resolve().parents[2] / "data" / "reference"
+REFRIGERANT_ACTIVITY_TYPE = "refrigerant_refill"
+READINESS_REFRIGERANT_ACTUAL_REFILL = "refrigerant_actual_refill"
+
+
+def _refrigerant_calc_record(activity_row: pd.Series | None) -> dict[str, Any]:
+    if activity_row is None:
+        return {}
+    reporting_year = _same_calendar_reporting_year(
+        activity_row.get("activity_start_date"),
+        activity_row.get("activity_end_date"),
     )
+    record: dict[str, Any] = {
+        "record_id": _text(activity_row.get("record_id")),
+        "actual_refill_kg": activity_row.get("activity_value"),
+        "refrigerant_code": _text(activity_row.get("refrigerant_code")),
+        "refill_confirmed": _text(activity_row.get("refill_confirmed")),
+        "source_document_id": _text(activity_row.get("source_document_id")),
+        "evidence_reference": _text(activity_row.get("source_locator")),
+        "reporting_period_id": _text(activity_row.get("reporting_period_id")),
+    }
+    if reporting_year is not None:
+        record["reporting_year"] = reporting_year
+    return record
+
+
+def _calculate_refrigerant_result(
+    activity_row: pd.Series | None,
+    gwp_values: pd.DataFrame,
+) -> dict[str, Any]:
+    from carbon_ledger.refrigerants import (
+        RefrigerantRegistryError,
+        calculate_actual_refill,
+        load_refrigerant_compositions,
+    )
+
+    try:
+        compositions = load_refrigerant_compositions(_DEFAULT_REFERENCE_DIR)
+    except RefrigerantRegistryError:
+        compositions = pd.DataFrame()
+    result = calculate_actual_refill(
+        _refrigerant_calc_record(activity_row),
+        compositions=compositions,
+        gwp_values=gwp_values,
+    )
+    return result.to_calculation_row()
 
 
 def calculate_activity_emissions(
@@ -1014,6 +1075,12 @@ def calculate_activity_emissions(
             activity_row.get("fuel_subtype") if activity_row is not None else ""
         )
 
+        if activity_type == REFRIGERANT_ACTIVITY_TYPE or (
+            readiness_status == READINESS_REFRIGERANT_ACTUAL_REFILL
+        ):
+            results.append(_calculate_refrigerant_result(activity_row, gwp))
+            continue
+
         if readiness_status in PASSTHROUGH_STATUSES:
             results.append(
                 _result_row(
@@ -1065,7 +1132,12 @@ def calculate_activity_emissions(
     if not results:
         return pd.DataFrame(columns=OUTPUT_COLUMNS)
 
-    output = pd.DataFrame(results, columns=OUTPUT_COLUMNS)
+    output = pd.DataFrame(results)
+    for column in OUTPUT_COLUMNS:
+        if column not in output.columns:
+            output[column] = pd.NA
+    extra = [column for column in output.columns if column not in OUTPUT_COLUMNS]
+    output = output[list(OUTPUT_COLUMNS) + extra]
     output = output.sort_values("record_id", kind="mergesort").reset_index(
         drop=True
     )

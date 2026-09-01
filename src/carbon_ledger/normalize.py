@@ -16,6 +16,7 @@ CANONICAL_UNITS: dict[str, str] = {
     "grid_electricity": "kWh",
     "natural_gas": "m3",
     "diesel": "L",
+    "refrigerant_refill": "kg",
     "purchased_steel": "t",
     "finished_goods_output": "t",
     "scrap_output": "t",

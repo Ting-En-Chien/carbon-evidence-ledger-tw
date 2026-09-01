@@ -93,12 +93,18 @@ from carbon_ledger.ui.enterprise import (
     render_compact_outcome_row,
     render_customer_action_summary,
     render_customer_notice,
+    render_ifrs_product_scope,
     render_ifrs_timeline_evidence,
     render_ifrs_timeline_section,
     render_money_field,
     render_stepper,
 )
 from carbon_ledger.ui.i18n import t
+from carbon_ledger.ui.ifrs_readiness import (
+    build_ifrs_readiness_view,
+    render_ifrs_readiness_section,
+    try_load_reporting_entity_confirmation,
+)
 from carbon_ledger.ui.learning import render_micro_help
 from carbon_ledger.ui.money_input import format_twd_display
 from carbon_ledger.ui.motion import (
@@ -127,6 +133,7 @@ from carbon_ledger.ui.state import (
     get_applicability_assessment,
     get_company_master_mapping,
     get_company_profile_mapping,
+    get_current_result,
     get_facility_master_mapping,
     get_language,
     save_applicability_assessment,
@@ -327,6 +334,7 @@ def _render_results(assessment) -> None:
             mark_ifrs_timeline_consumed(st.session_state, timeline.run_identity)
         if ifrs_cards:
             st.markdown(f"**{t('ifrs.timeline.rows_heading', lang)}**")
+            render_ifrs_product_scope(lang)
         for card in ifrs_cards:
             render_compact_outcome_row(
                 card,
@@ -338,12 +346,36 @@ def _render_results(assessment) -> None:
         render_ifrs_timeline_evidence(timeline, lang)
     elif ifrs_cards:
         st.markdown(f"**{t('cust.results.outcomes', lang)}**")
+        render_ifrs_product_scope(lang)
         for card in ifrs_cards:
             render_compact_outcome_row(
                 card,
                 lang,
                 show_actions=not presented.action_summary.customer_action_required,
             )
+    if timeline is not None or ifrs_cards:
+        company_master = get_company_master_mapping(st.session_state)
+        profile = get_company_profile_mapping(st.session_state)
+        readiness = build_ifrs_readiness_view(
+            company_profile=profile,
+            assessment=assessment,
+            pipeline_result=get_current_result(st.session_state),
+            reporting_entity_confirmed=try_load_reporting_entity_confirmation(
+                taiwan_ubn=str(
+                    company_master.get("unified_business_number")
+                    or snapshot.get("unified_business_number")
+                    or ""
+                ),
+                entity_id=str(company_master.get("company_id") or ""),
+                repo_root=repo_root,
+                reporting_year=(
+                    getattr(assessment, "reporting_year", None)
+                    or (profile or {}).get("reporting_year")
+                    or snapshot.get("reporting_year")
+                ),
+            ),
+        )
+        render_ifrs_readiness_section(readiness, lang)
     if other_cards:
         st.markdown(f"**{t('cust.results.outcomes', lang)}**")
         for card in other_cards:

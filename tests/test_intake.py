@@ -463,12 +463,33 @@ def test_xlsx_template_has_three_sheets_and_is_not_auto_imported() -> None:
         "單位",
         "開始日期",
         "結束日期",
+        "冷媒種類",
+        "補充量已確認",
+        "設備控制方式",
+        "組織盤查邊界",
     ]
     assert fill["A2"].value is None
     example = workbook["填寫範例"]
     assert example["A2"].value == "外購電力"
+    assert example["A6"].value == "冷媒實際補充"
+    assert example["F6"].value == "R-134a"
+    assert example["G6"].value == "是"
+    assert example["H6"].value == "公司所有"
+    assert example["I6"].value == "納入"
     guide = workbook["欄位說明"]
     assert guide["D2"].value == "activity_type"
+    assert "refrigerant_code" in [
+        cell.value for cell in guide["D"] if cell.value
+    ]
+    assert "refill_confirmed" in [
+        cell.value for cell in guide["D"] if cell.value
+    ]
+    assert "ownership_control" in [
+        cell.value for cell in guide["D"] if cell.value
+    ]
+    assert "organizational_boundary_status" in [
+        cell.value for cell in guide["D"] if cell.value
+    ]
     assert blank_template_xlsx_bytes() == payload
 
 

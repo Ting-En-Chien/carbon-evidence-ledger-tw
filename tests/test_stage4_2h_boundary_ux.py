@@ -51,7 +51,7 @@ def test_boundary_wizard_has_the_normative_six_steps() -> None:
     assert [t(f"boundary.wizard.step.{item}", "zh-TW") for item in WIZARD_STEPS] == [
         "報導期間",
         "申報目的覆核",
-        "IFRS 揭露範圍",
+        "永續揭露報導個體",
         "政府紀錄與據點",
         "營運與主管機關邊界",
         "檢查並確認",
@@ -93,11 +93,25 @@ def test_customer_copy_distinguishes_registration_site_and_boundary() -> None:
 
 def test_ifrs_copy_does_not_infer_standalone_or_consolidated() -> None:
     copy = t("boundary.wizard.reporting_entities.ifrs_notice", "zh-TW")
-    assert "應與相關財務報表的報導個體一致" in copy
-    assert "系統不會自行決定採用個別或合併報表" in copy
+    assert "應與相關財務報表使用相同的報導個體" in copy
+    assert "系統不會自行決定報導個體" in copy
+    assert t("boundary.wizard.reporting_entities.title", "zh-TW") == (
+        "確認永續揭露報導個體"
+    )
+    limit = t("boundary.wizard.reporting_entities.limit", "zh-TW")
+    assert "不代表已完成IFRS S1／S2揭露" in limit
+    assert "不會取代溫室氣體盤查的組織邊界判斷" in limit
+    assert "碳盤查總邊界" not in copy
+    assert "碳盤查總邊界" not in limit
     assert t("boundary.wizard.consolidation.unresolved", "zh-TW") == "尚未確認"
     assert t("boundary.wizard.consolidation.standalone", "zh-TW") == "個別財務報表"
     assert t("boundary.wizard.consolidation.consolidated", "zh-TW") == "合併財務報表"
+    assert t("boundary.wizard.reporting_entities.title", "en") == (
+        "Confirm the sustainability disclosure reporting entity"
+    )
+    en_copy = t("boundary.wizard.reporting_entities.ifrs_notice", "en")
+    assert "same reporting entity" in en_copy
+    assert "will not determine the reporting entity" in en_copy
 
 
 def test_authority_copy_is_official_source_only() -> None:

@@ -240,7 +240,7 @@ def test_demo_dashboard_result_first_and_insight() -> None:
     assert emissions_at < detail_at
     if next_at != -1:
         assert emissions_at < next_at
-    assert "目前已計算排放量" in text
+    assert "目前已納入公司盤查排放量" in text
     assert "Scope 1" in text
     assert "尚未納入計算" in text
     dash_src = (REPO_ROOT / "app_pages/dashboard.py").read_text(encoding="utf-8")

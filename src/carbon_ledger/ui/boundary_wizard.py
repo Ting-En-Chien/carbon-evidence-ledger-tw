@@ -1017,6 +1017,7 @@ def _reporting_entity_step(
             )
         )
         st.info(t("boundary.wizard.reporting_entities.ifrs_notice", lang))
+        st.caption(t("boundary.wizard.reporting_entities.limit", lang))
         basis_options = (
             CONSOLIDATION_STANDALONE,
             CONSOLIDATION_CONSOLIDATED,

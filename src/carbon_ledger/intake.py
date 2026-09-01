@@ -15,7 +15,7 @@ import hashlib
 import math
 import re
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from io import BytesIO
@@ -45,6 +45,10 @@ BLANK_TEMPLATE_COLUMNS = (
     "unit",
     "activity_start_date",
     "activity_end_date",
+    "refrigerant_code",
+    "refill_confirmed",
+    "ownership_control",
+    "organizational_boundary_status",
 )
 SOURCE_DOCUMENT_NOTES = "User-uploaded structured activity-data file."
 UNMAPPED_SENTINEL = ""
@@ -218,6 +222,43 @@ COLUMN_ALIAS_RULES: dict[str, dict[str, tuple[str, ...]]] = {
         ),
         CONFIDENCE_MEDIUM: (),
     },
+    "refrigerant_code": {
+        CONFIDENCE_HIGH: (
+            "refrigerant_code",
+            "refrigerant type",
+            "refrigerant",
+            "冷媒種類",
+            "冷媒類型",
+            "冷媒",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "refill_confirmed": {
+        CONFIDENCE_HIGH: (
+            "refill_confirmed",
+            "refill confirmed",
+            "補充量已確認",
+            "補充量確認",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "ownership_control": {
+        CONFIDENCE_HIGH: (
+            "ownership_control",
+            "ownership control",
+            "設備控制方式",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "organizational_boundary_status": {
+        CONFIDENCE_HIGH: (
+            "organizational_boundary_status",
+            "organizational boundary",
+            "inventory boundary",
+            "組織盤查邊界",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
 }
 
 # Backward-compatible flat alias map used by older call sites / docs.
@@ -259,6 +300,11 @@ ACTIVITY_VALUE_ALIASES: dict[str, str] = {
     "公司車輛柴油": "diesel",
     "公務車柴油": "diesel",
     "company vehicle diesel": "diesel",
+    "refrigerant_refill": "refrigerant_refill",
+    "refrigerant refill": "refrigerant_refill",
+    "actual refrigerant refill": "refrigerant_refill",
+    "冷媒實際補充": "refrigerant_refill",
+    "冷媒補充": "refrigerant_refill",
     "steel": "purchased_steel",
     "purchased steel": "purchased_steel",
     "purchased_steel": "purchased_steel",
@@ -302,6 +348,7 @@ RECORD_TYPE_BY_ACTIVITY: dict[str, str] = {
     "grid_electricity": "emission_activity",
     "natural_gas": "emission_activity",
     "diesel": "emission_activity",
+    "refrigerant_refill": "emission_activity",
     "purchased_steel": "material_input",
     "third_party_transport": "transport_activity",
     "finished_goods_output": "production_output",
@@ -338,10 +385,12 @@ _ACTIVITY_TEXT_HINTS = (
     "電力",
     "天然氣",
     "柴油",
+    "冷媒",
     "能源",
     "electric",
     "gas",
     "diesel",
+    "refrigerant",
     "fuel",
     "steel",
     "鋼",
@@ -409,6 +458,10 @@ class ColumnMapping:
     natural_gas_groups: dict[str, str] = field(default_factory=dict)
     diesel_context: str = "unknown"
     electricity_context: str = "unknown"
+    refrigerant_code_column: str = ""
+    refill_confirmed_column: str = ""
+    ownership_control_column: str = ""
+    organizational_boundary_column: str = ""
     activity_type_value_map: dict[str, str] = field(default_factory=dict)
     unit_value_map: dict[str, str] = field(default_factory=dict)
 
@@ -529,10 +582,11 @@ def example_csv_bytes() -> bytes:
     """Return UTF-8 CSV bytes for the beginner example download."""
     lines = [
         ",".join(BLANK_TEMPLATE_COLUMNS),
-        "外購電力,50000,kWh,2024-01-01,2024-01-31",
-        "天然氣,8000,m3,2024-01-01,2024-01-31",
-        "柴油,1200,L,2024-01-01,2024-01-31",
-        "採購鋼材,150,t,2024-01-01,2024-01-31",
+        "外購電力,50000,kWh,2024-01-01,2024-01-31,,,,",
+        "天然氣,8000,m3,2024-01-01,2024-01-31,,,,",
+        "柴油,1200,L,2024-01-01,2024-01-31,,,,",
+        "採購鋼材,150,t,2024-01-01,2024-01-31,,,,",
+        "冷媒實際補充,15,kg,2026-01-01,2026-12-31,R-134a,是,公司所有,納入",
         "",
     ]
     return "\n".join(lines).encode("utf-8")
@@ -548,6 +602,10 @@ def example_preview_rows() -> pd.DataFrame:
                 "unit": "kWh",
                 "activity_start_date": "2024-01-01",
                 "activity_end_date": "2024-01-31",
+                "refrigerant_code": "",
+                "refill_confirmed": "",
+                "ownership_control": "",
+                "organizational_boundary_status": "",
             },
             {
                 "activity_type": "天然氣",
@@ -555,6 +613,10 @@ def example_preview_rows() -> pd.DataFrame:
                 "unit": "m3",
                 "activity_start_date": "2024-01-01",
                 "activity_end_date": "2024-01-31",
+                "refrigerant_code": "",
+                "refill_confirmed": "",
+                "ownership_control": "",
+                "organizational_boundary_status": "",
             },
             {
                 "activity_type": "柴油",
@@ -562,6 +624,10 @@ def example_preview_rows() -> pd.DataFrame:
                 "unit": "L",
                 "activity_start_date": "2024-01-01",
                 "activity_end_date": "2024-01-31",
+                "refrigerant_code": "",
+                "refill_confirmed": "",
+                "ownership_control": "",
+                "organizational_boundary_status": "",
             },
             {
                 "activity_type": "採購鋼材",
@@ -569,6 +635,21 @@ def example_preview_rows() -> pd.DataFrame:
                 "unit": "t",
                 "activity_start_date": "2024-01-01",
                 "activity_end_date": "2024-01-31",
+                "refrigerant_code": "",
+                "refill_confirmed": "",
+                "ownership_control": "",
+                "organizational_boundary_status": "",
+            },
+            {
+                "activity_type": "冷媒實際補充",
+                "activity_value": 15,
+                "unit": "kg",
+                "activity_start_date": "2026-01-01",
+                "activity_end_date": "2026-12-31",
+                "refrigerant_code": "R-134a",
+                "refill_confirmed": "是",
+                "ownership_control": "公司所有",
+                "organizational_boundary_status": "納入",
             },
         ]
     )
@@ -580,6 +661,10 @@ CUSTOMER_TEMPLATE_HEADERS = (
     "單位",
     "開始日期",
     "結束日期",
+    "冷媒種類",
+    "補充量已確認",
+    "設備控制方式",
+    "組織盤查邊界",
 )
 
 
@@ -593,6 +678,10 @@ def example_preview_customer_rows() -> pd.DataFrame:
             "unit": CUSTOMER_TEMPLATE_HEADERS[2],
             "activity_start_date": CUSTOMER_TEMPLATE_HEADERS[3],
             "activity_end_date": CUSTOMER_TEMPLATE_HEADERS[4],
+            "refrigerant_code": CUSTOMER_TEMPLATE_HEADERS[5],
+            "refill_confirmed": CUSTOMER_TEMPLATE_HEADERS[6],
+            "ownership_control": CUSTOMER_TEMPLATE_HEADERS[7],
+            "organizational_boundary_status": CUSTOMER_TEMPLATE_HEADERS[8],
         }
     )
 
@@ -626,15 +715,16 @@ def _build_blank_template_xlsx_bytes() -> bytes:
     example_sheet = workbook.create_sheet("填寫範例")
     example_sheet.append(list(CUSTOMER_TEMPLATE_HEADERS))
     for row in example_preview_customer_rows().itertuples(index=False):
-        example_sheet.append(
-            [
-                str(row[0]),
-                int(row[1]),
-                str(row[2]),
-                str(row[3]),
-                str(row[4]),
-            ]
-        )
+        cells: list[Any] = []
+        for index, value in enumerate(row):
+            if index == 1:
+                number = float(value)
+                cells.append(int(number) if number.is_integer() else number)
+            elif value is None:
+                cells.append("")
+            else:
+                cells.append(value)
+        example_sheet.append(cells)
 
     guide = workbook.create_sheet("欄位說明")
     guide.append(["欄位", "說明", "English", "系統欄位名稱"])
@@ -642,12 +732,44 @@ def _build_blank_template_xlsx_bytes() -> bytes:
         ["活動類型", "這筆資料是哪一種活動", "Activity type", "activity_type"]
     )
     guide.append(["用量", "實際使用或採購數量", "Quantity", "activity_value"])
-    guide.append(["單位", "例如 kWh、m3、L、t", "Unit", "unit"])
+    guide.append(["單位", "例如 kWh、m3、L、t、kg", "Unit", "unit"])
     guide.append(
         ["開始日期", "資料期間的第一天", "Start date", "activity_start_date"]
     )
     guide.append(
         ["結束日期", "資料期間的最後一天", "End date", "activity_end_date"]
+    )
+    guide.append(
+        [
+            "冷媒種類",
+            "僅冷媒實際補充使用。請填 R-134a、R-32 或 R-410A；未知種類請勿猜測",
+            "Refrigerant type",
+            "refrigerant_code",
+        ]
+    )
+    guide.append(
+        [
+            "補充量已確認",
+            "僅冷媒實際補充使用。請填是或否；空白不會視為已確認",
+            "Refill confirmed",
+            "refill_confirmed",
+        ]
+    )
+    guide.append(
+        [
+            "設備控制方式",
+            "僅冷媒實際補充使用。請填公司所有、營運控制或第三方；空白視為不確定",
+            "Equipment control",
+            "ownership_control",
+        ]
+    )
+    guide.append(
+        [
+            "組織盤查邊界",
+            "僅冷媒實際補充使用。請填納入或不納入；空白視為不確定",
+            "Organizational inventory boundary",
+            "organizational_boundary_status",
+        ]
     )
 
     buffer = BytesIO()
@@ -819,6 +941,11 @@ def suggest_column_mapping_with_confidence(
         "activity_start_date",
         "activity_end_date",
         "year_month",
+        "fuel_subtype",
+        "refrigerant_code",
+        "refill_confirmed",
+        "ownership_control",
+        "organizational_boundary_status",
     )
 
     for field_name in field_order:
@@ -936,6 +1063,133 @@ def extract_diesel_vehicle_context_from_text(value: Any) -> bool:
     return any(hint in text for hint in _DIESEL_VEHICLE_HINTS)
 
 
+_REFILL_CONFIRMED_TRUE = frozenset({"true", "yes", "是"})
+_REFILL_CONFIRMED_FALSE = frozenset({"false", "no", "否"})
+_REFRIGERANT_OWNERSHIP_ALIASES = {
+    "公司所有": "owned",
+    "自有": "owned",
+    "owned": "owned",
+    "營運控制": "controlled",
+    "控制": "controlled",
+    "controlled": "controlled",
+    "第三方": "third_party",
+    "third_party": "third_party",
+    "不確定": "unknown",
+    "unknown": "unknown",
+}
+_REFRIGERANT_BOUNDARY_ALIASES = {
+    "納入": "inside",
+    "邊界內": "inside",
+    "inside": "inside",
+    "不納入": "outside",
+    "邊界外": "outside",
+    "outside": "outside",
+    "不確定": "unknown",
+    "unknown": "unknown",
+}
+
+
+def _intake_cell_text(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "<na>", "none"}:
+        return ""
+    return text
+
+
+def _lookup_controlled_alias(value: Any, aliases: dict[str, str]) -> str:
+    """Exact alias lookup only. Unrecognized values stay unknown."""
+    text = _intake_cell_text(value)
+    if not text:
+        return "unknown"
+    if text in aliases:
+        return aliases[text]
+    folded = text.casefold()
+    if folded in aliases:
+        return aliases[folded]
+    return "unknown"
+
+
+def normalize_refrigerant_ownership(value: Any) -> str:
+    """Canonical ownership for refrigerant rows. Blank or unknown is not owned."""
+    return _lookup_controlled_alias(value, _REFRIGERANT_OWNERSHIP_ALIASES)
+
+
+def normalize_refrigerant_org_boundary(value: Any) -> str:
+    """Canonical inventory boundary for refrigerant rows. Blank is unknown."""
+    return _lookup_controlled_alias(value, _REFRIGERANT_BOUNDARY_ALIASES)
+
+
+def normalize_refill_confirmed(value: Any) -> str:
+    """Return canonical true/false, or blank. Blank and unknown are not true."""
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "<na>", "none"}:
+        return ""
+    token = text.lower()
+    if token in _REFILL_CONFIRMED_TRUE or text == "是":
+        return "true"
+    if token in _REFILL_CONFIRMED_FALSE or text == "否":
+        return "false"
+    return ""
+
+
+def normalize_uploaded_refrigerant_code(value: Any) -> str:
+    """Keep known aliases; unknown codes are stored as uploaded, never guessed."""
+    from carbon_ledger.refrigerants import canonicalize_refrigerant_code
+
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "<na>", "none"}:
+        return ""
+    canonical = canonicalize_refrigerant_code(text)
+    return canonical if canonical else text
+
+
+def _optional_field_column(
+    *,
+    mapping: ColumnMapping,
+    field_name: str,
+    source_frame: pd.DataFrame,
+) -> str:
+    attr_name = {
+        "fuel_subtype": "natural_gas_subtype_column",
+        "refrigerant_code": "refrigerant_code_column",
+        "refill_confirmed": "refill_confirmed_column",
+        "ownership_control": "ownership_control_column",
+        "organizational_boundary_status": "organizational_boundary_column",
+    }.get(field_name, "")
+    mapped = str(getattr(mapping, attr_name, "") or "").strip() if attr_name else ""
+    if mapped and mapped in source_frame.columns:
+        return mapped
+    for column in source_frame.columns:
+        if _alias_match_confidence(str(column), field_name) == CONFIDENCE_HIGH:
+            return str(column)
+    return ""
+
+
 def suggest_activity_type(value: Any) -> str:
     """Suggest a canonical activity type; empty string when unmatched."""
     text = str(value if value is not None else "").strip()
@@ -956,6 +1210,8 @@ def suggest_activity_type(value: Any) -> str:
         return "grid_electricity"
     if "柴油" in text or "diesel" in lowered:
         return "diesel"
+    if "冷媒" in text or "refrigerant" in lowered:
+        return "refrigerant_refill"
     if "鋼" in text or "steel" in lowered:
         return "purchased_steel"
     return UNMAPPED_SENTINEL
@@ -1623,6 +1879,7 @@ def _ownership_for_activity(activity_type: str) -> str:
         "grid_electricity",
         "natural_gas",
         "diesel",
+        "refrigerant_refill",
         "third_party_transport",
     }:
         return "unknown"
@@ -1651,6 +1908,23 @@ def _activity_year_from_dates(start_dt: Any, end_dt: Any) -> int | None:
     return None
 
 
+def fuel_subtype_source_column(
+    columns: Iterable[str],
+    mapping: ColumnMapping | None = None,
+) -> str:
+    """Return the mapped or high-confidence natural-gas type column."""
+    mapped = ""
+    if mapping is not None:
+        mapped = str(mapping.natural_gas_subtype_column or "").strip()
+    names = [str(column) for column in columns]
+    if mapped and mapped in names:
+        return mapped
+    for name in names:
+        if _alias_match_confidence(name, "fuel_subtype") == CONFIDENCE_HIGH:
+            return name
+    return ""
+
+
 def _resolve_natural_gas_subtype(
     *,
     row: pd.Series,
@@ -1658,7 +1932,7 @@ def _resolve_natural_gas_subtype(
     activity_source: Any,
     site_id: str = "",
 ) -> str:
-    column = str(mapping.natural_gas_subtype_column or "").strip()
+    column = fuel_subtype_source_column(row.index, mapping)
     if column and column in row.index:
         extracted = extract_natural_gas_subtype_from_text(row.get(column))
         if extracted:
@@ -1715,6 +1989,8 @@ def _resolve_process_use(
         if str(mapping.electricity_context or "").strip() == "enterprise":
             return "general_factory"
         return "unknown"
+    if mapped_activity == "refrigerant_refill":
+        return "not_applicable"
     if mapped_activity in {"purchased_steel", "finished_goods_output", "scrap_output"}:
         return "not_applicable"
     return "unknown"
@@ -1780,6 +2056,8 @@ def classify_activity_analysis_readiness(
         ):
             return READINESS_NEEDS_CONFIRM
         return READINESS_READY
+    if activity_type == "refrigerant_refill":
+        return READINESS_READY
     return READINESS_UNSUPPORTED
 
 
@@ -1815,7 +2093,7 @@ def context_confirmations_needed(
     if not activity_col or activity_col not in frame.columns:
         return needed
     value_map = mapping.activity_type_value_map or {}
-    subtype_col = str(mapping.natural_gas_subtype_column or "").strip()
+    subtype_col = fuel_subtype_source_column(frame.columns, mapping)
     file_ng = str(mapping.natural_gas_subtype or "").strip()
     file_diesel = str(mapping.diesel_context or "").strip()
     file_electricity = str(mapping.electricity_context or "").strip()
@@ -1825,11 +2103,7 @@ def context_confirmations_needed(
         mapped = value_map.get(source_text) or suggest_activity_type(source_text)
         if mapped == "natural_gas":
             subtype = extract_natural_gas_subtype_from_text(source_text)
-            if (
-                not subtype
-                and subtype_col
-                and subtype_col in frame.columns
-            ):
+            if not subtype and subtype_col and subtype_col in frame.columns:
                 subtype = extract_natural_gas_subtype_from_text(row.get(subtype_col))
             if not subtype and file_ng not in {"NG1", "NG2"}:
                 needed["natural_gas"] = True
@@ -2252,6 +2526,42 @@ def build_and_validate_intake(
                 site_id=site_id,
             )
 
+        refrigerant_code = ""
+        refill_confirmed = ""
+        if mapped_activity == "refrigerant_refill":
+            code_column = _optional_field_column(
+                mapping=mapping,
+                field_name="refrigerant_code",
+                source_frame=source_frame,
+            )
+            confirmed_column = _optional_field_column(
+                mapping=mapping,
+                field_name="refill_confirmed",
+                source_frame=source_frame,
+            )
+            ownership_column = _optional_field_column(
+                mapping=mapping,
+                field_name="ownership_control",
+                source_frame=source_frame,
+            )
+            boundary_column = _optional_field_column(
+                mapping=mapping,
+                field_name="organizational_boundary_status",
+                source_frame=source_frame,
+            )
+            refrigerant_code = normalize_uploaded_refrigerant_code(
+                row.get(code_column) if code_column else ""
+            )
+            refill_confirmed = normalize_refill_confirmed(
+                row.get(confirmed_column) if confirmed_column else ""
+            )
+            ownership = normalize_refrigerant_ownership(
+                row.get(ownership_column) if ownership_column else ""
+            )
+            org_boundary = normalize_refrigerant_org_boundary(
+                row.get(boundary_column) if boundary_column else ""
+            )
+
         # Intentionally ignore uploaded emission-factor / emission-result columns.
         # Those remain source/reference only; calculation uses the controlled registry.
         activity_row = {
@@ -2270,6 +2580,8 @@ def build_and_validate_intake(
             "activity_type": mapped_activity,
             "process_use": process_use,
             "fuel_subtype": fuel_subtype,
+            "refrigerant_code": refrigerant_code,
+            "refill_confirmed": refill_confirmed,
             "activity_value": float(activity_value),
             "unit": mapped_unit,
             "transport_payer": transport_payer,

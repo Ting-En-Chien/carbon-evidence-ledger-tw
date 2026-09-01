@@ -119,9 +119,42 @@ def test_applicable_ifrs_concise_summary() -> None:
     ifrs = next(item for item in presented.presentations if item.domain == "ifrs")
     assert ifrs.status_code == STATUS_APPLICABLE
     assert ifrs.short_status == "適用"
+    assert ifrs.title == "IFRS永續揭露準則適用時程（S1＋S2）"
+    assert "符合IFRS" not in ifrs.title
+    assert "符合IFRS" not in ifrs.explanation
     assert "第一階段" in ifrs.explanation
     assert ifrs.timing_items
     assert "適用報導年度" not in ifrs.explanation
+    assurance = present_obligation_card(
+        {
+            "obligation_id": "verification_assurance",
+            "title": "IFRS Scope 1/2 確信",
+            "status": "APPLICABLE",
+            "official_authority": "金管會",
+            "official_document": "doc",
+            "citations": ["1"],
+            "missing_field_ids": [],
+        },
+        ZH,
+    )
+    assert assurance.title == "臺灣規範：合併個體Scope 1／2溫室氣體排放確信"
+    assert "環境部" in assurance.explanation
+    assert "IFRS S1" in assurance.explanation
+    product_scope = t("ifrs.result.product_scope", ZH)
+    assert "目前系統支援" in product_scope
+    assert "尚未支援" in product_scope
+    assert "合規聲明或第三方確信結論" in product_scope
+    assert t("apl.obligation_ifrs", "en").startswith(
+        "IFRS Sustainability Disclosure Standards applicability timeline"
+    )
+    assert t("apl.obligation_ifrs_assurance", "en").startswith("Taiwan requirement:")
+    product_scope_en = t("ifrs.result.product_scope", "en")
+    assert "Currently supported:" in product_scope_en
+    assert "Not currently supported:" in product_scope_en
+    assert "render_ifrs_product_scope" in APL_PAGE.read_text(encoding="utf-8")
+    assert "render_ifrs_readiness_section" in APL_PAGE.read_text(encoding="utf-8")
+    assert "build_ifrs_readiness_view" in APL_PAGE.read_text(encoding="utf-8")
+    assert "ifrs.result.product_scope" in ENTERPRISE.read_text(encoding="utf-8")
 
 
 def test_empty_timing_fields_omitted() -> None:

@@ -214,6 +214,8 @@ ACTIVITY_RECORDS_SCHEMA = DataFrameSchema(
             nullable=True,
             required=False,
         ),
+        "refrigerant_code": Column(str, nullable=True, required=False),
+        "refill_confirmed": Column(str, nullable=True, required=False),
         "activity_value": Column(float, checks=Check.gt(0), nullable=False),
         "unit": Column(str, checks=Check.isin(SUPPORTED_UNITS), nullable=False),
         "transport_payer": Column(
