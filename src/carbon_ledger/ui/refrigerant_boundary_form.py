@@ -15,15 +15,8 @@ from carbon_ledger.activity_boundary_decisions import (
     decision_identity,
     validate_confirmation_input,
 )
+from carbon_ledger.ui import state as ui_state
 from carbon_ledger.ui.i18n import t
-from carbon_ledger.ui.state import (
-    STATE_BOUNDARY_CONFIRM_FLASH,
-    activity_boundary_decisions_from_state,
-    has_validated_uploaded_data,
-    request_run_uploaded_analysis,
-    save_activity_boundary_decision_in_session,
-    withdraw_activity_boundary_decision_in_session,
-)
 from carbon_ledger.ui.view_models import pending_refrigerant_boundary_rows
 
 _OWNER_CODES = ("company", "third_party", "unknown")
@@ -97,7 +90,7 @@ def confirmation_outcome_for_record(result: Any, record_id: str) -> str:
 
 
 def render_confirmation_flash(result: Any, lang: str) -> None:
-    flash = st.session_state.get(STATE_BOUNDARY_CONFIRM_FLASH) or {}
+    flash = st.session_state.get(ui_state.STATE_BOUNDARY_CONFIRM_FLASH) or {}
     record_id = str(flash.get("record_id") or "").strip()
     if not record_id or result is None:
         return
@@ -109,7 +102,7 @@ def render_confirmation_flash(result: Any, lang: str) -> None:
         st.info(message)
     else:
         st.warning(message)
-    st.session_state[STATE_BOUNDARY_CONFIRM_FLASH] = None
+    st.session_state[ui_state.STATE_BOUNDARY_CONFIRM_FLASH] = None
 
 
 def render_refrigerant_boundary_confirmation(
@@ -127,7 +120,7 @@ def render_refrigerant_boundary_confirmation(
         return
     st.markdown(f"**{t('boundary.confirm.title', lang)}**")
     st.caption(t("boundary.confirm.help", lang))
-    decisions = activity_boundary_decisions_from_state(st.session_state)
+    decisions = ui_state.activity_boundary_decisions_from_state(st.session_state)
     by_key = {
         decision_identity(
             item.record_id, item.reporting_year, item.reporting_period_id
@@ -256,16 +249,16 @@ def render_refrigerant_boundary_confirmation(
                     error_box=error_box,
                 )
             if withdraw_clicked and year is not None:
-                withdraw_activity_boundary_decision_in_session(
+                ui_state.withdraw_activity_boundary_decision_in_session(
                     st.session_state,
                     record_id=record_id,
                     reporting_year=int(year),
                     reporting_period_id=period_id,
                 )
-                st.session_state[STATE_BOUNDARY_CONFIRM_FLASH] = {
+                st.session_state[ui_state.STATE_BOUNDARY_CONFIRM_FLASH] = {
                     "record_id": record_id
                 }
-                request_run_uploaded_analysis(st.session_state)
+                ui_state.request_run_uploaded_analysis(st.session_state)
                 st.rerun()
 
 
@@ -283,7 +276,7 @@ def _handle_save(
     rationale: str,
     error_box: Any,
 ) -> None:
-    if not has_validated_uploaded_data(st.session_state):
+    if not ui_state.has_validated_uploaded_data(st.session_state):
         error_box.error(t("boundary.confirm.no_upload", lang))
         return
     errors = validate_confirmation_input(
@@ -312,7 +305,9 @@ def _handle_save(
         evidence_reference=evidence,
         rationale=rationale,
     )
-    save_activity_boundary_decision_in_session(st.session_state, decision)
-    st.session_state[STATE_BOUNDARY_CONFIRM_FLASH] = {"record_id": record_id}
-    request_run_uploaded_analysis(st.session_state)
+    ui_state.save_activity_boundary_decision_in_session(st.session_state, decision)
+    st.session_state[ui_state.STATE_BOUNDARY_CONFIRM_FLASH] = {
+        "record_id": record_id
+    }
+    ui_state.request_run_uploaded_analysis(st.session_state)
     st.rerun()
