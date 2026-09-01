@@ -208,10 +208,10 @@ def test_countup_path_still_uses_calculated_tco2e() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_partial_result_wording_includes_currently_calculated() -> None:
-    assert "目前已計算" in t("chart.emissions_contrib.help", ZH)
+def test_partial_result_wording_distinguishes_inventory_from_calculation() -> None:
+    assert "已納入公司盤查" in t("chart.emissions_contrib.help", ZH)
     assert "目前已計算" in t("dash.section_trend_help", ZH)
-    assert "已計算排放量" in t("dash.kpi.emissions", ZH)
+    assert "已納入公司盤查排放量" in t("dash.kpi.inventory", ZH)
     assert t("common.partial_result", ZH)
 
 

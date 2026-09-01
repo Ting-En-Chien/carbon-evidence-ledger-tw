@@ -104,7 +104,7 @@ def test_dashboard_is_default_page() -> None:
     at = _run_app()
     text = _all_text(at)
     assert "合規總覽" in text
-    assert "已計算排放量" in text
+    assert "已納入公司盤查排放量" in text
 
 
 def test_page_title_contains_carbon_evidence_ledger() -> None:
@@ -250,7 +250,7 @@ def test_tutorial_button_exists_and_opens() -> None:
 def test_dashboard_shows_primary_kpi_cards() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "已計算排放量" in text
+    assert "已納入公司盤查排放量" in text
 
 
 def test_dashboard_shows_needs_attention() -> None:
@@ -261,6 +261,7 @@ def test_dashboard_shows_needs_attention() -> None:
         or "仍需處理" in text
         or "查看問題" in text
         or "目前無法計算" in text
+        or "現在完成" in text
     )
 
 
@@ -275,10 +276,10 @@ def test_dashboard_page_header_and_status_hierarchy() -> None:
     at = _run_app()
     text = _all_text(at)
     assert "合規總覽" in text
-    assert "已計算排放量" in text
+    assert "已納入公司盤查排放量" in text
     assert "排放明細" in text
     assert "排放來源" in text or "依來源" in text
-    assert "下一步" in text or "仍需處理" in text
+    assert "下一步" in text or "仍需處理" in text or "現在完成" in text
     assert "查看計算依據" in text
     assert "計算明細" not in text
 
@@ -342,7 +343,12 @@ def test_dashboard_does_not_show_arbitrary_readiness_percentage() -> None:
 def test_dashboard_issue_cards_are_short_and_actionable() -> None:
     at = _run_app()
     text = _all_text(at)
-    assert "查看問題" in text or "查看如何處理" in text or "仍需處理" in text
+    assert (
+        "查看問題" in text
+        or "查看如何處理" in text
+        or "仍需處理" in text
+        or "現在完成" in text
+    )
     assert "Allowed use" not in text
     assert "prohibited_use" not in text
 
@@ -454,7 +460,12 @@ def test_application_does_not_display_raw_blocked_missing_conversion() -> None:
     assert "blocked_missing_conversion" not in text
     assert "blocked_natural_gas_type_required" not in text
     assert "NATURAL_GAS_TYPE_REQUIRED" not in text
-    assert "仍需處理" in text or "查看問題" in text or "缺少熱值" in text
+    assert (
+        "仍需處理" in text
+        or "查看問題" in text
+        or "缺少熱值" in text
+        or "現在完成" in text
+    )
 
 
 def test_no_page_produces_uncaught_streamlit_exception() -> None:

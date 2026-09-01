@@ -209,7 +209,7 @@ def test_result_page_kpi_content_visible_without_motion_init() -> None:
     """AppTest has no browser observer; content must still be present."""
     at = _run_app()
     text = _all_markdown(at)
-    for label in ("已計算排放量",):
+    for label in ("已納入公司盤查排放量",):
         assert label in text
     assert "排放明細" in text
     assert "排放來源" in text or "依來源" in text

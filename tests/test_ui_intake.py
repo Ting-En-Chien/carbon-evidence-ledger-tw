@@ -311,7 +311,7 @@ def test_uploaded_analysis_result_in_session_and_result_page_labels() -> None:
     at = _switch(at, "app_pages/dashboard.py")
     text = _all_text(at)
     assert at.session_state[STATE_ANALYSIS_SOURCE] == ANALYSIS_SOURCE_UPLOADED
-    assert "目前已計算排放量" in text
+    assert "目前已納入公司盤查排放量" in text
     assert "虛構台灣扣件公司" not in text
     assert "2024 示範資料" not in text
     dash_src = (REPO_ROOT / "app_pages/dashboard.py").read_text(encoding="utf-8")
@@ -335,7 +335,7 @@ def test_navigation_preserves_uploaded_analysis_state() -> None:
     assert at.session_state[STATE_RESULT] is stored
     assert at.session_state[STATE_ANALYSIS_SOURCE] == ANALYSIS_SOURCE_UPLOADED
     text = _all_text(at)
-    assert "目前已計算排放量" in text
+    assert "目前已納入公司盤查排放量" in text
     assert "虛構台灣扣件公司" not in text
 
 
@@ -394,7 +394,7 @@ def test_2025_electricity_uses_active_2025_factor_and_trace() -> None:
 
     at = _switch(at, "app_pages/dashboard.py")
     text = _all_text(at)
-    assert "目前已計算排放量" in text
+    assert "目前已納入公司盤查排放量" in text
     assert "查看計算依據" in text
     # Factor value / year live under Evidence → Activity basis (not dashboard).
     at = _switch(at, "app_pages/activity_explorer.py")
@@ -411,8 +411,13 @@ def test_technical_framework_not_required_on_first_screen() -> None:
     at = _switch(at, "app_pages/dashboard.py")
     text = _all_text(at)
     # Beginner sections present
-    assert "已計算排放量" in text
-    assert "下一步" in text or "仍需處理" in text or "優先處理" in text
+    assert "已納入公司盤查排放量" in text
+    assert (
+        "下一步" in text
+        or "仍需處理" in text
+        or "優先處理" in text
+        or "現在完成" in text
+    )
     assert "排放明細" in text
     # Technical IDs are under progressive disclosure, not forced on first screen body
     # as the primary answer set.
