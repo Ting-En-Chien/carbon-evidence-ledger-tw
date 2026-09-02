@@ -27,13 +27,18 @@ from carbon_ledger.intake_exceptions import (
 )
 from carbon_ledger.ui.i18n import LANG_EN, LANG_ZH, t
 from carbon_ledger.ui.state import (
+    ANALYSIS_ENGINE_REVISION,
     ANALYSIS_SOURCE_UPLOADED,
+    STATE_ANALYSIS_ENGINE_REVISION,
+    STATE_ANALYSIS_PERIOD_START,
     STATE_ANALYSIS_SOURCE,
     STATE_COMPANY_PROFILE,
     STATE_INCLUDE_GHG,
     STATE_INCLUDE_IFRS,
     STATE_INTAKE_COMMITTED,
+    STATE_INTAKE_FILE_NAME,
     STATE_INTAKE_MAPPING,
+    STATE_INTAKE_MAPPING_MEMORY,
     STATE_INTAKE_METADATA,
     STATE_INTAKE_RESULT,
     STATE_INTAKE_TABLE,
@@ -240,6 +245,50 @@ def test_fixture_matches_specified_eight_rows() -> None:
     if not text.endswith("\n"):
         text += "\n"
     assert text == EXPECTED_CSV
+
+
+def test_initialize_invalidates_legacy_upload_state_but_keeps_raw_file() -> None:
+    table = _parse("eight_row.xlsx", _xlsx_bytes())
+    state = {
+        STATE_ANALYSIS_ENGINE_REVISION: "legacy-engine",
+        STATE_ANALYSIS_SOURCE: ANALYSIS_SOURCE_UPLOADED,
+        STATE_ANALYSIS_PERIOD_START: "2026-01",
+        STATE_INTAKE_FILE_NAME: "eight_row.xlsx",
+        STATE_INTAKE_TABLE: table,
+        STATE_INTAKE_COMMITTED: {"activity_value_column": "用量"},
+        STATE_INTAKE_MAPPING: object(),
+        STATE_INTAKE_METADATA: object(),
+        STATE_INTAKE_RESULT: object(),
+        STATE_INTAKE_MAPPING_MEMORY: {"old": "mapping"},
+        STATE_RESULT: object(),
+    }
+
+    initialize_ui_state(state)
+
+    assert state[STATE_ANALYSIS_ENGINE_REVISION] == ANALYSIS_ENGINE_REVISION
+    assert state[STATE_INTAKE_TABLE] is table
+    assert state[STATE_INTAKE_FILE_NAME] == "eight_row.xlsx"
+    assert state[STATE_INTAKE_COMMITTED] is None
+    assert state[STATE_INTAKE_MAPPING] is None
+    assert state[STATE_INTAKE_RESULT] is None
+    assert state[STATE_INTAKE_MAPPING_MEMORY] is None
+    assert state[STATE_RESULT] is None
+    assert state[STATE_ANALYSIS_SOURCE] == ""
+    assert state[STATE_ANALYSIS_PERIOD_START] is None
+
+
+def test_initialize_keeps_current_engine_upload_state() -> None:
+    marker = object()
+    state = {
+        STATE_ANALYSIS_ENGINE_REVISION: ANALYSIS_ENGINE_REVISION,
+        STATE_INTAKE_RESULT: marker,
+        STATE_RESULT: marker,
+    }
+
+    initialize_ui_state(state)
+
+    assert state[STATE_INTAKE_RESULT] is marker
+    assert state[STATE_RESULT] is marker
 
 
 def test_xlsx_website_path_maps_ng2_and_vehicle_diesel() -> None:
