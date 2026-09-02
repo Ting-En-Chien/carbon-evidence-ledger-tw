@@ -78,6 +78,12 @@ STATE_ANALYSIS_ACTIVITY_COUNT = "analysis_activity_count"
 STATE_UPLOADED_ANALYSIS_COMPLETED = "uploaded_analysis_completed"
 # Identity of the uploaded file behind the stored result ("" for demo runs).
 STATE_ANALYSIS_FILE_HASH = "analysis_source_file_hash"
+# Bump this whenever uploaded-intake interpretation or inventory inclusion
+# semantics change.  Streamlit can reconnect an existing browser session after
+# a deployment, so an in-memory PipelineRunResult produced by older code must
+# never be presented as if it came from the current analysis engine.
+ANALYSIS_ENGINE_REVISION = "uploaded-intake-2026-09-02-v1"
+STATE_ANALYSIS_ENGINE_REVISION = "analysis_engine_revision"
 
 # Phase 9A structured intake (session-only; never written to disk)
 STATE_INTAKE_FILE_HASH = "uploaded_file_hash"
@@ -326,6 +332,7 @@ def get_analysis_source_summary(session_state: Any) -> dict[str, Any]:
 
 def initialize_ui_state(session_state: Any, *, force: bool = False) -> None:
     """Ensure session defaults exist. CUSTOMER mode does not auto-run demo."""
+    _invalidate_stale_uploaded_analysis(session_state)
     defaults = _default_adapter_flags()
     ensure_app_mode(session_state)
     if STATE_LANGUAGE not in session_state:
@@ -429,6 +436,71 @@ def initialize_ui_state(session_state: Any, *, force: bool = False) -> None:
         return
     # No automatic demo pipeline — CUSTOMER starts empty.
     session_state[STATE_INITIALIZED] = True
+
+
+def _invalidate_stale_uploaded_analysis(session_state: Any) -> None:
+    """Drop derived upload state created by an older analysis engine.
+
+    Raw uploaded bytes/table and company settings are intentionally retained so
+    the customer can re-confirm the same file without uploading it again.  The
+    mapping, validation and pipeline result are all derived values and must be
+    rebuilt together; keeping only some of them is what previously allowed an
+    old 2026/26.27 result to survive after the corrected parser was deployed.
+    """
+    stored_revision = str(
+        _ss_get(session_state, STATE_ANALYSIS_ENGINE_REVISION, "") or ""
+    )
+    if stored_revision == ANALYSIS_ENGINE_REVISION:
+        return
+
+    has_uploaded_state = any(
+        _ss_get(session_state, key) is not None
+        for key in (
+            STATE_INTAKE_TABLE,
+            STATE_INTAKE_RESULT,
+            STATE_INTAKE_MAPPING,
+            STATE_INTAKE_COMMITTED,
+        )
+    ) or bool(_ss_get(session_state, STATE_UPLOADED_ANALYSIS_COMPLETED, False))
+
+    if has_uploaded_state:
+        for key in (
+            STATE_RESULT,
+            STATE_LAST_CONFIG,
+            STATE_INTAKE_COMMITTED,
+            STATE_INTAKE_MAPPING,
+            STATE_INTAKE_METADATA,
+            STATE_INTAKE_RESULT,
+            STATE_INTAKE_MAPPING_MEMORY,
+            STATE_INTAKE_MAPPING_PROVENANCE,
+            STATE_INTAKE_MEMORY_CHOICE,
+            STATE_INTAKE_MEMORY_APPLIED,
+            STATE_INTAKE_MEMORY_OFFERED,
+            STATE_INTAKE_SUGGESTIONS_RECORDED,
+        ):
+            try:
+                session_state[key] = None
+            except Exception:  # noqa: BLE001 - AppTest proxies vary
+                pass
+        session_state[STATE_ANALYSIS_SOURCE] = ANALYSIS_SOURCE_NONE
+        session_state[STATE_ANALYSIS_FILE_NAME] = None
+        session_state[STATE_ANALYSIS_FILE_HASH] = ""
+        session_state[STATE_ANALYSIS_PERIOD_START] = None
+        session_state[STATE_ANALYSIS_PERIOD_END] = None
+        session_state[STATE_ANALYSIS_ACTIVITY_COUNT] = 0
+        session_state[STATE_UPLOADED_ANALYSIS_COMPLETED] = False
+        session_state[STATE_RUN_UPLOADED_REQUEST] = False
+        session_state[STATE_ANALYSIS_RUNNING] = False
+        session_state[STATE_ANALYSIS_PHASE] = ANALYSIS_PHASE_IDLE
+        session_state[STATE_ANALYSIS_FAILURE] = None
+        session_state[STATE_INTAKE_VALIDATION_REQUESTED] = False
+        session_state[STATE_INTAKE_VALIDATION_RUNNING] = False
+        session_state[STATE_INTAKE_VALIDATION_ERROR] = None
+        session_state[STATE_INTAKE_STEP] = (
+            2 if _ss_get(session_state, STATE_INTAKE_TABLE) is not None else 1
+        )
+
+    session_state[STATE_ANALYSIS_ENGINE_REVISION] = ANALYSIS_ENGINE_REVISION
 
 
 def normalize_intake_wizard_step(session_state: Any) -> int:
