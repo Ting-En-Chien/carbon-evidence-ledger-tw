@@ -30,12 +30,14 @@ from carbon_ledger.ui.state import (
     ANALYSIS_ENGINE_REVISION,
     ANALYSIS_SOURCE_UPLOADED,
     STATE_ANALYSIS_ENGINE_REVISION,
+    STATE_ANALYSIS_FILE_HASH,
     STATE_ANALYSIS_PERIOD_START,
     STATE_ANALYSIS_SOURCE,
     STATE_COMPANY_PROFILE,
     STATE_INCLUDE_GHG,
     STATE_INCLUDE_IFRS,
     STATE_INTAKE_COMMITTED,
+    STATE_INTAKE_FILE_HASH,
     STATE_INTAKE_FILE_NAME,
     STATE_INTAKE_MAPPING,
     STATE_INTAKE_MAPPING_MEMORY,
@@ -44,8 +46,10 @@ from carbon_ledger.ui.state import (
     STATE_INTAKE_TABLE,
     STATE_LANGUAGE,
     STATE_RESULT,
+    STATE_RESULT_ENGINE_REVISION,
     format_data_period_label,
     get_analysis_source_summary,
+    get_current_result,
     initialize_ui_state,
     run_uploaded_analysis,
     uploaded_data_period_bounds,
@@ -190,6 +194,7 @@ def _session(table, committed, mapping, intake) -> dict:
     state[STATE_INCLUDE_GHG] = True
     state[STATE_INCLUDE_IFRS] = True
     state[STATE_INTAKE_TABLE] = table
+    state[STATE_INTAKE_FILE_HASH] = str(table.sha256)
     state[STATE_INTAKE_COMMITTED] = committed
     state[STATE_INTAKE_MAPPING] = mapping
     state[STATE_INTAKE_METADATA] = _metadata(table, committed)
@@ -289,6 +294,30 @@ def test_initialize_keeps_current_engine_upload_state() -> None:
 
     assert state[STATE_INTAKE_RESULT] is marker
     assert state[STATE_RESULT] is marker
+
+
+def test_uploaded_result_is_bound_to_engine_revision_and_current_file() -> None:
+    table = _parse("eight_row.xlsx", _xlsx_bytes())
+    _, _, _, _, state, result = _run(
+        table, electricity_context="enterprise", name="result_identity"
+    )
+
+    assert get_current_result(state) is result
+    assert state[STATE_RESULT_ENGINE_REVISION] == ANALYSIS_ENGINE_REVISION
+    assert state[STATE_ANALYSIS_FILE_HASH] == table.sha256
+
+    state[STATE_INTAKE_FILE_HASH] = "different-upload"
+    assert get_current_result(state) is None
+
+
+def test_uploaded_result_without_result_revision_is_rejected() -> None:
+    table = _parse("eight_row.xlsx", _xlsx_bytes())
+    _, _, _, _, state, _ = _run(
+        table, electricity_context="enterprise", name="legacy_result"
+    )
+
+    state.pop(STATE_RESULT_ENGINE_REVISION)
+    assert get_current_result(state) is None
 
 
 def test_xlsx_website_path_maps_ng2_and_vehicle_diesel() -> None:

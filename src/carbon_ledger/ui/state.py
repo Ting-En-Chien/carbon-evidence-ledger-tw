@@ -52,6 +52,7 @@ ANALYSIS_PHASE_REVEAL = "result_reveal"
 ANALYSIS_PHASE_FAILED = "failed"
 
 STATE_RESULT = "pipeline_result"
+STATE_RESULT_ENGINE_REVISION = "pipeline_result_engine_revision"
 STATE_INCLUDE_GHG = "include_ghg"
 STATE_INCLUDE_CBAM = "include_cbam"
 STATE_INCLUDE_IFRS = "include_ifrs_s2"
@@ -82,7 +83,7 @@ STATE_ANALYSIS_FILE_HASH = "analysis_source_file_hash"
 # semantics change.  Streamlit can reconnect an existing browser session after
 # a deployment, so an in-memory PipelineRunResult produced by older code must
 # never be presented as if it came from the current analysis engine.
-ANALYSIS_ENGINE_REVISION = "uploaded-intake-2026-09-02-v1"
+ANALYSIS_ENGINE_REVISION = "uploaded-intake-2026-09-02-v2"
 STATE_ANALYSIS_ENGINE_REVISION = "analysis_engine_revision"
 
 # Phase 9A structured intake (session-only; never written to disk)
@@ -226,6 +227,7 @@ def uploaded_data_period_bounds(
 
 
 def _store_analysis_source_demo(session_state: Any, result: PipelineRunResult) -> None:
+    session_state[STATE_RESULT_ENGINE_REVISION] = ANALYSIS_ENGINE_REVISION
     session_state[STATE_ANALYSIS_SOURCE] = ANALYSIS_SOURCE_DEMO
     session_state[STATE_ANALYSIS_FILE_NAME] = None
     session_state[STATE_ANALYSIS_FILE_HASH] = ""
@@ -244,6 +246,7 @@ def _store_analysis_source_uploaded(
     *,
     file_name: str,
 ) -> None:
+    session_state[STATE_RESULT_ENGINE_REVISION] = ANALYSIS_ENGINE_REVISION
     session_state[STATE_ANALYSIS_SOURCE] = ANALYSIS_SOURCE_UPLOADED
     session_state[STATE_ANALYSIS_FILE_NAME] = file_name
     # Which uploaded file this result belongs to. Lets callers tell a current
@@ -466,6 +469,7 @@ def _invalidate_stale_uploaded_analysis(session_state: Any) -> None:
     if has_uploaded_state:
         for key in (
             STATE_RESULT,
+            STATE_RESULT_ENGINE_REVISION,
             STATE_LAST_CONFIG,
             STATE_INTAKE_COMMITTED,
             STATE_INTAKE_MAPPING,
@@ -574,6 +578,7 @@ def activate_demo_mode(session_state: Any, *, force: bool = False) -> PipelineRu
 def clear_analysis_result(session_state: Any) -> None:
     """Clear stored analysis so customer empty-state returns."""
     session_state[STATE_RESULT] = None
+    session_state[STATE_RESULT_ENGINE_REVISION] = None
     session_state[STATE_ANALYSIS_SOURCE] = ANALYSIS_SOURCE_NONE
     session_state[STATE_UPLOADED_ANALYSIS_COMPLETED] = False
     session_state[STATE_ANALYSIS_FILE_HASH] = ""
@@ -744,6 +749,26 @@ def get_current_result(session_state: Any) -> PipelineRunResult | None:
         return None
     if not isinstance(result, PipelineRunResult):
         return None
+    if get_analysis_source(session_state) == ANALYSIS_SOURCE_UPLOADED:
+        result_revision = str(
+            _ss_get(session_state, STATE_RESULT_ENGINE_REVISION, "") or ""
+        )
+        result_file_hash = str(
+            _ss_get(session_state, STATE_ANALYSIS_FILE_HASH, "") or ""
+        )
+        current_file_hash = str(
+            _ss_get(session_state, STATE_INTAKE_FILE_HASH, "") or ""
+        )
+        # Fail closed: an uploaded result is displayable only when it was
+        # produced by this engine revision from the file currently selected in
+        # the intake wizard. This prevents a reconnected Streamlit session from
+        # showing a previous workbook's totals under a newly uploaded file.
+        if (
+            result_revision != ANALYSIS_ENGINE_REVISION
+            or not current_file_hash
+            or result_file_hash != current_file_hash
+        ):
+            return None
     return result
 
 
