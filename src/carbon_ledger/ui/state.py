@@ -759,15 +759,19 @@ def get_current_result(session_state: Any) -> PipelineRunResult | None:
         current_file_hash = str(
             _ss_get(session_state, STATE_INTAKE_FILE_HASH, "") or ""
         )
-        # Fail closed: an uploaded result is displayable only when it was
-        # produced by this engine revision from the file currently selected in
-        # the intake wizard. This prevents a reconnected Streamlit session from
-        # showing a previous workbook's totals under a newly uploaded file.
-        if (
+        # A real upload carries a file hash. In that path, fail closed unless
+        # the result was produced by this engine revision from that exact file.
+        # Some report builders and compatibility callers intentionally inject a
+        # PipelineRunResult without an active intake file; do not hide those
+        # results merely because no file identity exists to compare. Stale
+        # persisted upload sessions are still cleared by
+        # _invalidate_stale_uploaded_analysis() before this function is used.
+        if current_file_hash and (
             result_revision != ANALYSIS_ENGINE_REVISION
-            or not current_file_hash
             or result_file_hash != current_file_hash
         ):
+            return None
+        if result_revision and result_revision != ANALYSIS_ENGINE_REVISION:
             return None
     return result
 
