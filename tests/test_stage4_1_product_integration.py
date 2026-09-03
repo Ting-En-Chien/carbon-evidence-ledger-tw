@@ -257,8 +257,8 @@ def test_pre_analysis_readiness_counts() -> None:
     ready = _intake()
     summary = summarize_pre_analysis_readiness(ready.accepted_activities)
     assert summary["ready"] == 3
-    assert summary["needs_confirm"] == 0
-    assert summary["unsupported"] == 1
+    assert summary["needs_confirm"] == 1
+    assert summary["unsupported"] == 0
     unknown = _intake(natural_gas_subtype="unknown", diesel_context="unknown")
     unknown_summary = summarize_pre_analysis_readiness(unknown.accepted_activities)
     assert unknown_summary["needs_confirm"] >= 2
@@ -268,7 +268,7 @@ def test_pre_analysis_readiness_counts() -> None:
         process_use="not_applicable",
         activity_start="2025-01-01",
         activity_end="2025-01-31",
-    ) == "unsupported"
+    ) == "needs_confirm"
 
 
 def test_old_results_hidden_when_new_analysis_begins() -> None:

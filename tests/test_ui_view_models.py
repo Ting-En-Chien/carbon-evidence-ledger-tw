@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from carbon_ledger.pipeline import run_demo_pipeline
+from carbon_ledger.pipeline import PipelineRunResult, run_demo_pipeline
 from carbon_ledger.ui import view_models as vm
 from carbon_ledger.ui.glossary import glossary_contains
 from carbon_ledger.ui.tutorial import onboarding_step_titles
@@ -248,3 +248,322 @@ def test_onboarding_has_five_action_steps() -> None:
     joined = "\n".join(steps)
     assert "GHG Protocol" not in joined
     assert "IFRS" not in joined
+
+
+def _empty_frame() -> pd.DataFrame:
+    return pd.DataFrame()
+
+
+def _synthetic_result(
+    *,
+    calculations: pd.DataFrame | None = None,
+    activities: pd.DataFrame | None = None,
+    ghg: pd.DataFrame | None = None,
+) -> PipelineRunResult:
+    empty = _empty_frame()
+    return PipelineRunResult(
+        run_id="cat1-filter-test",
+        ingested_at=FIXED_INGESTED_AT,
+        include_ghg=True,
+        include_cbam=False,
+        include_ifrs_s2=False,
+        source_documents_accepted=empty,
+        source_documents_rejected=empty,
+        activity_records_accepted=(
+            empty if activities is None else activities
+        ),
+        activity_records_rejected=empty,
+        normalized_records=empty,
+        candidate_matches=empty,
+        activity_readiness=empty,
+        calculation_results=(
+            empty if calculations is None else calculations
+        ),
+        core_qa_issues=empty,
+        ghg_evaluations=empty if ghg is None else ghg,
+        cbam_evaluations=empty,
+        ifrs_s2_evaluations=empty,
+    )
+
+
+def _steel_calc_row(
+    record_id: str,
+    *,
+    status: str = "calculated",
+    tco2e: float | None = 18.5,
+    ghg_scope: object = "scope_3",
+    scope_3_category: object = "category_1",
+    include_ghg_scope: bool = True,
+    include_scope_3_category: bool = True,
+    scope3_category: str | None = None,
+) -> dict[str, object]:
+    row: dict[str, object] = {
+        "record_id": record_id,
+        "calculation_status": status,
+        "calculated_tco2e": tco2e,
+        "calculation_method": "supplier_specific",
+        "supplier_name": "Demo Steel",
+        "steel_product_type": "steel wire rod",
+        "factor_year": 2025,
+        "reporting_year": 2025,
+        "factor_boundary": "cradle_to_gate",
+    }
+    if include_ghg_scope:
+        row["ghg_scope"] = ghg_scope
+    if include_scope_3_category:
+        row["scope_3_category"] = scope_3_category
+    if scope3_category is not None:
+        row["scope3_category"] = scope3_category
+    return row
+
+
+def _activity_row(
+    record_id: str,
+    activity_type: str = "purchased_steel",
+) -> dict[str, str]:
+    return {"record_id": record_id, "activity_type": activity_type}
+
+
+def _ghg_eval_row(
+    record_id: str,
+    ghg_scope: str,
+    mapping_status: str = "mapped",
+) -> dict[str, str]:
+    return {
+        "record_id": record_id,
+        "ghg_scope": ghg_scope,
+        "mapping_status": mapping_status,
+    }
+
+
+def _inventory_pair() -> tuple[
+    list[dict[str, object]],
+    list[dict[str, str]],
+    list[dict[str, str]],
+]:
+    calculations: list[dict[str, object]] = [
+        {
+            "record_id": "rec_s1",
+            "calculation_status": "calculated",
+            "calculated_tco2e": 10.0,
+            "ghg_scope": "scope_1",
+        },
+        {
+            "record_id": "rec_s2",
+            "calculation_status": "calculated",
+            "calculated_tco2e": 5.0,
+            "ghg_scope": "scope_2",
+        },
+    ]
+    activities = [
+        _activity_row("rec_s1", "natural_gas"),
+        _activity_row("rec_s2", "grid_electricity"),
+    ]
+    ghg = [
+        _ghg_eval_row("rec_s1", "scope_1"),
+        _ghg_eval_row("rec_s2", "scope_2"),
+    ]
+    return calculations, activities, ghg
+
+
+def test_category_1_subtotal_includes_calculated_scope3_category_1_steel() -> None:
+    result = _synthetic_result(
+        calculations=pd.DataFrame(
+            [
+                _steel_calc_row(
+                    "rec_steel",
+                    scope3_category="category_1_purchased_goods_and_services",
+                )
+            ]
+        ),
+        activities=pd.DataFrame([_activity_row("rec_steel")]),
+    )
+    summary = vm.scope3_category1_emissions_summary(result, ZH)
+    assert summary["tco2e"] == 18.5
+    assert summary["row_count"] == 1
+    assert summary["rows"][0]["record_id"] == "rec_steel"
+
+
+def test_category_1_subtotal_excludes_scope3_category_4_steel() -> None:
+    result = _synthetic_result(
+        calculations=pd.DataFrame(
+            [
+                _steel_calc_row(
+                    "rec_steel_cat4",
+                    tco2e=99.0,
+                    scope_3_category="category_4",
+                )
+            ]
+        ),
+        activities=pd.DataFrame([_activity_row("rec_steel_cat4")]),
+    )
+    summary = vm.scope3_category1_emissions_summary(result, ZH)
+    assert summary["tco2e"] is None
+    assert summary["row_count"] == 0
+    assert summary["rows"] == []
+
+
+def test_category_1_subtotal_excludes_steel_missing_scope_3_category() -> None:
+    result = _synthetic_result(
+        calculations=pd.DataFrame(
+            [
+                _steel_calc_row(
+                    "rec_steel_no_cat",
+                    tco2e=50.0,
+                    include_scope_3_category=False,
+                )
+            ]
+        ),
+        activities=pd.DataFrame([_activity_row("rec_steel_no_cat")]),
+    )
+    summary = vm.scope3_category1_emissions_summary(result, ZH)
+    assert summary["tco2e"] is None
+    assert summary["row_count"] == 0
+
+
+def test_category_1_subtotal_excludes_blank_or_long_name_scope_3_category() -> None:
+    blank = _synthetic_result(
+        calculations=pd.DataFrame(
+            [_steel_calc_row("rec_blank", tco2e=40.0, scope_3_category="")]
+        ),
+        activities=pd.DataFrame([_activity_row("rec_blank")]),
+    )
+    long_name = _synthetic_result(
+        calculations=pd.DataFrame(
+            [
+                _steel_calc_row(
+                    "rec_long",
+                    tco2e=40.0,
+                    scope_3_category="category_1_purchased_goods_and_services",
+                )
+            ]
+        ),
+        activities=pd.DataFrame([_activity_row("rec_long")]),
+    )
+    assert vm.scope3_category1_emissions_summary(blank, ZH)["row_count"] == 0
+    assert vm.scope3_category1_emissions_summary(long_name, ZH)["row_count"] == 0
+
+
+def test_category_1_subtotal_excludes_scope_1_steel() -> None:
+    result = _synthetic_result(
+        calculations=pd.DataFrame(
+            [_steel_calc_row("rec_scope1_steel", ghg_scope="scope_1")]
+        ),
+        activities=pd.DataFrame([_activity_row("rec_scope1_steel")]),
+    )
+    summary = vm.scope3_category1_emissions_summary(result, ZH)
+    assert summary["tco2e"] is None
+    assert summary["row_count"] == 0
+
+
+def test_category_1_subtotal_excludes_blocked_category_1_steel() -> None:
+    result = _synthetic_result(
+        calculations=pd.DataFrame(
+            [
+                _steel_calc_row(
+                    "rec_blocked",
+                    status="no_factor_configured",
+                    tco2e=None,
+                )
+            ]
+        ),
+        activities=pd.DataFrame([_activity_row("rec_blocked")]),
+    )
+    summary = vm.scope3_category1_emissions_summary(result, ZH)
+    assert summary["tco2e"] is None
+    assert summary["row_count"] == 0
+
+
+def test_category_4_or_missing_category_does_not_change_category_1_subtotal() -> None:
+    baseline = _synthetic_result(
+        calculations=pd.DataFrame([_steel_calc_row("rec_cat1")]),
+        activities=pd.DataFrame([_activity_row("rec_cat1")]),
+    )
+    mixed = _synthetic_result(
+        calculations=pd.DataFrame(
+            [
+                _steel_calc_row("rec_cat1"),
+                _steel_calc_row(
+                    "rec_cat4",
+                    tco2e=99.0,
+                    scope_3_category="category_4",
+                ),
+                _steel_calc_row(
+                    "rec_missing",
+                    tco2e=50.0,
+                    include_scope_3_category=False,
+                ),
+                _steel_calc_row(
+                    "rec_cat2",
+                    tco2e=7.0,
+                    scope_3_category="category_2",
+                ),
+            ]
+        ),
+        activities=pd.DataFrame(
+            [
+                _activity_row("rec_cat1"),
+                _activity_row("rec_cat4"),
+                _activity_row("rec_missing"),
+                _activity_row("rec_cat2"),
+            ]
+        ),
+    )
+    base_summary = vm.scope3_category1_emissions_summary(baseline, ZH)
+    mixed_summary = vm.scope3_category1_emissions_summary(mixed, ZH)
+    assert base_summary["tco2e"] == 18.5
+    assert mixed_summary["tco2e"] == base_summary["tco2e"]
+    assert mixed_summary["row_count"] == 1
+    assert mixed_summary["rows"][0]["record_id"] == "rec_cat1"
+
+
+def test_scope_1_and_scope_2_inventory_unaffected_by_category_1_filter() -> None:
+    calc_rows, activity_rows, ghg_rows = _inventory_pair()
+    without_steel = _synthetic_result(
+        calculations=pd.DataFrame(calc_rows),
+        activities=pd.DataFrame(activity_rows),
+        ghg=pd.DataFrame(ghg_rows),
+    )
+    with_steel = _synthetic_result(
+        calculations=pd.DataFrame(
+            [
+                *calc_rows,
+                _steel_calc_row("rec_cat1"),
+                _steel_calc_row(
+                    "rec_cat4",
+                    tco2e=99.0,
+                    scope_3_category="category_4",
+                ),
+                _steel_calc_row(
+                    "rec_missing",
+                    tco2e=50.0,
+                    include_scope_3_category=False,
+                ),
+            ]
+        ),
+        activities=pd.DataFrame(
+            [
+                *activity_rows,
+                _activity_row("rec_cat1"),
+                _activity_row("rec_cat4"),
+                _activity_row("rec_missing"),
+            ]
+        ),
+        ghg=pd.DataFrame(
+            [
+                *ghg_rows,
+                _ghg_eval_row("rec_cat1", "scope_3"),
+                _ghg_eval_row("rec_cat4", "scope_3"),
+                _ghg_eval_row("rec_missing", "scope_3"),
+            ]
+        ),
+    )
+    base_inventory = vm.company_inventory_emissions_summary(without_steel, ZH)
+    steel_inventory = vm.company_inventory_emissions_summary(with_steel, ZH)
+    assert base_inventory["inventory_tco2e"] == 15.0
+    assert steel_inventory["inventory_tco2e"] == base_inventory["inventory_tco2e"]
+    assert steel_inventory["scope_1"] == 10.0
+    assert steel_inventory["scope_2"] == 5.0
+    cat1 = vm.scope3_category1_emissions_summary(with_steel, ZH)
+    assert cat1["tco2e"] == 18.5
+    assert cat1["tco2e"] != steel_inventory["inventory_tco2e"]

@@ -54,7 +54,6 @@ KNOWN_EMISSIONS_ACTIVITY_TYPES = {
 }
 
 KNOWN_NO_FACTOR_ACTIVITY_TYPES = {
-    "purchased_steel",
     "third_party_transport",
 }
 
@@ -62,6 +61,11 @@ REFRIGERANT_ACTIVITY_TYPES = {
     "refrigerant_refill",
 }
 READINESS_REFRIGERANT_ACTUAL_REFILL = "refrigerant_actual_refill"
+
+PURCHASED_STEEL_ACTIVITY_TYPES = {
+    "purchased_steel",
+}
+READINESS_PURCHASED_STEEL_CATEGORY1 = "purchased_steel_category1"
 
 ENTERPRISE_ELECTRICITY_PROCESS_USES = frozenset(
     {
@@ -526,6 +530,20 @@ def _build_readiness_row(
             ),
         }
 
+    if activity_type in PURCHASED_STEEL_ACTIVITY_TYPES:
+        return {
+            "record_id": record_id,
+            "activity_type": activity_type,
+            "calculation_readiness": READINESS_PURCHASED_STEEL_CATEGORY1,
+            "candidate_factor_count": 0,
+            "blocking_dependency": pd.NA,
+            "readiness_reason": (
+                "Purchased-steel Category 1 uses supplier-specific evidence "
+                "or a registered average-data factor, not the Scope 1/2 "
+                "fuel matcher."
+            ),
+        }
+
     if activity_type not in KNOWN_EMISSIONS_ACTIVITY_TYPES:
         return {
             "record_id": record_id,
@@ -630,6 +648,24 @@ def _build_readiness_row(
             ),
         }
     if statuses == {"matched_ready"}:
+        if activity_type == "grid_electricity":
+            ready_ids = {
+                item["factor_id"]
+                for item in candidates
+                if item["match_status"] == "matched_ready"
+            }
+            if len(ready_ids) > 1:
+                return {
+                    "record_id": record_id,
+                    "activity_type": activity_type,
+                    "calculation_readiness": "blocked_ambiguous_factor",
+                    "candidate_factor_count": count,
+                    "blocking_dependency": pd.NA,
+                    "readiness_reason": (
+                        "Multiple ready electricity factors cover this "
+                        "activity period. The newest row is not selected."
+                    ),
+                }
         return {
             "record_id": record_id,
             "activity_type": activity_type,

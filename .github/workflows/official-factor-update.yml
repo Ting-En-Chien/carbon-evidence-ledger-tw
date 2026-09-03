@@ -1,0 +1,258 @@
+# Official emission-factor update v1.
+# Discovers, downloads, hashes, parses, and proposes versioned factor rows.
+# Never auto-merges. Merging the review PR is the human approval that
+# enables the new coefficients. Download failures must not delete old data.
+#
+# REQUIREMENT: This workflow file must exist on the repository DEFAULT branch
+# for GitHub scheduled runs to execute.
+
+name: Official Factor Update
+
+on:
+  schedule:
+    # Weekly Monday ~03:17 UTC. Not a legal clock guarantee.
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: official-factor-update
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install minimal runtime
+        run: python -m pip install pandas openpyxl
+
+      - name: Fetch, parse, validate, and propose
+        id: sync
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          RETRIEVED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "retrieved_at=${RETRIEVED_AT}" >> "$GITHUB_OUTPUT"
+          python -m carbon_ledger references fetch --retrieved-at "${RETRIEVED_AT}" \
+            | tee fetch_report.txt
+          python -m carbon_ledger references validate
+          python -m carbon_ledger references propose-update --retrieved-at "${RETRIEVED_AT}" \
+            | tee propose_report.txt
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          proposal_path = Path("data/reference/official_factor_update_proposal.json")
+          fetch_text = Path("fetch_report.txt").read_text(encoding="utf-8")
+          proposal = {}
+          if proposal_path.is_file():
+              proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+          already_known = (
+              "already_known" in fetch_text
+              and "staged" not in fetch_text
+              and not proposal.get("activatable_candidate_ids")
+          )
+          open_pr = bool(proposal.get("open_pr"))
+          manual = bool(proposal.get("manual_review_required"))
+          hashes = ",".join(proposal.get("snapshot_sha256") or [])
+          ids = ",".join(proposal.get("activatable_candidate_ids") or [])
+          with open("factor_update.env", "w", encoding="utf-8") as handle:
+              handle.write(f"OPEN_PR={str(open_pr).lower()}\n")
+              handle.write(f"ALREADY_KNOWN={str(already_known).lower()}\n")
+              handle.write(f"MANUAL_REVIEW={str(manual).lower()}\n")
+              handle.write(f"SNAPSHOT_HASHES={hashes}\n")
+              handle.write(f"ACTIVATABLE={ids}\n")
+          print(f"open_pr={open_pr}")
+          print(f"already_known={already_known}")
+          print(f"manual_review={manual}")
+          PY
+          cat factor_update.env >> "$GITHUB_OUTPUT"
+          cat factor_update.env
+
+      - name: Materialize append-only registry rows for review
+        if: steps.sync.outputs.OPEN_PR == 'true'
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          ACTIVATED_AT="${{ steps.sync.outputs.retrieved_at }}"
+          python - <<PY
+          import json
+          from pathlib import Path
+          from carbon_ledger.reference_sync import activate_candidate, default_paths
+          repo = Path(".").resolve()
+          paths = default_paths(repo)
+          proposal = json.loads(
+              paths["proposal_json"].read_text(encoding="utf-8")
+          )
+          for candidate_id in proposal.get("activatable_candidate_ids") or []:
+              activate_candidate(
+                  candidate_id=candidate_id,
+                  candidates_csv=paths["candidates_csv"],
+                  snapshots_csv=paths["snapshots_csv"],
+                  activations_csv=paths["activations_csv"],
+                  emission_factors_csv=paths["emission_factors"],
+                  fuel_heating_values_csv=paths["fuel_heating_values"],
+                  gwp_values_csv=paths["gwp_values"],
+                  activated_at="${ACTIVATED_AT}",
+                  activated_by="github-actions[bot]",
+              )
+          PY
+          python -m carbon_ledger references propose-update --retrieved-at "${ACTIVATED_AT}"
+
+      - name: Rewrite snapshot paths to repo-relative
+        if: always()
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          path = Path("data/reference/reference_snapshots.csv")
+          if not path.is_file():
+              raise SystemExit(0)
+          frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+          if "local_path" in frame.columns and "file_name" in frame.columns:
+              frame["local_path"] = [
+                  f"data/reference_snapshots/{Path(name).name}" if name else value
+                  for name, value in zip(frame["file_name"], frame["local_path"])
+              ]
+              frame.to_csv(path, index=False)
+          PY
+
+      - name: Upload review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-factor-update-artifacts
+          path: |
+            data/reference/official_factor_update_proposal.json
+            data/reference/official_factor_update_review.md
+            data/reference/reference_candidates.csv
+            data/reference/reference_snapshots.csv
+            data/reference/reference_activations.csv
+            fetch_report.txt
+            propose_report.txt
+          if-no-files-found: warn
+
+      - name: Create or update review PR
+        if: steps.sync.outputs.OPEN_PR == 'true' && steps.sync.outputs.ALREADY_KNOWN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          HASHES="${{ steps.sync.outputs.SNAPSHOT_HASHES }}"
+          SHORT="$(echo "$HASHES" | tr ',' '\n' | head -n 1 | cut -c1-12)"
+          if [ -z "$SHORT" ]; then
+            SHORT="${GITHUB_RUN_ID}"
+          fi
+          BRANCH="official-factor-update/${SHORT}"
+          TITLE="Official factor update review ${SHORT}"
+
+          if gh pr list --state open --search "Official factor update review in:title" --json number,headRefName \
+            | python -c "import json,sys; rows=json.load(sys.stdin); raise SystemExit(0 if any(r.get('headRefName','').startswith('official-factor-update/') for r in rows) else 1)"; then
+            echo "An official-factor-update PR is already open; not creating a duplicate."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+
+          git add \
+            data/reference/emission_factors.csv \
+            data/reference/gwp_values.csv \
+            data/reference/fuel_heating_values.csv \
+            data/reference/reference_candidates.csv \
+            data/reference/reference_snapshots.csv \
+            data/reference/reference_activations.csv \
+            data/reference/official_factor_update_proposal.json \
+            data/reference/official_factor_update_review.md \
+            data/reference_snapshots \
+            || true
+
+          if git diff --cached --quiet; then
+            echo "No registry or review files to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(factors): propose official coefficient update ${SHORT}"
+          git push -u origin "$BRANCH"
+
+          BODY="$(cat <<EOF
+          ## Official factor update review
+
+          Automated official-source check found one or more **validated** coefficient candidates.
+
+          ### Approval semantics
+          - Merging this PR **is** human approval to enable the new versioned registry rows.
+          - This PR must **NOT** be auto-merged or auto-approved.
+          - Coefficients are append-only. Historical rows stay in the registry.
+          - Publication date is not the same as the factor effective period.
+          - Recalculating an older reporting year must still select the factor whose validity covers that activity period.
+
+          ### Reviewer checklist
+          1. Open \`data/reference/official_factor_update_review.md\`
+          2. Confirm official source URL, snapshot SHA-256, units, and applicable years
+          3. Confirm old vs new values and percent change
+          4. Confirm GWP assessment basis (AR5 vs AR6) is not mixed
+          5. Confirm purchased-steel average-data factors are **not** being invented
+          6. If a source was blocked (401/403/CAPTCHA/login/robots), do not treat missing downloads as approval to delete old data
+
+          Review Markdown and activation audit are part of this PR.
+          EOF
+          )"
+
+          if [ -f data/reference/official_factor_update_review.md ]; then
+            BODY="${BODY}
+
+          ---
+
+          $(cat data/reference/official_factor_update_review.md)
+          "
+          fi
+
+          gh pr create \
+            --title "$TITLE" \
+            --body "$BODY" \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "$BRANCH"
+
+      - name: Open or update review issue when blocked
+        if: always() && steps.sync.outputs.MANUAL_REVIEW == 'true' && steps.sync.outputs.OPEN_PR != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TITLE="Official factor update needs manual review"
+          BODY="$(cat <<EOF
+          Official factor update could not auto-propose a validated coefficient PR.
+
+          - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - Old registry rows were not deleted.
+          - Review the uploaded artifacts and official source access policy.
+
+          Do not invent steel or other secondary factors. Do not bypass 401/403/CAPTCHA/login/robots.
+          EOF
+          )"
+          EXISTING="$(gh issue list --search "$TITLE in:title" --state open --json number --jq '.[0].number' || true)"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY"
+          fi

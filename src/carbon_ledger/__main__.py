@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
         "references",
         help=(
             "Official reference sync maintenance "
-            "(check / fetch / validate / activate / status). "
+            "(check / fetch / validate / activate / propose-update / status). "
             "Does not run carbon calculations and does not auto-activate."
         ),
     )
@@ -146,6 +146,18 @@ def build_parser() -> argparse.ArgumentParser:
             "Required confirmation flag. Without --confirm the command only "
             "prints the pre-activation summary and does not write."
         ),
+    )
+    propose_parser = ref_sub.add_parser(
+        "propose-update",
+        help=(
+            "Write a machine-readable JSON and Markdown review bundle. "
+            "Never activates coefficients and never merges a pull request."
+        ),
+    )
+    propose_parser.add_argument(
+        "--retrieved-at",
+        default="",
+        help="Optional timestamp recorded in the review bundle.",
     )
     ref_sub.add_parser(
         "status",
@@ -259,6 +271,7 @@ def _run_references_command(args: argparse.Namespace) -> int:
         default_paths,
         fetch_and_stage_sources,
         format_candidate_activation_summary,
+        propose_official_factor_update,
         reference_sync_status,
         validate_candidates,
     )
@@ -294,6 +307,7 @@ def _run_references_command(args: argparse.Namespace) -> int:
         frame = validate_candidates(
             paths["candidates_csv"],
             candidate_ids=args.candidate_id,
+            official_sources_csv=paths["sources"],
         )
         if frame.empty:
             print("No reference candidates found.")
@@ -364,6 +378,7 @@ def _run_references_command(args: argparse.Namespace) -> int:
                 activations_csv=paths["activations_csv"],
                 emission_factors_csv=paths["emission_factors"],
                 fuel_heating_values_csv=paths["fuel_heating_values"],
+                gwp_values_csv=paths["gwp_values"],
                 activated_at=activated_at,
                 activated_by=str(args.activated_by),
             )
@@ -375,6 +390,20 @@ def _run_references_command(args: argparse.Namespace) -> int:
         print(f"factor_id: {activation['factor_id']}")
         print(f"snapshot_id: {activation['snapshot_id']}")
         print(f"activated_at: {activation['activated_at']}")
+        return 0
+    if command == "propose-update":
+        proposal = propose_official_factor_update(
+            repo_root,
+            retrieved_at=str(getattr(args, "retrieved_at", "") or ""),
+        )
+        print(proposal["proposal_json"])
+        print(proposal["proposal_md"])
+        print(f"open_pr: {proposal['open_pr']}")
+        print(
+            "activatable: "
+            + ",".join(proposal["activatable_candidate_ids"])
+        )
+        print(f"manual_review_required: {proposal['manual_review_required']}")
         return 0
     if command == "status":
         status = reference_sync_status(repo_root)
@@ -414,7 +443,7 @@ def _run_references_command(args: argparse.Namespace) -> int:
 
     print(
         "Usage: python -m carbon_ledger references "
-        "[check|fetch|validate|activate|status]",
+        "[check|fetch|validate|activate|propose-update|status]",
         file=sys.stderr,
     )
     return 2

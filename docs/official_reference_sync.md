@@ -37,7 +37,7 @@ calculation stays blocked.
 | Sync engine (HTTP + parse + candidates) | `src/carbon_ledger/reference_sync.py` |
 | Snapshot index | `data/reference/reference_snapshots.csv` |
 | Candidate updates | `data/reference/reference_candidates.csv` |
-| Activation audit | `data/reference/reference_activations.csv` |
+| Activation audit | `data/reference/reference_activations.csv` (append-only; this is the activation audit ledger) |
 | Artifact bytes | `data/reference_snapshots/` |
 | Active calculation registry | `data/reference/emission_factors.csv` (and related) |
 
@@ -344,6 +344,7 @@ do not silently replace an existing calculation basis.
 python -m carbon_ledger references check
 python -m carbon_ledger references fetch --retrieved-at 2026-08-10T00:00:00Z
 python -m carbon_ledger references validate
+python -m carbon_ledger references propose-update
 python -m carbon_ledger references status
 python -m carbon_ledger references activate \
   --candidate-id cand_xxx \
@@ -372,6 +373,68 @@ If official sites are unavailable:
 - sync reports `unavailable`
 - already-validated local registry versions remain usable
 - calculation does not crash merely because the network is down
+
+## Official factor update v1
+
+The system **automatically checks** allowlisted official sources on a weekly
+GitHub Actions schedule (`official-factor-update.yml`) and via
+`python -m carbon_ledger references propose-update`.
+
+It does **not** auto-merge pull requests and does **not** silently swap
+coefficients in the live registry. A bot branch/PR only proposes append-only
+versioned rows plus an activation-audit trail. **Merging that PR is the human
+approval that enables the new coefficients.**
+
+### Reviewer checklist
+
+- Official source id, URL, retrieved timestamp, MIME type, and snapshot SHA-256
+- Old value vs new value, units, activity type, geography, and gas/context
+- Applicable year / `valid_from`–`valid_to` (not the publication date)
+- Percent change and which calculation types could be affected
+- Validation result; items that cannot be activated and why
+- GWP assessment basis (AR5 vs AR6) is explicit and not mixed
+- Purchased-steel average-data factors are **not** present as invented numbers
+
+### Publication date vs effective period
+
+| Field | Meaning |
+|---|---|
+| `publication_date` | When the authority published the document |
+| `valid_from` / `valid_to` | The activity dates the coefficient may cover |
+| `factor_year` / `reporting_year` | Version label; not “today’s calendar year” |
+
+A coefficient published in 2026 may still apply to 2025 if `valid_from` /
+`valid_to` say so. A 2025 coefficient is never applied to 2024 merely because
+it is newer.
+
+### Recalculating an older year
+
+Matching uses the **activity / reporting period**, then identity
+(activity, context, gas, geography, unit), then:
+
+1. `valid_from` empty or `valid_from <= activity date`
+2. `valid_to` empty or `activity date <= valid_to`
+3. If several rows still match, an explicit version rule (same GWP assessment
+   with the latest covering `valid_from`) is used; otherwise matching fails closed
+4. Completed 2024 results keep their `factor_id` / version in calculation and
+   activation audit traces. A later publication does not rewrite them.
+
+There is no “use last year because this year is missing” fallback unless
+`official_reference_rules.csv` records an auditable rule.
+
+### When an official source cannot be fetched
+
+401, 403, CAPTCHA, login walls, robots restrictions, and similar blocks become
+`manual_review_required`. The job must not activate data after a failed
+download, and it must not delete previously stored snapshots or registry rows.
+Reviewers get an artifact and/or a GitHub issue. Manual retrieval still has to
+go through snapshot → parse → candidate → validate → PR merge.
+
+### Steel and other secondary factors
+
+Purchased-steel average-data factors have an extension point only. v1 has **no
+approved steel coefficient**, so the updater must not invent a number and must
+not make a 10 t steel activity start calculating.
 
 ## Limitations
 

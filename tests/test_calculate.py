@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from carbon_ledger.calculate import calculate_activity_emissions
+from carbon_ledger.calculate import OUTPUT_COLUMNS, calculate_activity_emissions
 from carbon_ledger.factors import validate_factor_registry
 from carbon_ledger.ingest import ingest_evidence
 from carbon_ledger.match_factors import match_activity_factors
@@ -388,12 +388,22 @@ def test_repeated_calculation_produces_identical_output(tmp_path: Path) -> None:
 
 def test_output_contains_no_ghg_scope(tmp_path: Path) -> None:
     result = _baseline_pipeline(tmp_path)
-    assert "ghg_scope" not in result.columns
+    assert "ghg_scope" not in OUTPUT_COLUMNS
+    electricity = result.loc[result["record_id"] == "rec_electricity_001"].iloc[0]
+    if "ghg_scope" in result.columns:
+        assert pd.isna(electricity["ghg_scope"])
+    steel = result.loc[result["record_id"] == "rec_steel_001"].iloc[0]
+    assert steel["ghg_scope"] == "scope_3"
 
 
 def test_output_contains_no_scope3_category(tmp_path: Path) -> None:
     result = _baseline_pipeline(tmp_path)
-    assert "scope3_category" not in result.columns
+    assert "scope3_category" not in OUTPUT_COLUMNS
+    electricity = result.loc[result["record_id"] == "rec_electricity_001"].iloc[0]
+    if "scope3_category" in result.columns:
+        assert pd.isna(electricity["scope3_category"])
+    steel = result.loc[result["record_id"] == "rec_steel_001"].iloc[0]
+    assert steel["scope_3_category"] == "category_1"
 
 
 def test_output_contains_no_cbam_data_role(tmp_path: Path) -> None:

@@ -13,11 +13,12 @@ import csv
 import hashlib
 import html as html_module
 import io
-import math
+import json
 import re
 import ssl
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable
@@ -31,6 +32,8 @@ from urllib.request import (
 )
 
 import pandas as pd
+
+from carbon_ledger.factors import EMISSION_FACTOR_COLUMNS, GWP_COLUMNS
 
 PARSER_VERSION = "reference_sync_v1"
 MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024
@@ -158,6 +161,19 @@ CANDIDATE_COLUMNS = [
     "parser_version",
     "reason",
     "notes",
+    "candidate_type",
+    "target_registry",
+    "source_url",
+    "source_snapshot_path",
+    "source_sha256",
+    "source_location",
+    "reporting_year",
+    "factor_context",
+    "refrigerant",
+    "assessment_basis",
+    "factor_unit",
+    "validation_messages",
+    "created_at",
 ]
 
 ACTIVATION_COLUMNS = [
@@ -178,6 +194,9 @@ ACTIVATION_COLUMNS = [
     "upstream_factor_authority",
     "retrieved_url",
     "notes",
+    "source_snapshot_path",
+    "previous_content",
+    "new_content",
 ]
 
 RULE_COLUMNS = [
@@ -230,6 +249,28 @@ LIFECYCLE_NEEDS_PARSER_REVIEW = "needs_parser_review"
 VALIDATION_PASSED = "passed"
 VALIDATION_FAILED = "failed"
 VALIDATION_PENDING = "pending"
+
+STATUS_MANUAL_REVIEW_REQUIRED = "manual_review_required"
+STATUS_ALREADY_KNOWN = "already_known"
+REF_TYPE_FUEL_EF = "fuel_emission_factor"
+REF_TYPE_GWP = "gwp_reference"
+REF_TYPE_HEATING = "fuel_heating_values"
+REF_TYPE_STEEL = "purchased_steel_average_data"
+REF_TYPE_GENERAL_EF = "general_emission_factors"
+GWP_ASSESSMENT_AR5 = "IPCC AR5 100-year GWP"
+GWP_ASSESSMENT_AR6 = "IPCC AR6 100-year GWP"
+SUPPORTED_GWP_ASSESSMENTS = frozenset({GWP_ASSESSMENT_AR5, GWP_ASSESSMENT_AR6})
+MANUAL_REVIEW_ERROR_CODES = frozenset(
+    {
+        "SOURCE_ACCESS_RESTRICTED",
+        "HTTP_UNAUTHORIZED",
+        "HTTP_FORBIDDEN",
+        "CAPTCHA_REQUIRED",
+        "ROBOTS_DISALLOWED",
+        "LOGIN_REQUIRED",
+        "TERMS_RESTRICTED",
+    }
+)
 
 SUPPORTED_ELECTRICITY_CATEGORIES = frozenset(
     {
@@ -559,7 +600,16 @@ def default_paths(repo_root: Path) -> dict[str, Path]:
         "activations_csv": root / "data" / "reference" / "reference_activations.csv",
         "emission_factors": root / "data" / "reference" / "emission_factors.csv",
         "fuel_heating_values": root / "data" / "reference" / "fuel_heating_values.csv",
+        "gwp_values": root / "data" / "reference" / "gwp_values.csv",
         "artifact_dir": root / "data" / "reference_snapshots",
+        "proposal_json": root
+        / "data"
+        / "reference"
+        / "official_factor_update_proposal.json",
+        "proposal_md": root
+        / "data"
+        / "reference"
+        / "official_factor_update_review.md",
     }
 
 
@@ -791,7 +841,16 @@ def build_official_request_headers() -> dict[str, str]:
 
 def _http_status_error(status: int, url: str) -> ReferenceSyncError:
     """Map HTTP status codes to structured sync errors."""
-    if int(status) == 403:
+    code = int(status)
+    if code == 401:
+        return ReferenceSyncError(
+            "HTTP_UNAUTHORIZED",
+            (
+                f"Official source requires login (HTTP 401) for {url}. "
+                "Credentials are not used; result is manual_review_required."
+            ),
+        )
+    if code == 403:
         return ReferenceSyncError(
             "SOURCE_ACCESS_RESTRICTED",
             (
@@ -800,10 +859,49 @@ def _http_status_error(status: int, url: str) -> ReferenceSyncError:
                 "impersonation retry is attempted."
             ),
         )
+    if code == 429:
+        return ReferenceSyncError(
+            "SOURCE_ACCESS_RESTRICTED",
+            f"Official source rate-limited (HTTP 429) for {url}.",
+        )
     return ReferenceSyncError(
         "HTTP_ERROR",
         f"Official source returned HTTP {status} for {url}.",
     )
+
+
+def _fetch_failure_status(exc: ReferenceSyncError) -> str:
+    if exc.code in MANUAL_REVIEW_ERROR_CODES:
+        return STATUS_MANUAL_REVIEW_REQUIRED
+    return "unavailable"
+
+
+def _blocked_content_error(content: bytes, url: str) -> ReferenceSyncError | None:
+    """Detect login walls / CAPTCHA pages that must not be treated as data."""
+    sample = content[:12000].decode("utf-8", errors="ignore")
+    lowered = sample.lower()
+    if any(token in lowered for token in ("recaptcha", "hcaptcha", "g-recaptcha")):
+        return ReferenceSyncError(
+            "CAPTCHA_REQUIRED",
+            f"Official source presented a CAPTCHA at {url}. "
+            "Automated bypass is not attempted; manual_review_required.",
+        )
+    if "robots.txt" in url.lower() and "disallow:" in lowered:
+        return ReferenceSyncError(
+            "ROBOTS_DISALLOWED",
+            f"robots.txt at {url} is not used as factor data.",
+        )
+    if (
+        ('type="password"' in lowered or "type='password'" in lowered)
+        and any(token in lowered for token in ("login", "sign in", "登入"))
+        and b"<table" not in content[:4000].lower()
+    ):
+        return ReferenceSyncError(
+            "LOGIN_REQUIRED",
+            f"Official source requires login at {url}. "
+            "Credentials are not used; result is manual_review_required.",
+        )
+    return None
 
 
 def fetch_official_artifact(
@@ -902,6 +1000,9 @@ def _read_response(
             )
         chunks.append(piece)
     content = b"".join(chunks)
+    blocked = _blocked_content_error(content, final_url)
+    if blocked is not None:
+        raise blocked
     digest = compute_bytes_sha256(content)
     return FetchResult(
         url=url,
@@ -1712,6 +1813,13 @@ def artifact_parser_for_discovery(
         and path.endswith(".csv")
     ):
         return "tw_fuel_heating_values_csv_v1"
+    if landing_parser_type == "tw_moenv_file_downloads_landing_v1" and path.endswith(
+        (".ods", ".xlsx")
+    ):
+        if reference_type == "gwp_reference":
+            return "tw_moenv_gwp_ods_v1"
+        if reference_type in {REF_TYPE_GENERAL_EF, REF_TYPE_FUEL_EF}:
+            return "tw_moenv_general_emission_factors_ods_v1"
     if reference_type in ELECTRICITY_CANDIDATE_REF_TYPES and path.endswith(
         ".csv"
     ):
@@ -1731,6 +1839,22 @@ def parse_artifact(
         return parse_electricity_factor_csv(content)
     if parser == "tw_fuel_heating_values_csv_v1":
         return parse_fuel_heating_values_csv(content)
+    if parser == "tw_moenv_general_emission_factors_ods_v1":
+        from carbon_ledger.official_table_parse import (
+            parse_moenv_ods_fuel_emission_factors,
+        )
+
+        return parse_moenv_ods_fuel_emission_factors(content)
+    if parser == "tw_moenv_gwp_ods_v1":
+        from carbon_ledger.official_table_parse import parse_moenv_ods_gwp
+
+        return parse_moenv_ods_gwp(content)
+    if parser == "purchased_steel_average_data_v1":
+        from carbon_ledger.official_table_parse import (
+            steel_average_data_not_configured_result,
+        )
+
+        return steel_average_data_not_configured_result()
     if parser == "tw_moenv_electricity_news_landing_v1":
         html_parsed = parse_moenv_electricity_news_html(content)
         if html_parsed.status == LIFECYCLE_PARSED:
@@ -1784,7 +1908,9 @@ def _candidate_id(snapshot_id: str, record: dict[str, Any]) -> str:
             _text(record.get("factor_category") or record.get("fuel_type")),
             _text(record.get("geography")),
             _text(record.get("activity_type")),
+            _text(record.get("combustion_context") or record.get("factor_context")),
             _text(record.get("gas")),
+            _text(record.get("assessment_basis")),
             _text(record.get("factor_value")),
             _text(record.get("valid_from")),
             _text(record.get("valid_to")),
@@ -1845,6 +1971,19 @@ def upsert_candidates_from_parse(
                     "Snapshot retained; values not guessed "
                     "from unstructured text."
                 ),
+                "candidate_type": _text(source_row.get("reference_type")),
+                "target_registry": "",
+                "source_url": _text(snapshot.get("retrieved_url")),
+                "source_snapshot_path": _text(snapshot.get("local_path")),
+                "source_sha256": _text(snapshot.get("sha256")),
+                "source_location": _text(snapshot.get("retrieved_url")),
+                "reporting_year": "",
+                "factor_context": "",
+                "refrigerant": "",
+                "assessment_basis": "",
+                "factor_unit": "",
+                "validation_messages": parsed.reason,
+                "created_at": _text(snapshot.get("retrieved_at")),
             }
             candidates = pd.concat([candidates, pd.DataFrame([row])], ignore_index=True)
             created.append(row)
@@ -1887,6 +2026,30 @@ def upsert_candidates_from_parse(
             "parser_version": PARSER_VERSION,
             "reason": "Awaiting deterministic validation before activation.",
             "notes": _text(record.get("applicability_notes")),
+            "candidate_type": _text(record.get("candidate_type"))
+            or _text(record.get("reference_type"))
+            or _text(source_row.get("reference_type")),
+            "target_registry": _text(record.get("target_registry")),
+            "source_url": _text(snapshot.get("retrieved_url")),
+            "source_snapshot_path": _text(snapshot.get("local_path")),
+            "source_sha256": _text(snapshot.get("sha256")),
+            "source_location": _text(record.get("source_locator"))
+            or _text(snapshot.get("retrieved_url")),
+            "reporting_year": _text(record.get("reporting_year")),
+            "factor_context": _text(record.get("factor_context"))
+            or _text(record.get("combustion_context")),
+            "refrigerant": _text(record.get("refrigerant")),
+            "assessment_basis": _text(record.get("assessment_basis")),
+            "factor_unit": _text(record.get("factor_unit"))
+            or (
+                f"{_text(record.get('numerator_unit'))}/"
+                f"{_text(record.get('denominator_unit'))}"
+                if _text(record.get("numerator_unit"))
+                and _text(record.get("denominator_unit"))
+                else _text(record.get("numerator_unit"))
+            ),
+            "validation_messages": "",
+            "created_at": _text(snapshot.get("retrieved_at")),
         }
         candidates = pd.concat([candidates, pd.DataFrame([row])], ignore_index=True)
         existing_ids.add(cand_id)
@@ -1907,6 +2070,29 @@ def _parse_date(value: str) -> date | None:
     return date(int(stamp.year), int(stamp.month), int(stamp.day))
 
 
+def _official_applicability_issues(candidate: dict[str, Any] | pd.Series) -> list[str]:
+    """Fail closed when official applicability is missing or copied from a notice."""
+    issues: list[str] = []
+    valid_from = _parse_date(_text(candidate.get("valid_from")))
+    valid_to = _parse_date(_text(candidate.get("valid_to")))
+    publication_date = _parse_date(_text(candidate.get("publication_date")))
+    if valid_from is None:
+        issues.append(
+            "official applicability period is missing; "
+            "publication_date is not a substitute for valid_from; "
+            "manual_review_required"
+        )
+    elif valid_to is not None and valid_from > valid_to:
+        issues.append("valid_from must be on or before valid_to")
+    if (
+        publication_date is not None
+        and valid_from is not None
+        and publication_date == valid_from
+    ):
+        issues.append("publication_date must not be used as valid_from")
+    return issues
+
+
 def validate_candidate_row(candidate: dict[str, Any] | pd.Series) -> list[str]:
     """Return validation issue messages; empty list means passed."""
     issues: list[str] = []
@@ -1916,15 +2102,25 @@ def validate_candidate_row(candidate: dict[str, Any] | pd.Series) -> list[str]:
         return issues
 
     ref_type = _text(candidate.get("reference_type"))
+    candidate_type = _text(candidate.get("candidate_type")) or ref_type
+    if candidate_type == REF_TYPE_STEEL or ref_type == REF_TYPE_STEEL:
+        issues.append(
+            "purchased_steel average-data factors cannot be auto-activated; "
+            "no approved steel coefficient is configured."
+        )
+        return issues
+
     value_text = _text(candidate.get("factor_value"))
     try:
-        number = float(value_text)
-    except ValueError:
+        number = Decimal(value_text.replace(",", ""))
+    except (InvalidOperation, ValueError):
         issues.append("factor_value is not numeric")
-        number = math.nan
-    if not math.isfinite(number) or number <= 0:
-        issues.append("factor_value must be a finite number greater than zero")
+        number = None
+    if number is None or not number.is_finite() or number <= 0:
+        issues.append("factor_value must be a finite Decimal greater than zero")
 
+    if not _text(candidate.get("source_id")):
+        issues.append("source_id is required")
     if not _text(candidate.get("factor_year")):
         issues.append("factor_year is required")
     if not _text(candidate.get("geography")):
@@ -1935,6 +2131,11 @@ def validate_candidate_row(candidate: dict[str, Any] | pd.Series) -> list[str]:
         issues.append("snapshot_id is required")
     if not _text(candidate.get("parser_version")):
         issues.append("parser_version is required")
+    if not (
+        _text(candidate.get("source_sha256"))
+        or _text(candidate.get("snapshot_id"))
+    ):
+        issues.append("source snapshot hash or snapshot_id is required")
 
     if ref_type in ELECTRICITY_CANDIDATE_REF_TYPES:
         if _text(candidate.get("activity_type")) != "grid_electricity":
@@ -1979,8 +2180,51 @@ def validate_candidate_row(candidate: dict[str, Any] | pd.Series) -> list[str]:
     if ref_type == "fuel_heating_values":
         if not _text(candidate.get("factor_category")):
             issues.append("fuel_type/factor_category is required")
-        if _text(candidate.get("numerator_unit")) not in SUPPORTED_HEATING_UNITS:
+        unit = _text(candidate.get("numerator_unit"))
+        combined = _text(candidate.get("factor_unit"))
+        if (
+            unit not in SUPPORTED_HEATING_UNITS
+            and combined not in SUPPORTED_HEATING_UNITS
+            and unit not in {"kcal", "MJ"}
+        ):
             issues.append("unsupported heating-value unit")
+
+    if ref_type in {REF_TYPE_FUEL_EF, REF_TYPE_GENERAL_EF}:
+        if not _text(candidate.get("activity_type")):
+            issues.append("activity_type is required")
+        if not _text(candidate.get("gas")):
+            issues.append("gas is required")
+        context = _text(candidate.get("factor_context")) or _text(
+            candidate.get("combustion_context")
+        )
+        if not context:
+            issues.append("factor_context/combustion_context is required")
+        if not _text(candidate.get("geography")):
+            issues.append("geography is required")
+        if _text(candidate.get("denominator_unit")) != "TJ":
+            issues.append("fuel emission factor denominator_unit must be TJ")
+        if _text(candidate.get("numerator_unit")) not in {
+            "kgCO2",
+            "kgCH4",
+            "kgN2O",
+        }:
+            issues.append("unsupported fuel emission-factor numerator_unit")
+        issues.extend(_official_applicability_issues(candidate))
+
+    if ref_type == REF_TYPE_GWP:
+        if not _text(candidate.get("gas")):
+            issues.append("GWP gas is required")
+        context = _text(candidate.get("factor_context")) or _text(
+            candidate.get("combustion_context")
+        )
+        if not context:
+            issues.append("GWP emission context is required")
+        basis = _text(candidate.get("assessment_basis"))
+        if basis not in SUPPORTED_GWP_ASSESSMENTS:
+            issues.append("GWP assessment_basis must be an explicit AR5 or AR6 value")
+        if not _text(candidate.get("geography")):
+            issues.append("geography is required")
+        issues.extend(_official_applicability_issues(candidate))
 
     return issues
 
@@ -1989,9 +2233,17 @@ def validate_candidates(
     candidates_csv: Path,
     *,
     candidate_ids: list[str] | None = None,
+    official_sources_csv: Path | None = None,
 ) -> pd.DataFrame:
     """Validate pending candidates and update lifecycle/validation fields."""
     candidates = _read_csv(candidates_csv, CANDIDATE_COLUMNS)
+    allowed_source_ids: set[str] | None = None
+    if official_sources_csv is not None and Path(official_sources_csv).is_file():
+        sources = load_official_sources(official_sources_csv)
+        allowed_source_ids = {
+            _text(value) for value in sources.get("source_id", pd.Series(dtype=str))
+            if _text(value)
+        }
     if candidates.empty:
         return candidates
     for index, row in candidates.iterrows():
@@ -2000,6 +2252,11 @@ def validate_candidates(
         if _text(row.get("lifecycle_status")) == LIFECYCLE_ACTIVE:
             continue
         issues = validate_candidate_row(row)
+        source_id = _text(row.get("source_id"))
+        if allowed_source_ids is not None and source_id not in allowed_source_ids:
+            issues.append(
+                "source_id is not an allowlisted official reference source"
+            )
         if issues:
             candidates.at[index, "validation_status"] = VALIDATION_FAILED
             if _text(row.get("lifecycle_status")) != LIFECYCLE_NEEDS_PARSER_REVIEW:
@@ -2011,6 +2268,9 @@ def validate_candidates(
             candidates.at[index, "reason"] = (
                 "Passed deterministic validation; not active until activation."
             )
+            candidates.at[index, "validation_messages"] = ""
+        if issues:
+            candidates.at[index, "validation_messages"] = "; ".join(issues)
     _write_csv(candidates_csv, candidates, CANDIDATE_COLUMNS)
     return candidates
 
@@ -2171,7 +2431,22 @@ def assert_candidate_ready_for_activation(
             f"Candidate {candidate_id} is missing factor_year.",
         )
     ref_type = _text(candidate.get("reference_type"))
-    if ref_type == "fuel_heating_values":
+    candidate_type = _text(candidate.get("candidate_type")) or ref_type
+    if candidate_type == REF_TYPE_STEEL or ref_type == REF_TYPE_STEEL:
+        raise ReferenceSyncError(
+            "STEEL_FACTOR_NOT_CONFIGURED",
+            "Purchased-steel average-data factors cannot be auto-activated.",
+        )
+    if ref_type == REF_TYPE_GWP:
+        if not (
+            _text(candidate.get("numerator_unit"))
+            or _text(candidate.get("factor_unit"))
+        ):
+            raise ReferenceSyncError(
+                "CANDIDATE_MISSING_UNITS",
+                f"Candidate {candidate_id} is missing GWP unit.",
+            )
+    elif ref_type == "fuel_heating_values":
         if not _text(candidate.get("numerator_unit")):
             raise ReferenceSyncError(
                 "CANDIDATE_MISSING_UNITS",
@@ -2218,16 +2493,123 @@ def assert_candidate_ready_for_activation(
         )
     valid_from = _parse_date(_text(candidate.get("valid_from")))
     valid_to = _parse_date(_text(candidate.get("valid_to")))
-    if valid_from is None or valid_to is None:
-        raise ReferenceSyncError(
-            "CANDIDATE_MISSING_VALIDITY",
-            f"Candidate {candidate_id} requires valid_from and valid_to.",
-        )
-    if valid_from > valid_to:
+    publication_date = _parse_date(_text(candidate.get("publication_date")))
+    if ref_type in ELECTRICITY_CANDIDATE_REF_TYPES:
+        if valid_from is None or valid_to is None:
+            raise ReferenceSyncError(
+                "CANDIDATE_MISSING_VALIDITY",
+                f"Candidate {candidate_id} requires valid_from and valid_to.",
+            )
+        if valid_from > valid_to:
+            raise ReferenceSyncError(
+                "CANDIDATE_INVALID_VALIDITY",
+                f"Candidate {candidate_id} has valid_from after valid_to.",
+            )
+    elif ref_type in {REF_TYPE_GWP, REF_TYPE_FUEL_EF, REF_TYPE_GENERAL_EF}:
+        if valid_from is None:
+            raise ReferenceSyncError(
+                "CANDIDATE_MISSING_VALIDITY",
+                (
+                    f"Candidate {candidate_id} requires an official "
+                    "applicability period; publication_date is not valid_from."
+                ),
+            )
+        if valid_to is not None and valid_from > valid_to:
+            raise ReferenceSyncError(
+                "CANDIDATE_INVALID_VALIDITY",
+                f"Candidate {candidate_id} has valid_from after valid_to.",
+            )
+        if publication_date is not None and publication_date == valid_from:
+            raise ReferenceSyncError(
+                "CANDIDATE_INVALID_VALIDITY",
+                f"Candidate {candidate_id} must not use publication_date "
+                "as valid_from.",
+            )
+    elif valid_from is not None and valid_to is not None and valid_from > valid_to:
         raise ReferenceSyncError(
             "CANDIDATE_INVALID_VALIDITY",
             f"Candidate {candidate_id} has valid_from after valid_to.",
         )
+
+
+def _portable_snapshot_path(snapshot: dict[str, Any]) -> str:
+    file_name = Path(_text(snapshot.get("file_name"))).name
+    if file_name:
+        return f"data/reference_snapshots/{file_name}"
+    text = _text(snapshot.get("local_path")).replace("\\", "/")
+    marker = "data/reference_snapshots/"
+    if marker in text:
+        return marker + text.split(marker)[-1]
+    return Path(text).name
+
+
+def _content_json(payload: dict[str, Any] | list[dict[str, Any]] | None) -> str:
+    if not payload:
+        return ""
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _active_fuel_duplicate_exists(
+    emission_factors: pd.DataFrame,
+    candidate: dict[str, Any],
+) -> bool:
+    if emission_factors.empty:
+        return False
+    context = _text(candidate.get("factor_context")) or _text(
+        candidate.get("combustion_context")
+    )
+    mask = (
+        (emission_factors["activity_type"] == _text(candidate.get("activity_type")))
+        & (emission_factors["combustion_context"] == context)
+        & (emission_factors["gas"] == _text(candidate.get("gas")))
+        & (emission_factors["factor_year"] == _text(candidate.get("factor_year")))
+        & (emission_factors["geography"] == _text(candidate.get("geography")))
+        & (
+            emission_factors["numerator_unit"]
+            == _text(candidate.get("numerator_unit"))
+        )
+        & (
+            emission_factors["denominator_unit"]
+            == _text(candidate.get("denominator_unit"))
+        )
+        & (emission_factors["valid_from"] == _text(candidate.get("valid_from")))
+        & (emission_factors["valid_to"] == _text(candidate.get("valid_to")))
+        & (emission_factors["factor_status"] != "inactive")
+    )
+    return not emission_factors.loc[mask].empty
+
+
+def _active_gwp_duplicate_exists(
+    gwp_values: pd.DataFrame,
+    candidate: dict[str, Any],
+) -> bool:
+    if gwp_values.empty:
+        return False
+    context = _text(candidate.get("factor_context")) or _text(
+        candidate.get("combustion_context")
+    )
+    mask = gwp_values["gas"].astype(str).str.strip() == _text(candidate.get("gas"))
+    mask &= gwp_values["emission_context"].astype(str).str.strip() == context
+    mask &= (
+        gwp_values["assessment_basis"].astype(str).str.strip()
+        == _text(candidate.get("assessment_basis"))
+    )
+    if "valid_from" in gwp_values.columns:
+        mask &= (
+            gwp_values["valid_from"].astype(str).str.strip()
+            == _text(candidate.get("valid_from"))
+        )
+    if "gwp_status" in gwp_values.columns:
+        mask &= gwp_values["gwp_status"].astype(str).str.strip() != "inactive"
+    return not gwp_values.loc[mask].empty
+
+
+def _fuel_required_conversion(activity_type: str) -> str:
+    if activity_type == "natural_gas":
+        return "verified_natural_gas_heating_value_m3_to_TJ"
+    if activity_type == "diesel":
+        return "verified_diesel_heating_value_L_to_TJ"
+    return "verified_fuel_heating_value"
 
 
 def activate_candidate(
@@ -2240,6 +2622,7 @@ def activate_candidate(
     fuel_heating_values_csv: Path,
     activated_at: str | pd.Timestamp | datetime,
     activated_by: str = "reference_sync",
+    gwp_values_csv: Path | None = None,
 ) -> dict[str, str]:
     """Activate one validated candidate into the local versioned registry.
 
@@ -2276,6 +2659,9 @@ def activate_candidate(
     assert snapshot_row is not None
     sha256 = _text(snapshot_row["sha256"])
     ref_type = _text(candidate.get("reference_type"))
+    previous_content = ""
+    new_content = ""
+    portable_path = _portable_snapshot_path(snapshot_row)
 
     if ref_type in ELECTRICITY_CANDIDATE_REF_TYPES:
         factors = _read_csv(
@@ -2397,6 +2783,140 @@ def activate_candidate(
             _write_csv(references_csv, references, list(ref_row.keys()))
         registry_table = "emission_factors"
         registry_id = factor_id
+        previous_content = _content_json(
+            [
+                row
+                for row in factors.to_dict(orient="records")
+                if _text(row.get("factor_id")) != factor_id
+                and _text(row.get("activity_type")) == "grid_electricity"
+                and _text(row.get("factor_year")) == year
+                and _text(row.get("gas")) == _text(factor_row.get("gas"))
+            ]
+        )
+        new_content = _content_json(factor_row)
+    elif ref_type in {REF_TYPE_FUEL_EF, REF_TYPE_GENERAL_EF}:
+        factors = _read_csv(emission_factors_csv, EMISSION_FACTOR_COLUMNS)
+        if _active_fuel_duplicate_exists(factors, candidate):
+            raise ReferenceSyncError(
+                "DUPLICATE_ACTIVE_FACTOR",
+                "An active fuel emission factor with identical identity "
+                "already exists.",
+            )
+        activity_type = _text(candidate.get("activity_type"))
+        context = _text(candidate.get("factor_context")) or _text(
+            candidate.get("combustion_context")
+        )
+        gas = _text(candidate.get("gas"))
+        year = _text(candidate.get("factor_year"))
+        factor_id = (
+            f"ef_{activity_type}_{context}_{gas}_{year}_{sha256[:8]}"
+        )
+        if factor_id in set(factors["factor_id"].tolist()):
+            factor_id = f"{factor_id}_{candidate_id[-8:]}"
+        conversion = _fuel_required_conversion(activity_type)
+        previous_content = _content_json(
+            [
+                row
+                for row in factors.to_dict(orient="records")
+                if _text(row.get("activity_type")) == activity_type
+                and _text(row.get("combustion_context")) == context
+                and _text(row.get("gas")) == gas
+            ]
+        )
+        factor_row = {
+            "factor_id": factor_id,
+            "activity_type": activity_type,
+            "combustion_context": context,
+            "gas": gas,
+            "factor_value": _text(candidate.get("factor_value")),
+            "numerator_unit": _text(candidate.get("numerator_unit")),
+            "denominator_unit": _text(candidate.get("denominator_unit")),
+            "geography": _text(candidate.get("geography")) or "TW_reference",
+            "factor_year": year,
+            "valid_from": _text(candidate.get("valid_from")),
+            "valid_to": _text(candidate.get("valid_to")),
+            "source_reference_id": (
+                f"ref_sync_{_text(candidate.get('source_id'))}_{year}"
+            ),
+            "source_locator": (
+                f"{_text(candidate.get('source_locator'))}; "
+                f"snapshot={candidate['snapshot_id']}; sha256={sha256}"
+            ),
+            "factor_status": "registered_missing_conversion",
+            "required_conversion": conversion,
+            "notes": (
+                f"Activated from official sync candidate {candidate_id}. "
+                "Append-only; historical fuel-factor rows were not overwritten. "
+                f"publication_date="
+                f"{_text(candidate.get('publication_date')) or 'unknown'} "
+                "(publication_date is not validity)."
+            ),
+        }
+        new_content = _content_json(factor_row)
+        factors = pd.concat([factors, pd.DataFrame([factor_row])], ignore_index=True)
+        _write_csv(emission_factors_csv, factors, EMISSION_FACTOR_COLUMNS)
+        registry_table = "emission_factors"
+        registry_id = factor_id
+    elif ref_type == REF_TYPE_GWP:
+        gwp_path = (
+            Path(gwp_values_csv)
+            if gwp_values_csv is not None
+            else emission_factors_csv.parent / "gwp_values.csv"
+        )
+        gwp_values = _read_csv(gwp_path, GWP_COLUMNS)
+        if _active_gwp_duplicate_exists(gwp_values, candidate):
+            raise ReferenceSyncError(
+                "DUPLICATE_ACTIVE_FACTOR",
+                "An active GWP row with identical gas, context, assessment "
+                "basis, and valid_from already exists.",
+            )
+        gas = _text(candidate.get("gas"))
+        context = _text(candidate.get("factor_context")) or _text(
+            candidate.get("combustion_context")
+        )
+        basis = _text(candidate.get("assessment_basis"))
+        year = _text(candidate.get("factor_year"))
+        gwp_id = (
+            f"gwp_{basis.replace(' ', '_').lower()}_"
+            f"{gas}_{context}_{year}_{sha256[:8]}"
+        )
+        gwp_id = re.sub(r"[^A-Za-z0-9_]+", "_", gwp_id)
+        previous_content = _content_json(
+            [
+                row
+                for row in gwp_values.to_dict(orient="records")
+                if _text(row.get("gas")) == gas
+                and _text(row.get("emission_context")) == context
+            ]
+        )
+        gwp_row = {
+            "gwp_id": gwp_id,
+            "gas": gas,
+            "gwp_value": _text(candidate.get("factor_value")),
+            "emission_context": context,
+            "gwp_status": "ready",
+            "assessment_basis": basis,
+            "source_reference_id": (
+                f"ref_sync_{_text(candidate.get('source_id'))}_{year}"
+            ),
+            "source_locator": (
+                f"{_text(candidate.get('source_locator'))}; "
+                f"snapshot={candidate['snapshot_id']}; sha256={sha256}"
+            ),
+            "valid_from": _text(candidate.get("valid_from")),
+            "notes": (
+                f"Activated from official sync candidate {candidate_id}. "
+                "Append-only; prior-year GWP rows were not rewritten. "
+                f"assessment_basis={basis}."
+            ),
+        }
+        new_content = _content_json(gwp_row)
+        gwp_values = pd.concat(
+            [gwp_values, pd.DataFrame([gwp_row])], ignore_index=True
+        )
+        _write_csv(gwp_path, gwp_values, GWP_COLUMNS)
+        registry_table = "gwp_values"
+        registry_id = gwp_id
     elif ref_type == "fuel_heating_values":
         heating = _read_csv(fuel_heating_values_csv, HEATING_VALUE_COLUMNS)
         fuel = _text(candidate.get("factor_category"))
@@ -2419,13 +2939,21 @@ def activate_candidate(
             "source_locator": _text(candidate.get("source_locator")),
             "snapshot_id": _text(candidate.get("snapshot_id")),
             "snapshot_sha256": sha256,
-            "snapshot_local_path": _text(snapshot_row.get("local_path")),
+            "snapshot_local_path": portable_path,
             "status": "registered",
             "notes": (
                 "Versioned heating-value reference. Does not automatically "
                 "clear calculation_dependencies or invent conversions."
             ),
         }
+        previous_content = _content_json(
+            [
+                row
+                for row in heating.to_dict(orient="records")
+                if _text(row.get("fuel_type")) == fuel
+            ]
+        )
+        new_content = _content_json(heating_row)
         heating = pd.concat([heating, pd.DataFrame([heating_row])], ignore_index=True)
         _write_csv(fuel_heating_values_csv, heating, HEATING_VALUE_COLUMNS)
         registry_table = "fuel_heating_values"
@@ -2469,6 +2997,9 @@ def activate_candidate(
             "Historical rows preserved; prior years not overwritten. "
             "Activated exactly one selected candidate_id."
         ),
+        "source_snapshot_path": portable_path,
+        "previous_content": previous_content,
+        "new_content": new_content,
     }
     activations = pd.concat(
         [activations, pd.DataFrame([activation_row])],
@@ -2483,6 +3014,331 @@ def activate_candidate(
     )
     _write_csv(candidates_csv, candidates, CANDIDATE_COLUMNS)
     return {key: _text(value) for key, value in activation_row.items()}
+
+
+def _percent_change(old_value: str, new_value: str) -> str:
+    try:
+        old = Decimal(old_value.replace(",", ""))
+        new = Decimal(new_value.replace(",", ""))
+    except (InvalidOperation, ValueError, AttributeError):
+        return ""
+    if not old.is_finite() or not new.is_finite() or old == 0:
+        return ""
+    change = ((new - old) / old) * Decimal("100")
+    return format(change.quantize(Decimal("0.01")), "f")
+
+
+def _current_registry_value(
+    *,
+    ref_type: str,
+    candidate: dict[str, Any],
+    emission_factors: pd.DataFrame,
+    heating: pd.DataFrame,
+    gwp_values: pd.DataFrame,
+) -> dict[str, str]:
+    empty = {
+        "factor_id": "",
+        "factor_value": "",
+        "factor_unit": "",
+        "valid_from": "",
+        "valid_to": "",
+    }
+    if ref_type in ELECTRICITY_CANDIDATE_REF_TYPES:
+        year = _text(candidate.get("factor_year"))
+        category = _text(candidate.get("factor_category")) or "unspecified"
+        rows = emission_factors.loc[
+            (emission_factors["activity_type"] == "grid_electricity")
+            & (emission_factors["factor_year"] == year)
+            & (emission_factors["factor_status"] != "inactive")
+        ]
+        for _, row in rows.iterrows():
+            notes = _text(row.get("notes"))
+            factor_id = _text(row.get("factor_id"))
+            if f"category={category}" in notes or factor_id.endswith(f"_{category}"):
+                return {
+                    "factor_id": factor_id,
+                    "factor_value": _text(row.get("factor_value")),
+                    "factor_unit": (
+                        f"{_text(row.get('numerator_unit'))}/"
+                        f"{_text(row.get('denominator_unit'))}"
+                    ),
+                    "valid_from": _text(row.get("valid_from")),
+                    "valid_to": _text(row.get("valid_to")),
+                }
+        return empty
+    if ref_type in {REF_TYPE_FUEL_EF, REF_TYPE_GENERAL_EF}:
+        context = _text(candidate.get("factor_context")) or _text(
+            candidate.get("combustion_context")
+        )
+        rows = emission_factors.loc[
+            (emission_factors["activity_type"] == _text(candidate.get("activity_type")))
+            & (emission_factors["combustion_context"] == context)
+            & (emission_factors["gas"] == _text(candidate.get("gas")))
+            & (emission_factors["factor_status"] != "inactive")
+        ]
+        if rows.empty:
+            return empty
+        row = rows.iloc[-1]
+        return {
+            "factor_id": _text(row.get("factor_id")),
+            "factor_value": _text(row.get("factor_value")),
+            "factor_unit": (
+                f"{_text(row.get('numerator_unit'))}/"
+                f"{_text(row.get('denominator_unit'))}"
+            ),
+            "valid_from": _text(row.get("valid_from")),
+            "valid_to": _text(row.get("valid_to")),
+        }
+    if ref_type == REF_TYPE_GWP:
+        context = _text(candidate.get("factor_context")) or _text(
+            candidate.get("combustion_context")
+        )
+        rows = gwp_values.loc[
+            (gwp_values["gas"].astype(str).str.strip() == _text(candidate.get("gas")))
+            & (gwp_values["emission_context"].astype(str).str.strip() == context)
+        ]
+        if rows.empty:
+            return empty
+        row = rows.iloc[-1]
+        return {
+            "factor_id": _text(row.get("gwp_id")),
+            "factor_value": _text(row.get("gwp_value")),
+            "factor_unit": "GWP",
+            "valid_from": _text(row.get("valid_from")),
+            "valid_to": "",
+        }
+    if ref_type == REF_TYPE_HEATING:
+        rows = heating.loc[
+            heating["fuel_type"].astype(str).str.strip()
+            == _text(candidate.get("factor_category"))
+        ]
+        if rows.empty:
+            return empty
+        row = rows.iloc[-1]
+        return {
+            "factor_id": _text(row.get("heating_value_id")),
+            "factor_value": _text(row.get("heating_value")),
+            "factor_unit": _text(row.get("unit")),
+            "valid_from": _text(row.get("valid_from")),
+            "valid_to": _text(row.get("valid_to")),
+        }
+    return empty
+
+
+def _affected_calculation_types(ref_type: str, candidate: dict[str, Any]) -> list[str]:
+    if ref_type in ELECTRICITY_CANDIDATE_REF_TYPES:
+        return ["grid_electricity"]
+    if ref_type in {REF_TYPE_FUEL_EF, REF_TYPE_GENERAL_EF}:
+        activity = _text(candidate.get("activity_type"))
+        return [activity] if activity else ["fuel_combustion"]
+    if ref_type == REF_TYPE_GWP:
+        context = _text(candidate.get("factor_context")) or _text(
+            candidate.get("combustion_context")
+        )
+        if context == "refrigerant_fugitive":
+            return ["refrigerant_refill"]
+        return ["natural_gas", "diesel"]
+    if ref_type == REF_TYPE_HEATING:
+        fuel = _text(candidate.get("factor_category"))
+        return [fuel] if fuel else ["fuel_combustion"]
+    if ref_type == REF_TYPE_STEEL:
+        return ["purchased_steel"]
+    return []
+
+
+def propose_official_factor_update(
+    repo_root: Path,
+    *,
+    retrieved_at: str = "",
+) -> dict[str, Any]:
+    """Build a review bundle. Never activates coefficients and never merges."""
+    paths = default_paths(repo_root)
+    validate_candidates(
+        paths["candidates_csv"],
+        official_sources_csv=paths["sources"],
+    )
+    candidates = _read_csv(paths["candidates_csv"], CANDIDATE_COLUMNS)
+    snapshots = _read_csv(paths["snapshots_csv"], SNAPSHOT_COLUMNS)
+    factors = _read_csv(paths["emission_factors"], EMISSION_FACTOR_COLUMNS)
+    heating = _read_csv(paths["fuel_heating_values"], HEATING_VALUE_COLUMNS)
+    gwp_values = _read_csv(paths["gwp_values"], GWP_COLUMNS)
+
+    items: list[dict[str, Any]] = []
+    cannot_activate: list[dict[str, Any]] = []
+    activatable: list[str] = []
+    manual_review = False
+    snapshot_hashes: list[str] = []
+
+    for _, candidate in candidates.iterrows():
+        row = {column: _text(candidate.get(column)) for column in CANDIDATE_COLUMNS}
+        ref_type = row["reference_type"]
+        lifecycle = row["lifecycle_status"]
+        snap = snapshots.loc[snapshots["snapshot_id"] == row["snapshot_id"]]
+        snapshot = snap.iloc[0].to_dict() if not snap.empty else {}
+        sha256 = row["source_sha256"] or _text(snapshot.get("sha256"))
+        if sha256:
+            snapshot_hashes.append(sha256)
+        current = _current_registry_value(
+            ref_type=ref_type,
+            candidate=row,
+            emission_factors=factors,
+            heating=heating,
+            gwp_values=gwp_values,
+        )
+        item = {
+            "candidate_id": row["candidate_id"],
+            "candidate_type": row["candidate_type"] or ref_type,
+            "target_registry": row["target_registry"],
+            "source_id": row["source_id"],
+            "source_url": row["source_url"] or _text(snapshot.get("retrieved_url")),
+            "source_sha256": sha256,
+            "source_snapshot_path": _portable_snapshot_path(snapshot)
+            if snapshot
+            else row["source_snapshot_path"],
+            "activity_type": row["activity_type"],
+            "gas": row["gas"],
+            "factor_context": row["factor_context"] or row["combustion_context"],
+            "assessment_basis": row["assessment_basis"],
+            "geography": row["geography"],
+            "old_value": current["factor_value"],
+            "new_value": row["factor_value"],
+            "unit": row["factor_unit"]
+            or (
+                f"{row['numerator_unit']}/{row['denominator_unit']}"
+                if row["numerator_unit"] and row["denominator_unit"]
+                else row["numerator_unit"]
+            ),
+            "old_factor_id": current["factor_id"],
+            "valid_from": row["valid_from"],
+            "valid_to": row["valid_to"],
+            "factor_year": row["factor_year"],
+            "publication_date": row["publication_date"]
+            or _text(snapshot.get("publication_date")),
+            "percent_change": _percent_change(
+                current["factor_value"], row["factor_value"]
+            ),
+            "affected_calculation_types": _affected_calculation_types(
+                ref_type, row
+            ),
+            "validation_status": row["validation_status"],
+            "lifecycle_status": lifecycle,
+            "validation_messages": row["validation_messages"] or row["reason"],
+            "manual_review_required": lifecycle
+            in {LIFECYCLE_NEEDS_PARSER_REVIEW, STATUS_MANUAL_REVIEW_REQUIRED}
+            or row["validation_status"] == VALIDATION_FAILED,
+        }
+        if lifecycle == LIFECYCLE_ACTIVE:
+            continue
+        if (
+            lifecycle == LIFECYCLE_VALIDATED
+            and row["validation_status"] == VALIDATION_PASSED
+            and ref_type != REF_TYPE_STEEL
+        ):
+            item["can_activate"] = True
+            activatable.append(row["candidate_id"])
+        else:
+            item["can_activate"] = False
+            reason = row["validation_messages"] or row["reason"] or lifecycle
+            if ref_type == REF_TYPE_STEEL:
+                reason = (
+                    "No approved purchased-steel average-data factor is configured."
+                )
+            cannot_activate.append(
+                {
+                    "candidate_id": row["candidate_id"],
+                    "reason": reason,
+                    "source_id": row["source_id"],
+                }
+            )
+            manual_review = True
+        items.append(item)
+
+    unique_hashes = sorted(set(snapshot_hashes))
+    open_pr = bool(activatable)
+    proposal = {
+        "generated_at": retrieved_at or "",
+        "open_pr": open_pr,
+        "same_hash_noop": not items and not unique_hashes,
+        "manual_review_required": manual_review,
+        "activatable_candidate_ids": activatable,
+        "snapshot_sha256": unique_hashes,
+        "items": items,
+        "cannot_activate": cannot_activate,
+        "notes": [
+            "This proposal never auto-merges and never silently replaces "
+            "production coefficients.",
+            "Merging the review PR is the human approval that activates "
+            "the new versioned registry rows.",
+            "Purchased-steel average-data factors are not configured in v1.",
+        ],
+    }
+    paths["proposal_json"].write_text(
+        json.dumps(proposal, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    md_lines = [
+        "# Official factor update review",
+        "",
+        "Merging this PR is **human approval** to enable the new versioned",
+        "registry rows. The workflow must **not** auto-merge.",
+        "",
+        f"- Open PR recommended: `{open_pr}`",
+        f"- Manual review required: `{manual_review}`",
+        f"- Activatable candidates: `{len(activatable)}`",
+        "",
+        "## Snapshot hashes",
+        "",
+    ]
+    if unique_hashes:
+        md_lines.extend(f"- `{digest}`" for digest in unique_hashes)
+    else:
+        md_lines.append("- (none)")
+    md_lines.extend(["", "## Proposed changes", ""])
+    if not items:
+        md_lines.append("No pending candidates.")
+    for item in items:
+        md_lines.extend(
+            [
+                f"### {item['candidate_id']}",
+                "",
+                f"- Official source: `{item['source_id']}`",
+                f"- Source URL: {item['source_url'] or '(missing)'}",
+                f"- Snapshot SHA-256: `{item['source_sha256'] or '(missing)'}`",
+                f"- Old value: {item['old_value'] or '(none)'} {item['unit']}",
+                f"- New value: {item['new_value'] or '(none)'} {item['unit']}",
+                f"- Unit: {item['unit'] or '(missing)'}",
+                f"- Applicable activity: {item['activity_type'] or '(missing)'}",
+                (
+                    f"- Applicable period: {item['valid_from'] or '(open)'} → "
+                    f"{item['valid_to'] or '(open)'}"
+                    f" (factor_year={item['factor_year'] or 'n/a'}; "
+                    f"publication_date={item['publication_date'] or 'n/a'})"
+                ),
+                f"- Change percent: {item['percent_change'] or 'n/a'}",
+                "- Affected calculation types: "
+                + (", ".join(item["affected_calculation_types"]) or "(none)"),
+                (
+                    f"- Validation: {item['validation_status']} / "
+                    f"{item['lifecycle_status']}"
+                ),
+                f"- Manual handling: {item['manual_review_required']}",
+                f"- Can activate: {item['can_activate']}",
+                "",
+            ]
+        )
+    md_lines.extend(["## Cannot activate", ""])
+    if not cannot_activate:
+        md_lines.append("- None.")
+    else:
+        for blocked in cannot_activate:
+            md_lines.append(
+                f"- `{blocked['candidate_id']}` ({blocked['source_id']}): "
+                f"{blocked['reason']}"
+            )
+    paths["proposal_md"].write_text("\n".join(md_lines) + "\n", encoding="utf-8")
+    proposal["proposal_json"] = str(paths["proposal_json"])
+    proposal["proposal_md"] = str(paths["proposal_md"])
+    return proposal
 
 
 def build_change_report(
@@ -2606,7 +3462,7 @@ def check_official_sources(
                 f"{fetched.byte_size} bytes."
             )
         except ReferenceSyncError as exc:
-            item["status"] = "unavailable"
+            item["status"] = _fetch_failure_status(exc)
             item["message"] = f"{exc.code}: {exc.message}"
         results.append(item)
     return results
@@ -2691,8 +3547,9 @@ def fetch_and_stage_sources(
             reports.append(
                 {
                     "source_id": source_id,
-                    "status": "unavailable",
+                    "status": _fetch_failure_status(exc),
                     "message": f"{exc.code}: {exc.message}",
+                    "candidates_created": 0,
                 }
             )
             continue
@@ -2711,7 +3568,10 @@ def fetch_and_stage_sources(
                     for col in SNAPSHOT_COLUMNS
                 }
             existing = find_snapshot_by_sha(snapshots, landing_fetch.sha256)
-            already_known = existing is not None
+            already_known = (
+                existing is not None
+                and _text(existing.get("source_id")) == source_id
+            )
             source_for_snapshot = {
                 column: _text(source.get(column)) for column in SOURCE_COLUMNS
             }
@@ -2844,13 +3704,14 @@ def fetch_and_stage_sources(
                 reports.append(
                     {
                         "source_id": source_id,
-                        "status": "unavailable",
+                        "status": _fetch_failure_status(exc),
                         "message": (
                             "Landing page reachable but artifact fetch failed: "
                             f"{exc.code}: {exc.message}"
                         ),
                         "discovered_artifact_url": discovery.artifact_url,
                         "retrieval_strategy": retrieval_strategy,
+                        "candidates_created": 0,
                     }
                 )
                 continue
@@ -2869,7 +3730,10 @@ def fetch_and_stage_sources(
             }
 
         existing = find_snapshot_by_sha(snapshots, fetched.sha256)
-        already_known = existing is not None
+        already_known = (
+            existing is not None
+            and _text(existing.get("source_id")) == source_id
+        )
         expected_type = _text(source["expected_file_type"])
         if used_attachment_discovery:
             path = urlparse(fetched.final_url).path.lower()

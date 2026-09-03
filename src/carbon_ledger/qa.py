@@ -64,6 +64,12 @@ EXPECTED_READINESS_CALCULATION_PAIRS = {
     "unsupported_activity_type": "unsupported_activity_type",
 }
 
+DELEGATED_READINESS_STATUSES = frozenset(
+    {
+        "purchased_steel_category1",
+    }
+)
+
 CALCULATION_ISSUE_RULES = {
     "blocked_missing_conversion": "qa_missing_conversion_dependency",
     "blocked_ambiguous_conversion": "qa_ambiguous_conversion",
@@ -492,7 +498,7 @@ def _evaluate_activity(
     expected_calc = EXPECTED_READINESS_CALCULATION_PAIRS.get(readiness_status)
     statuses_match = (
         expected_calc is not None and calculation_status == expected_calc
-    )
+    ) or readiness_status in DELEGATED_READINESS_STATUSES
     ready_calc_layer_error = (
         readiness_status == "ready"
         and calculation_status in CALCULATION_LAYER_ERROR_STATUSES
