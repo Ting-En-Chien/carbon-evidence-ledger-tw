@@ -32,6 +32,7 @@ from carbon_ledger.intake import (
     list_xlsx_sheet_names,
     load_raw_tabular_frame,
     parse_uploaded_table,
+    purchased_steel_missing_fields,
     rank_xlsx_worksheets,
     reference_only_columns,
     suggest_column_mapping_with_confidence,
@@ -313,6 +314,21 @@ def _accepted_readiness_rows(accepted: pd.DataFrame) -> pd.DataFrame:
             process_use=str(row.get("process_use") or ""),
             activity_start=row.get("activity_start_date"),
             activity_end=row.get("activity_end_date"),
+            calculation_method=str(row.get("calculation_method") or ""),
+            supplier_name=str(row.get("supplier_name") or ""),
+            steel_product_type=str(row.get("steel_product_type") or ""),
+            product_identifier=str(row.get("product_identifier") or ""),
+            emission_factor_value=row.get("emission_factor_value"),
+            emission_factor_unit=str(row.get("emission_factor_unit") or ""),
+            factor_boundary=str(row.get("factor_boundary") or ""),
+            factor_year=row.get("factor_year"),
+            factor_source_id=str(row.get("factor_source_id") or ""),
+            evidence_reference=str(row.get("evidence_reference") or ""),
+            source_document_id=str(row.get("source_document_id") or ""),
+            includes_tier1_to_reporting_company_transport=row.get(
+                "includes_tier1_to_reporting_company_transport"
+            ),
+            factor_geography=str(row.get("factor_geography") or ""),
         )
         for _, row in rows.iterrows()
     ]
@@ -343,7 +359,47 @@ def _accepted_review_preview(
         lambda value: customer_site_display(value, lang)
     )
     preview["status"] = status
-    preview["issue"] = issue
+    issues: list[str] = []
+    for _, row in rows.iterrows():
+        if str(row.get("activity_type") or "") != "purchased_steel":
+            issues.append(issue)
+            continue
+        inbound = str(
+            row.get("includes_tier1_to_reporting_company_transport") or ""
+        ).strip().lower()
+        if inbound == "true":
+            issues.append(t("intake.issue.steel_inbound", lang))
+            continue
+        missing = purchased_steel_missing_fields(
+            calculation_method=str(row.get("calculation_method") or ""),
+            supplier_name=str(row.get("supplier_name") or ""),
+            steel_product_type=str(row.get("steel_product_type") or ""),
+            product_identifier=str(row.get("product_identifier") or ""),
+            emission_factor_value=row.get("emission_factor_value"),
+            emission_factor_unit=str(row.get("emission_factor_unit") or ""),
+            factor_boundary=str(row.get("factor_boundary") or ""),
+            factor_year=row.get("factor_year"),
+            factor_source_id=str(row.get("factor_source_id") or ""),
+            evidence_reference=str(row.get("evidence_reference") or ""),
+            source_document_id=str(row.get("source_document_id") or ""),
+            includes_tier1_to_reporting_company_transport=row.get(
+                "includes_tier1_to_reporting_company_transport"
+            ),
+            factor_geography=str(row.get("factor_geography") or ""),
+        )
+        if missing == ("calculation_method",):
+            issues.append(t("intake.issue.steel_no_method", lang))
+            continue
+        if missing:
+            labels = [
+                customer_schema_label(name, lang) for name in missing
+            ]
+            issues.append(
+                t("intake.issue.steel_missing", lang, fields="、".join(labels))
+            )
+            continue
+        issues.append(issue)
+    preview["issue"] = issues
     return preview.rename(
         columns={
             "activity_type": t("intake.field.activity_type", lang),

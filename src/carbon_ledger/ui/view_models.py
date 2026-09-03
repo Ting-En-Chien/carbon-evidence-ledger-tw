@@ -44,6 +44,23 @@ CUSTOMER_SCHEMA_LABEL_KEYS = {
     "organizational_boundary_status": (
         "intake.field.organizational_boundary_status"
     ),
+    "calculation_method": "intake.field.calculation_method",
+    "supplier_name": "intake.field.supplier_name",
+    "steel_product_type": "intake.field.steel_product_type",
+    "product_identifier": "intake.field.product_identifier",
+    "emission_factor_value": "intake.field.emission_factor_value",
+    "emission_factor_unit": "intake.field.emission_factor_unit",
+    "factor_boundary": "intake.field.factor_boundary",
+    "factor_geography": "intake.field.factor_geography",
+    "factor_year": "intake.field.factor_year",
+    "factor_source_id": "intake.field.factor_source_id",
+    "evidence_reference": "intake.field.evidence_reference",
+    "includes_pre_tier1_supply_chain_transport": (
+        "intake.field.includes_pre_tier1_transport"
+    ),
+    "includes_tier1_to_reporting_company_transport": (
+        "intake.field.includes_inbound_transport"
+    ),
 }
 
 _UNCONFIRMED_SITE_TOKENS = frozenset(
@@ -122,9 +139,19 @@ def calculation_label(status: str, lang: str = DEFAULT_LANG) -> str:
     return status_label(status, lang)
 
 
-def calculation_explanation(status: str, lang: str = DEFAULT_LANG) -> str:
+def calculation_explanation(
+    status: str,
+    lang: str = DEFAULT_LANG,
+    *,
+    activity_type: str = "",
+) -> str:
     """Return a short explanation for a calculation status."""
     key = _text(status)
+    if _text(activity_type) == "purchased_steel":
+        steel_key = f"explain.steel.{key}"
+        labeled = t(steel_key, lang)
+        if labeled != steel_key:
+            return labeled
     msg = f"explain.{key}"
     if msg in {
         "explain.calculated",
@@ -134,6 +161,9 @@ def calculation_explanation(status: str, lang: str = DEFAULT_LANG) -> str:
         "explain.not_emissions_activity",
     }:
         return t(msg, lang)
+    known = t(msg, lang)
+    if known != msg:
+        return known
     return t("explain.no_factor_configured", lang)
 
 
@@ -323,6 +353,11 @@ def build_activity_overview(
                 ),
                 "calculation_status": calc_status,
                 "calculation_label": calculation_label(calc_status, lang),
+                "calculation_explanation": calculation_explanation(
+                    calc_status,
+                    lang,
+                    activity_type=activity_type,
+                ),
                 "calculated_tco2e": calculated_tco2e,
                 "ghg_label": (
                     ghg_display_label(_row_by_record(ghg, record_id), lang)
@@ -514,6 +549,93 @@ def company_inventory_emissions_summary(
         "scope_2": scope_2,
         "partial": True,
         "label": t("dash.kpi.inventory", lang),
+    }
+
+
+def _scope3_category1_rows(result: PipelineRunResult) -> pd.DataFrame:
+    """Calculated Scope 3 Category 1 rows from official output fields.
+
+    Category 1 is never inferred from activity type. Rows missing
+    ``ghg_scope`` or ``scope_3_category``, or whose values are not exactly
+    ``scope_3`` / ``category_1``, are excluded.
+    """
+    calculations = result.calculation_results.copy()
+    empty = pd.DataFrame()
+    if calculations.empty:
+        return empty
+    if "ghg_scope" not in calculations.columns:
+        return empty
+    if "scope_3_category" not in calculations.columns:
+        return empty
+    calculated = calculations[
+        calculations["calculation_status"].astype(str) == "calculated"
+    ].copy()
+    if calculated.empty:
+        return empty
+    scope = calculated["ghg_scope"].map(_text)
+    category = calculated["scope_3_category"].map(_text)
+    selected = calculated[
+        (scope == "scope_3") & (category == "category_1")
+    ].copy()
+    if selected.empty:
+        return empty
+    selected["calculated_tco2e"] = pd.to_numeric(
+        selected["calculated_tco2e"], errors="coerce"
+    )
+    selected = selected.dropna(subset=["calculated_tco2e"])
+    return selected.reset_index(drop=True)
+
+
+def scope3_category1_emissions_summary(
+    result: PipelineRunResult,
+    lang: str = DEFAULT_LANG,
+) -> dict[str, Any]:
+    """Independent Scope 3 Category 1 subtotal. Never added to Scope 1+2."""
+    rows = _scope3_category1_rows(result)
+    empty = {
+        "tco2e": None,
+        "row_count": 0,
+        "label": t("dash.scope3_cat1.title", lang),
+        "not_in_inventory": t("dash.scope3_cat1.not_in_inventory", lang),
+        "rows": [],
+    }
+    if rows.empty:
+        return empty
+    detail: list[dict[str, Any]] = []
+    for _, row in rows.iterrows():
+        factor_year = _text(row.get("factor_year"))
+        reporting_year = _text(row.get("reporting_year"))
+        temporal_warning = False
+        try:
+            if factor_year and reporting_year:
+                temporal_warning = int(factor_year) < int(reporting_year)
+        except (TypeError, ValueError):
+            temporal_warning = False
+        detail.append(
+            {
+                "record_id": _text(row.get("record_id")),
+                "tco2e": float(row["calculated_tco2e"]),
+                "calculation_method": _text(row.get("calculation_method")),
+                "supplier_name": _text(row.get("supplier_name")),
+                "steel_product_type": _text(row.get("steel_product_type"))
+                or _text(row.get("product_identifier")),
+                "factor_year": factor_year,
+                "reporting_year": reporting_year,
+                "factor_source_id": _text(row.get("factor_source_id"))
+                or _text(row.get("source_reference_id")),
+                "evidence_reference": _text(row.get("evidence_reference")),
+                "factor_boundary": _text(row.get("factor_boundary")),
+                "factor_geography": _text(row.get("factor_geography")),
+                "temporal_warning": temporal_warning,
+                "status_label": t("dash.scope3_cat1.estimated", lang),
+            }
+        )
+    return {
+        "tco2e": float(rows["calculated_tco2e"].sum()),
+        "row_count": int(len(rows)),
+        "label": t("dash.scope3_cat1.title", lang),
+        "not_in_inventory": t("dash.scope3_cat1.not_in_inventory", lang),
+        "rows": detail,
     }
 
 
@@ -1449,7 +1571,11 @@ def uncalculable_activity_cards(
                 "record_id": _text(row.get("record_id")),
                 "activity_name": _text(row.get("activity_name")),
                 "title": t("dash.uncalculable_title", lang),
-                "missing": calculation_explanation(status, lang),
+                "missing": calculation_explanation(
+                    status,
+                    lang,
+                    activity_type=_text(row.get("activity_type")),
+                ),
                 "next_step": calculation_next_action(status, lang),
                 "status": status,
             }
@@ -1485,9 +1611,20 @@ def priority_action_cards(
         elif status == "blocked_natural_gas_type_required":
             reason = t("explain.blocked_natural_gas_type_required", lang)
         elif status == "no_factor_configured":
-            reason = t("dash.priority.missing_factor", lang)
+            if activity_type == "purchased_steel":
+                reason = calculation_explanation(
+                    status,
+                    lang,
+                    activity_type=activity_type,
+                )
+            else:
+                reason = t("dash.priority.missing_factor", lang)
         else:
-            reason = calculation_explanation(status, lang)
+            reason = calculation_explanation(
+                status,
+                lang,
+                activity_type=activity_type,
+            )
         same_type = overview[
             overview["activity_type"].astype(str) == (activity_type or "")
         ]
@@ -1539,7 +1676,9 @@ def calculation_table_rows(
                 factor_value = None
             factor_id = _text(calc.get("factor_id"))
             registry = factor_registry_row(factor_id, repo_root=repo_root) or {}
-            factor_year = _text(registry.get("factor_year"))
+            factor_year = _text(calc.get("factor_year")) or _text(
+                registry.get("factor_year")
+            )
         if status == "calculated" and row.get("calculated_tco2e") is not None:
             emissions_cell: Any = float(row["calculated_tco2e"])
         elif status == "not_emissions_activity":
@@ -1814,8 +1953,18 @@ def reconcile_row_dispositions(
         if calc_status == "calculated":
             mapping_status = mapping_by_record.get(record_id, "")
             ghg_scope = ghg_scope_by_record.get(record_id, "")
+            activity_type = activity_type_by_record.get(record_id, "")
             if mapping_status == "outside_boundary":
                 by_row[source_row] = DISPOSITION_EXCLUDED_OUT_OF_SCOPE
+                continue
+            if activity_type == "purchased_steel" and (
+                not mapping_status
+                or (
+                    mapping_status == "mapped"
+                    and ghg_scope == "scope_3"
+                )
+            ):
+                by_row[source_row] = DISPOSITION_CALCULATED
                 continue
             if mapping_status == "mapped" and ghg_scope in {
                 "scope_1",
@@ -1920,7 +2069,11 @@ def activity_detail_context(
         "ifrs_s2": ifrs.to_dict() if ifrs is not None else {},
         "issues": record_issues,
         "calculation_label": calculation_label(calc_status, lang),
-        "calculation_explanation": calculation_explanation(calc_status, lang),
+        "calculation_explanation": calculation_explanation(
+            calc_status,
+            lang,
+            activity_type=_text(row.get("activity_type")),
+        ),
         "calculation_next_action": calculation_next_action(calc_status, lang),
     }
 

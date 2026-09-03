@@ -725,16 +725,81 @@ def gwp_context_for_combustion(combustion_context: str) -> str:
     return ""
 
 
+def _as_timestamp(value: Any) -> pd.Timestamp | None:
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return pd.Timestamp(parsed)
+
+
+def _gwp_covers_activity_date(
+    row: pd.Series,
+    activity_stamp: pd.Timestamp,
+    *,
+    has_valid_to: bool,
+) -> bool:
+    valid_from = _as_timestamp(row.get("valid_from"))
+    if valid_from is None or valid_from > activity_stamp:
+        return False
+    if not has_valid_to:
+        return True
+    valid_to = _as_timestamp(row.get("valid_to"))
+    if valid_to is None:
+        return True
+    return activity_stamp <= valid_to
+
+
+def _gwp_covers_full_calendar_year(
+    row: pd.Series,
+    year_start: pd.Timestamp,
+    year_end: pd.Timestamp,
+    *,
+    has_valid_to: bool,
+) -> bool:
+    valid_from = _as_timestamp(row.get("valid_from"))
+    if valid_from is None or valid_from > year_start:
+        return False
+    if not has_valid_to:
+        return True
+    valid_to = _as_timestamp(row.get("valid_to"))
+    if valid_to is None:
+        return True
+    return valid_to >= year_end
+
+
 def select_gwp_row(
     gwp_values: pd.DataFrame | None,
     *,
     gas: str,
     emission_context: str,
+    activity_date: Any = None,
+    assessment_basis: str | None = None,
+    reporting_year: int | None = None,
 ) -> pd.Series | None:
     """Return the unique ready GWP row for gas + emission context.
 
     Returns None when missing or ambiguous. Combustion callers must pass
     ``fuel_combustion``, never ``fossil_methane_process``.
+
+    When ``activity_date`` is provided, only rows with
+    ``valid_from <= activity_date`` and a blank ``valid_to`` or
+    ``activity_date <= valid_to`` are considered. Mixed assessment bases
+    (AR5 vs AR6) fail closed. Multiple rows with the same assessment pick
+    the latest ``valid_from`` still covering the date; identical start
+    dates fail closed. No covering version returns None.
+
+    ``reporting_year`` is a year-granularity fallback used only when no
+    activity date is supplied. It is not converted to 31 December and is
+    not treated as an activity date. A version may be used only when it
+    covers the whole calendar year:
+    ``valid_from <= YYYY-01-01`` and blank ``valid_to`` or
+    ``valid_to >= YYYY-12-31``. The match count must be exactly one;
+    otherwise this returns None and does not fall back to the historical
+    unique-row rule. A single future, expired, or mid-year version is
+    therefore None.
+
+    Without an activity date or reporting year the historical unique-row
+    rule is preserved.
     """
     if gwp_values is None or gwp_values.empty:
         return None
@@ -750,7 +815,78 @@ def select_gwp_row(
     )
     if "gwp_status" in frame.columns:
         mask &= frame["gwp_status"].astype(str).str.strip() == READY_GWP_STATUS
+    if assessment_basis:
+        if "assessment_basis" not in frame.columns:
+            return None
+        mask &= (
+            frame["assessment_basis"].astype(str).str.strip()
+            == str(assessment_basis).strip()
+        )
     matched = frame.loc[mask]
-    if len(matched) != 1:
+    if matched.empty:
         return None
-    return matched.iloc[0]
+
+    activity_stamp = None
+    if activity_date is not None and str(activity_date).strip():
+        parsed = pd.to_datetime(activity_date, errors="coerce")
+        if pd.isna(parsed):
+            return None
+        activity_stamp = pd.Timestamp(parsed)
+
+    year_fallback = None
+    if activity_stamp is None and reporting_year is not None:
+        try:
+            year_fallback = int(reporting_year)
+        except (TypeError, ValueError):
+            return None
+
+    has_valid_to = "valid_to" in matched.columns
+    if activity_stamp is not None:
+        keep = [
+            index
+            for index, row in matched.iterrows()
+            if _gwp_covers_activity_date(
+                row, activity_stamp, has_valid_to=has_valid_to
+            )
+        ]
+        matched = matched.loc[keep]
+        if matched.empty:
+            return None
+    elif year_fallback is not None:
+        year_start = pd.Timestamp(f"{year_fallback:04d}-01-01")
+        year_end = pd.Timestamp(f"{year_fallback:04d}-12-31")
+        keep = [
+            index
+            for index, row in matched.iterrows()
+            if _gwp_covers_full_calendar_year(
+                row, year_start, year_end, has_valid_to=has_valid_to
+            )
+        ]
+        covering = matched.loc[keep]
+        if len(covering) != 1:
+            return None
+        matched = covering
+
+    if "assessment_basis" in matched.columns:
+        bases = {
+            str(value).strip()
+            for value in matched["assessment_basis"].tolist()
+            if str(value).strip()
+        }
+        if len(bases) > 1:
+            return None
+
+    if len(matched) == 1:
+        return matched.iloc[0]
+    if activity_stamp is None:
+        return None
+    if "valid_from" not in matched.columns:
+        return None
+    starts = pd.to_datetime(matched["valid_from"], errors="coerce")
+    if starts.isna().any():
+        return None
+    latest = starts.max()
+    latest_rows = matched.loc[starts == latest]
+    if len(latest_rows) != 1:
+        return None
+    return latest_rows.iloc[0]

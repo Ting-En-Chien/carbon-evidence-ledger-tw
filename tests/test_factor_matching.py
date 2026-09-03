@@ -209,7 +209,7 @@ def test_purchased_steel_has_no_configured_factor(tmp_path: Path) -> None:
     readiness = result.activity_readiness.loc[
         result.activity_readiness["record_id"] == "rec_steel_001"
     ].iloc[0]
-    assert readiness["calculation_readiness"] == "no_factor_configured"
+    assert readiness["calculation_readiness"] == "purchased_steel_category1"
     assert readiness["candidate_factor_count"] == 0
 
 
@@ -371,7 +371,7 @@ def test_baseline_produces_five_readiness_rows(tmp_path: Path) -> None:
     ].value_counts()
     assert readiness_counts.get("ready", 0) == 1
     assert readiness_counts.get("blocked_missing_conversion", 0) == 2
-    assert readiness_counts.get("no_factor_configured", 0) == 1
+    assert readiness_counts.get("purchased_steel_category1", 0) == 1
     assert readiness_counts.get("not_emissions_activity", 0) == 1
 
 

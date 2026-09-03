@@ -88,6 +88,7 @@ OUTPUT_COLUMNS = [
 PASSTHROUGH_STATUSES = {
     "blocked_missing_conversion",
     "blocked_ambiguous_conversion",
+    "blocked_ambiguous_factor",
     "blocked_incomplete_gas_factors",
     "blocked_conflicting_factor_group",
     "blocked_natural_gas_type_required",
@@ -262,6 +263,12 @@ def _passthrough_reason(readiness_row: pd.Series) -> str:
         return (
             readiness_reason
             or "Multiple conflicting heating values match this activity year."
+        )
+
+    if status == "blocked_ambiguous_factor":
+        return (
+            readiness_reason
+            or "Multiple ready factors cover this activity period."
         )
 
     if status == "blocked_incomplete_gas_factors":
@@ -668,7 +675,10 @@ def _calculate_combustion(
                 reason=f"{gas} factor value must be finite and greater than zero.",
             )
         gwp_row = select_gwp_row(
-            gwp_values, gas=gas, emission_context=gwp_context
+            gwp_values,
+            gas=gas,
+            emission_context=gwp_context,
+            activity_date=activity_end or activity_start,
         )
         if gwp_row is None:
             return _blocked(
@@ -729,6 +739,24 @@ def _calculate_combustion(
         gwp_values_by_gas[gas] = gwp_decimal
         gwp_rows[gas] = gwp_row
         co2e_parts[gas] = co2e_kg
+
+    assessment_bases = {
+        _text(gwp_rows[gas].get("assessment_basis"))
+        for gas in REQUIRED_COMBUSTION_GASES
+    }
+    assessment_bases.discard("")
+    if len(assessment_bases) > 1:
+        return _blocked(
+            record_id=record_id,
+            activity_type=activity_type,
+            normalized_value=float(normalized_decimal),
+            normalized_unit=normalized_unit,
+            status="blocked_missing_gwp",
+            reason=(
+                "GWP assessment bases must not be mixed in one calculation: "
+                + ", ".join(sorted(assessment_bases))
+            ),
+        )
 
     total_kg = (
         co2e_parts["CO2"] + co2e_parts["CH4"] + co2e_parts["N2O"]
@@ -951,6 +979,96 @@ def _same_calendar_reporting_year(start: Any, end: Any) -> int | None:
 _DEFAULT_REFERENCE_DIR = Path(__file__).resolve().parents[2] / "data" / "reference"
 REFRIGERANT_ACTIVITY_TYPE = "refrigerant_refill"
 READINESS_REFRIGERANT_ACTUAL_REFILL = "refrigerant_actual_refill"
+PURCHASED_STEEL_ACTIVITY_TYPE = "purchased_steel"
+READINESS_PURCHASED_STEEL_CATEGORY1 = "purchased_steel_category1"
+
+
+def _purchased_steel_calc_record(
+    activity_row: pd.Series | None,
+    *,
+    record_id: str,
+    normalized_row: pd.Series | None = None,
+) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "record_id": record_id,
+        "activity_type": PURCHASED_STEEL_ACTIVITY_TYPE,
+    }
+    if normalized_row is not None:
+        original_value = normalized_row.get("original_value")
+        original_unit = _text(normalized_row.get("original_unit"))
+        if not _is_blank(original_value):
+            record["activity_value"] = original_value
+        if original_unit:
+            record["unit"] = original_unit
+    if activity_row is None:
+        return record
+    reporting_year = _same_calendar_reporting_year(
+        activity_row.get("activity_start_date"),
+        activity_row.get("activity_end_date"),
+    )
+    record.update(
+        {
+            "record_id": _text(activity_row.get("record_id")) or record_id,
+            "activity_type": _text(activity_row.get("activity_type"))
+            or PURCHASED_STEEL_ACTIVITY_TYPE,
+            "record_type": _text(activity_row.get("record_type")),
+            "calculation_method": _text(activity_row.get("calculation_method")),
+            "supplier_name": _text(activity_row.get("supplier_name")),
+            "steel_product_type": _text(activity_row.get("steel_product_type")),
+            "product_identifier": _text(activity_row.get("product_identifier")),
+            "product_id": _text(activity_row.get("product_id")),
+            "activity_value": activity_row.get("activity_value"),
+            "unit": _text(activity_row.get("unit")),
+            "purchased_quantity": activity_row.get("activity_value"),
+            "purchased_unit": _text(activity_row.get("unit")),
+            "emission_factor_value": activity_row.get("emission_factor_value"),
+            "emission_factor_unit": _text(
+                activity_row.get("emission_factor_unit")
+            ),
+            "factor_boundary": _text(activity_row.get("factor_boundary")),
+            "factor_geography": _text(activity_row.get("factor_geography")),
+            "factor_year": activity_row.get("factor_year"),
+            "factor_source_id": _text(activity_row.get("factor_source_id")),
+            "evidence_reference": _text(activity_row.get("evidence_reference"))
+            or _text(activity_row.get("source_locator")),
+            "source_document_id": _text(activity_row.get("source_document_id")),
+            "source_locator": _text(activity_row.get("source_locator")),
+            "includes_pre_tier1_supply_chain_transport": _text(
+                activity_row.get("includes_pre_tier1_supply_chain_transport")
+            ),
+            "includes_tier1_to_reporting_company_transport": _text(
+                activity_row.get(
+                    "includes_tier1_to_reporting_company_transport"
+                )
+            ),
+            "includes_tier2_to_tier1_transport": _text(
+                activity_row.get("includes_tier2_to_tier1_transport")
+            ),
+        }
+    )
+    if reporting_year is not None:
+        record["reporting_year"] = reporting_year
+    return record
+
+
+def _calculate_purchased_steel_result(
+    activity_row: pd.Series | None,
+    emission_factors: pd.DataFrame,
+    *,
+    record_id: str,
+    normalized_row: pd.Series | None = None,
+) -> dict[str, Any]:
+    from carbon_ledger.purchased_steel import calculate_purchased_steel
+
+    result = calculate_purchased_steel(
+        _purchased_steel_calc_record(
+            activity_row,
+            record_id=record_id,
+            normalized_row=normalized_row,
+        ),
+        registered_factors=emission_factors,
+    )
+    return result.to_calculation_row()
 
 
 def _refrigerant_calc_record(activity_row: pd.Series | None) -> dict[str, Any]:
@@ -971,6 +1089,22 @@ def _refrigerant_calc_record(activity_row: pd.Series | None) -> dict[str, Any]:
     }
     if reporting_year is not None:
         record["reporting_year"] = reporting_year
+    for key in ("actual_refill_date", "refill_date", "activity_end_date"):
+        value = activity_row.get(key)
+        if value is None:
+            continue
+        try:
+            if pd.isna(value):
+                continue
+        except (TypeError, ValueError):
+            pass
+        stamp = pd.to_datetime(value, errors="coerce")
+        if pd.notna(stamp):
+            record[key] = pd.Timestamp(stamp).strftime("%Y-%m-%d")
+        else:
+            text = str(value).strip()
+            if text and text.lower() not in {"nan", "nat", "none"}:
+                record[key] = text
     return record
 
 
@@ -1079,6 +1213,19 @@ def calculate_activity_emissions(
             readiness_status == READINESS_REFRIGERANT_ACTUAL_REFILL
         ):
             results.append(_calculate_refrigerant_result(activity_row, gwp))
+            continue
+
+        if activity_type == PURCHASED_STEEL_ACTIVITY_TYPE or (
+            readiness_status == READINESS_PURCHASED_STEEL_CATEGORY1
+        ):
+            results.append(
+                _calculate_purchased_steel_result(
+                    activity_row,
+                    factors,
+                    record_id=record_id,
+                    normalized_row=normalized_row,
+                )
+            )
             continue
 
         if readiness_status in PASSTHROUGH_STATUSES:

@@ -216,6 +216,23 @@ ACTIVITY_RECORDS_SCHEMA = DataFrameSchema(
         ),
         "refrigerant_code": Column(str, nullable=True, required=False),
         "refill_confirmed": Column(str, nullable=True, required=False),
+        "calculation_method": Column(str, nullable=True, required=False),
+        "supplier_name": Column(str, nullable=True, required=False),
+        "steel_product_type": Column(str, nullable=True, required=False),
+        "product_identifier": Column(str, nullable=True, required=False),
+        "emission_factor_value": Column(str, nullable=True, required=False),
+        "emission_factor_unit": Column(str, nullable=True, required=False),
+        "factor_boundary": Column(str, nullable=True, required=False),
+        "factor_geography": Column(str, nullable=True, required=False),
+        "factor_year": Column(str, nullable=True, required=False),
+        "factor_source_id": Column(str, nullable=True, required=False),
+        "evidence_reference": Column(str, nullable=True, required=False),
+        "includes_pre_tier1_supply_chain_transport": Column(
+            str, nullable=True, required=False
+        ),
+        "includes_tier1_to_reporting_company_transport": Column(
+            str, nullable=True, required=False
+        ),
         "activity_value": Column(float, checks=Check.gt(0), nullable=False),
         "unit": Column(str, checks=Check.isin(SUPPORTED_UNITS), nullable=False),
         "transport_payer": Column(

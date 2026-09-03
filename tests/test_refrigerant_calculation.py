@@ -14,16 +14,17 @@ import pytest
 from carbon_ledger.factors import (
     GWP_CONTEXT_FUEL_COMBUSTION,
     GWP_CONTEXT_REFRIGERANT_FUGITIVE,
+    select_gwp_row,
     validate_factor_registry,
 )
 from carbon_ledger.refrigerants import (
     FORMULA_ID,
     FORMULA_VERSION,
-    STATUS_BLOCKED_GWP_NOT_APPLICABLE,
     STATUS_BLOCKED_INCOMPLETE_COMPOSITION,
     STATUS_BLOCKED_INVALID_PERIOD,
     STATUS_BLOCKED_INVALID_QUANTITY,
     STATUS_BLOCKED_MISSING_EVIDENCE,
+    STATUS_BLOCKED_MISSING_GWP,
     STATUS_BLOCKED_MISSING_QUANTITY,
     STATUS_BLOCKED_MISSING_RECORD_ID,
     STATUS_BLOCKED_UNCONFIRMED_ZERO,
@@ -300,13 +301,271 @@ def test_blank_record_id_is_blocked() -> None:
 
 def test_gwp_not_applicable_before_valid_from_year() -> None:
     too_early = _calculate(reporting_year=2023)
-    assert too_early.calculation_status == STATUS_BLOCKED_GWP_NOT_APPLICABLE
+    assert too_early.calculation_status == STATUS_BLOCKED_MISSING_GWP
     assert too_early.calculated_kgco2e is None
     assert too_early.calculated_tco2e is None
     current = _calculate(reporting_year=2026)
     assert current.calculation_status == STATUS_CALCULATED
     assert current.calculated_kgco2e == 19500.0
     assert current.calculated_tco2e == 19.5
+
+
+def _hfc134a_versions(gwp_values: pd.DataFrame) -> pd.DataFrame:
+    """Same AR5 GWP 1300 with dated versions; formula values are unchanged."""
+    base = gwp_values.loc[
+        (gwp_values["gas"] == "HFC-134a")
+        & (gwp_values["emission_context"] == GWP_CONTEXT_REFRIGERANT_FUGITIVE)
+    ].iloc[0]
+    others = gwp_values.loc[gwp_values["gwp_id"] != base["gwp_id"]].copy()
+    versions = []
+    for gwp_id, valid_from, valid_to in (
+        ("gwp_ar5_hfc134a_2023", "2023-01-01", "2023-12-31"),
+        ("gwp_ar5_hfc134a_2024h1", "2024-01-01", "2024-06-30"),
+        ("gwp_ar5_hfc134a_2024h2", "2024-07-01", "2024-12-31"),
+    ):
+        row = base.to_dict()
+        row["gwp_id"] = gwp_id
+        row["gwp_value"] = "1300"
+        row["valid_from"] = valid_from
+        row["valid_to"] = valid_to
+        versions.append(row)
+    return pd.concat([others, pd.DataFrame(versions)], ignore_index=True)
+
+
+def test_refrigerant_gwp_uses_actual_activity_date_within_same_year() -> None:
+    compositions, gwp_values = _inputs()
+    dated = _hfc134a_versions(gwp_values)
+    early = select_gwp_row(
+        dated,
+        gas="HFC-134a",
+        emission_context=GWP_CONTEXT_REFRIGERANT_FUGITIVE,
+        activity_date="2024-03-15",
+    )
+    late = select_gwp_row(
+        dated,
+        gas="HFC-134a",
+        emission_context=GWP_CONTEXT_REFRIGERANT_FUGITIVE,
+        activity_date="2024-09-01",
+    )
+    assert early is not None
+    assert late is not None
+    assert early["gwp_id"] == "gwp_ar5_hfc134a_2024h1"
+    assert late["gwp_id"] == "gwp_ar5_hfc134a_2024h2"
+    assert str(early["gwp_value"]) == "1300"
+    assert str(late["gwp_value"]) == "1300"
+
+    march = calculate_actual_refill(
+        _base_record(
+            reporting_year=2024,
+            activity_end_date="2024-03-15",
+        ),
+        compositions=compositions,
+        gwp_values=dated,
+    )
+    september = calculate_actual_refill(
+        _base_record(
+            reporting_year=2024,
+            actual_refill_date="2024-09-01",
+        ),
+        compositions=compositions,
+        gwp_values=dated,
+    )
+    assert march.calculation_status == STATUS_CALCULATED
+    assert september.calculation_status == STATUS_CALCULATED
+    assert march.gwp_id == "gwp_ar5_hfc134a_2024h1"
+    assert september.gwp_id == "gwp_ar5_hfc134a_2024h2"
+    assert march.gwp_value == 1300.0
+    assert september.gwp_value == 1300.0
+    assert march.calculated_kgco2e == 19500.0
+    assert "activity_date" in march.calculation_trace
+    assert "2024-12-31" not in march.calculation_trace
+
+
+def test_year_only_gwp_fallback_fails_closed_when_two_versions_share_year() -> None:
+    compositions, gwp_values = _inputs()
+    dated = _hfc134a_versions(gwp_values)
+    year_only = select_gwp_row(
+        dated,
+        gas="HFC-134a",
+        emission_context=GWP_CONTEXT_REFRIGERANT_FUGITIVE,
+        reporting_year=2024,
+    )
+    assert year_only is None
+    result = calculate_actual_refill(
+        _base_record(reporting_year=2024),
+        compositions=compositions,
+        gwp_values=dated,
+    )
+    assert result.calculation_status == STATUS_BLOCKED_MISSING_GWP
+    assert result.calculated_kgco2e is None
+    looked_up = lookup_refrigerant_ar5_gwp(
+        "R-134a",
+        compositions=compositions,
+        gwp_values=dated,
+        reporting_year=2024,
+    )
+    assert looked_up is None
+
+
+def test_old_year_recalc_uses_then_valid_gwp_version() -> None:
+    compositions, gwp_values = _inputs()
+    dated = _hfc134a_versions(gwp_values)
+    selected = select_gwp_row(
+        dated,
+        gas="HFC-134a",
+        emission_context=GWP_CONTEXT_REFRIGERANT_FUGITIVE,
+        activity_date="2023-06-01",
+    )
+    assert selected is not None
+    assert selected["gwp_id"] == "gwp_ar5_hfc134a_2023"
+    result = calculate_actual_refill(
+        _base_record(
+            reporting_year=2023,
+            activity_end_date="2023-06-01",
+        ),
+        compositions=compositions,
+        gwp_values=dated,
+    )
+    assert result.calculation_status == STATUS_CALCULATED
+    assert result.gwp_id == "gwp_ar5_hfc134a_2023"
+    assert result.gwp_value == 1300.0
+    assert result.calculated_kgco2e == 19500.0
+    later_activity = calculate_actual_refill(
+        _base_record(
+            reporting_year=2024,
+            activity_end_date="2024-03-15",
+        ),
+        compositions=compositions,
+        gwp_values=dated,
+    )
+    assert later_activity.gwp_id == "gwp_ar5_hfc134a_2024h1"
+    assert later_activity.gwp_id != result.gwp_id
+
+
+def _hfc134a_windows(
+    gwp_values: pd.DataFrame,
+    windows: tuple[tuple[str, str, str], ...],
+) -> pd.DataFrame:
+    base = gwp_values.loc[
+        (gwp_values["gas"] == "HFC-134a")
+        & (gwp_values["emission_context"] == GWP_CONTEXT_REFRIGERANT_FUGITIVE)
+    ].iloc[0]
+    others = gwp_values.loc[gwp_values["gwp_id"] != base["gwp_id"]].copy()
+    rows = []
+    for gwp_id, valid_from, valid_to in windows:
+        row = base.to_dict()
+        row["gwp_id"] = gwp_id
+        row["gwp_value"] = "1300"
+        row["valid_from"] = valid_from
+        row["valid_to"] = valid_to
+        rows.append(row)
+    return pd.concat([others, pd.DataFrame(rows)], ignore_index=True)
+
+
+def _single_hfc134a(
+    gwp_values: pd.DataFrame,
+    *,
+    gwp_id: str,
+    valid_from: str,
+    valid_to: str,
+) -> pd.DataFrame:
+    return _hfc134a_windows(gwp_values, ((gwp_id, valid_from, valid_to),))
+
+
+def _select_hfc134a(
+    gwp_values: pd.DataFrame,
+    *,
+    reporting_year: int | None = None,
+    activity_date: str | None = None,
+):
+    return select_gwp_row(
+        gwp_values,
+        gas="HFC-134a",
+        emission_context=GWP_CONTEXT_REFRIGERANT_FUGITIVE,
+        reporting_year=reporting_year,
+        activity_date=activity_date,
+    )
+
+
+def test_year_fallback_rejects_unique_future_gwp() -> None:
+    _, gwp_values = _inputs()
+    dated = _single_hfc134a(
+        gwp_values,
+        gwp_id="gwp_ar5_hfc134a_future",
+        valid_from="2026-01-01",
+        valid_to="2030-12-31",
+    )
+    assert _select_hfc134a(dated, reporting_year=2025) is None
+    assert _select_hfc134a(dated) is not None
+
+
+def test_year_fallback_rejects_unique_expired_gwp() -> None:
+    _, gwp_values = _inputs()
+    dated = _single_hfc134a(
+        gwp_values,
+        gwp_id="gwp_ar5_hfc134a_expired",
+        valid_from="2020-01-01",
+        valid_to="2024-12-31",
+    )
+    assert _select_hfc134a(dated, reporting_year=2025) is None
+
+
+def test_year_fallback_rejects_unique_midyear_gwp() -> None:
+    _, gwp_values = _inputs()
+    dated = _single_hfc134a(
+        gwp_values,
+        gwp_id="gwp_ar5_hfc134a_midyear",
+        valid_from="2025-07-01",
+        valid_to="2025-12-31",
+    )
+    assert _select_hfc134a(dated, reporting_year=2025) is None
+    selected = _select_hfc134a(dated, activity_date="2025-08-01")
+    assert selected is not None
+    assert selected["gwp_id"] == "gwp_ar5_hfc134a_midyear"
+
+
+def test_year_fallback_selects_unique_full_year_gwp() -> None:
+    _, gwp_values = _inputs()
+    dated = _single_hfc134a(
+        gwp_values,
+        gwp_id="gwp_ar5_hfc134a_2025",
+        valid_from="2025-01-01",
+        valid_to="2025-12-31",
+    )
+    selected = _select_hfc134a(dated, reporting_year=2025)
+    assert selected is not None
+    assert selected["gwp_id"] == "gwp_ar5_hfc134a_2025"
+    assert str(selected["gwp_value"]) == "1300"
+
+
+def test_year_fallback_rejects_two_full_year_versions() -> None:
+    _, gwp_values = _inputs()
+    dated = _hfc134a_windows(
+        gwp_values,
+        (
+            ("gwp_ar5_hfc134a_open", "2024-01-01", ""),
+            ("gwp_ar5_hfc134a_also_2025", "2020-01-01", "2030-12-31"),
+        ),
+    )
+    assert _select_hfc134a(dated, reporting_year=2025) is None
+
+
+def test_activity_date_still_selects_covering_version() -> None:
+    _, gwp_values = _inputs()
+    dated = _hfc134a_windows(
+        gwp_values,
+        (
+            ("gwp_ar5_hfc134a_2025h1", "2025-01-01", "2025-06-30"),
+            ("gwp_ar5_hfc134a_2025h2", "2025-07-01", "2025-12-31"),
+        ),
+    )
+    early = _select_hfc134a(dated, activity_date="2025-03-15")
+    late = _select_hfc134a(dated, activity_date="2025-09-01")
+    assert early is not None
+    assert late is not None
+    assert early["gwp_id"] == "gwp_ar5_hfc134a_2025h1"
+    assert late["gwp_id"] == "gwp_ar5_hfc134a_2025h2"
+    assert _select_hfc134a(dated, reporting_year=2025) is None
 
 
 def test_ipcc_composition_source_uses_official_url() -> None:

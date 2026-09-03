@@ -362,13 +362,39 @@ def _components_for_code(
     return tuple(rows)
 
 
+def _iso_date(value: Any) -> str:
+    text = _text(value)
+    if not text:
+        return ""
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return text
+    return pd.Timestamp(parsed).strftime("%Y-%m-%d")
+
+
+def _activity_date_from_record(record: Mapping[str, Any]) -> str:
+    """Return an actual refill/activity date, never a year-end invented date."""
+    for key in ("actual_refill_date", "refill_date", "activity_end_date"):
+        text = _iso_date(record.get(key))
+        if text:
+            return text
+    return ""
+
+
 def lookup_refrigerant_ar5_gwp(
     refrigerant_code: str,
     *,
     compositions: pd.DataFrame,
     gwp_values: pd.DataFrame,
+    reporting_year: int | None = None,
+    activity_date: str | None = None,
 ) -> RefrigerantGwp | None:
-    """Pure GWP or Σ(mass_fraction × component GWP). No caller GWP override."""
+    """Pure GWP or Σ(mass_fraction × component GWP). No caller GWP override.
+
+    ``activity_date`` is the actual refill or activity_end date when known.
+    ``reporting_year`` is a year-granularity fallback only; it is not turned
+    into 31 December and is not treated as an activity date.
+    """
     canonical = canonicalize_refrigerant_code(refrigerant_code)
     if canonical is None:
         return None
@@ -381,13 +407,22 @@ def lookup_refrigerant_ar5_gwp(
     gwp_ids: list[str] = []
     valid_from_years: list[int] = []
     composition_sources: list[str] = []
+    assessment_bases: set[str] = set()
+    selected_activity_date = _text(activity_date) or None
     for component in components:
         gwp_row = select_gwp_row(
             gwp_values,
             gas=component.component_gas,
             emission_context=GWP_CONTEXT_REFRIGERANT_FUGITIVE,
+            activity_date=selected_activity_date,
+            reporting_year=None if selected_activity_date else reporting_year,
         )
         if gwp_row is None:
+            return None
+        assessment = _text(gwp_row.get("assessment_basis"))
+        if assessment:
+            assessment_bases.add(assessment)
+        if len(assessment_bases) > 1:
             return None
         applicable_from = _valid_from_year(gwp_row.get("valid_from"))
         if applicable_from is None:
@@ -544,6 +579,7 @@ def calculate_actual_refill(
     evidence_reference = _text(
         record.get("evidence_reference") or record.get("source_reference")
     )
+    activity_date = _activity_date_from_record(record)
     common = {
         "record_id": record_id,
         "reporting_year": reporting_year,
@@ -617,7 +653,11 @@ def calculate_actual_refill(
         gwp = None
         if canonical is not None:
             gwp = lookup_refrigerant_ar5_gwp(
-                canonical, compositions=compositions, gwp_values=gwp_values
+                canonical,
+                compositions=compositions,
+                gwp_values=gwp_values,
+                reporting_year=reporting_year,
+                activity_date=activity_date or None,
             )
         return _result(
             status=STATUS_CONFIRMED_NO_REFILL,
@@ -666,7 +706,11 @@ def calculate_actual_refill(
             **common,
         )
     gwp = lookup_refrigerant_ar5_gwp(
-        canonical, compositions=compositions, gwp_values=gwp_values
+        canonical,
+        compositions=compositions,
+        gwp_values=gwp_values,
+        reporting_year=reporting_year,
+        activity_date=activity_date or None,
     )
     if gwp is None:
         return _result(
@@ -717,6 +761,10 @@ def calculate_actual_refill(
             "calculated_tco2e": str(tco2e),
             "reporting_year": reporting_year,
             "reporting_period_id": reporting_period_id,
+            "gwp_date_selection": (
+                "activity_date" if activity_date else "reporting_year_granularity"
+            ),
+            "activity_date": activity_date,
         },
         **common,
     )

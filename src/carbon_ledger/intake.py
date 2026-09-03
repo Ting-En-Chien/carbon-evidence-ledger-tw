@@ -133,6 +133,10 @@ COLUMN_ALIAS_RULES: dict[str, dict[str, tuple[str, ...]]] = {
             "amount",
             "quantity",
             "value",
+            "purchased_quantity",
+            "purchased quantity",
+            "採購量",
+            "採購數量",
         ),
         CONFIDENCE_MEDIUM: (
             "數量",
@@ -146,6 +150,9 @@ COLUMN_ALIAS_RULES: dict[str, dict[str, tuple[str, ...]]] = {
             "計量單位",
             "uom",
             "unit of measure",
+            "purchased_unit",
+            "purchased unit",
+            "採購單位",
         ),
         CONFIDENCE_MEDIUM: (),
     },
@@ -256,6 +263,134 @@ COLUMN_ALIAS_RULES: dict[str, dict[str, tuple[str, ...]]] = {
             "organizational boundary",
             "inventory boundary",
             "組織盤查邊界",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "calculation_method": {
+        CONFIDENCE_HIGH: (
+            "calculation_method",
+            "calculation method",
+            "計算方法",
+            "盤查方法",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "supplier_name": {
+        CONFIDENCE_HIGH: (
+            "supplier_name",
+            "supplier name",
+            "supplier",
+            "供應商",
+            "供應商名稱",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "steel_product_type": {
+        CONFIDENCE_HIGH: (
+            "steel_product_type",
+            "steel product type",
+            "product type",
+            "鋼材產品類型",
+            "鋼材種類",
+            "產品類型",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "product_identifier": {
+        CONFIDENCE_HIGH: (
+            "product_identifier",
+            "product identifier",
+            "product_id",
+            "產品識別",
+            "產品編號",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "emission_factor_value": {
+        CONFIDENCE_HIGH: (
+            "emission_factor_value",
+            "supplier emission factor",
+            "supplier-specific emission factor",
+            "供應商排放係數",
+            "產品碳足跡係數",
+            "供應商係數",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "emission_factor_unit": {
+        CONFIDENCE_HIGH: (
+            "emission_factor_unit",
+            "supplier emission factor unit",
+            "係數單位",
+            "排放係數單位",
+            "供應商係數單位",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "factor_boundary": {
+        CONFIDENCE_HIGH: (
+            "factor_boundary",
+            "factor boundary",
+            "system boundary",
+            "係數邊界",
+            "系統邊界",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "factor_geography": {
+        CONFIDENCE_HIGH: (
+            "factor_geography",
+            "factor geography",
+            "geography",
+            "係數地理範圍",
+            "地理範圍",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "factor_year": {
+        CONFIDENCE_HIGH: (
+            "factor_year",
+            "factor year",
+            "係數年份",
+            "係數年度",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "factor_source_id": {
+        CONFIDENCE_HIGH: (
+            "factor_source_id",
+            "factor source id",
+            "factor source",
+            "係數來源編號",
+            "係數來源",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "evidence_reference": {
+        CONFIDENCE_HIGH: (
+            "evidence_reference",
+            "evidence reference",
+            "證據參照",
+            "證據來源",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "includes_pre_tier1_supply_chain_transport": {
+        CONFIDENCE_HIGH: (
+            "includes_pre_tier1_supply_chain_transport",
+            "includes pre tier1 supply chain transport",
+            "includes_tier2_to_tier1_transport",
+            "含供應鏈上游運輸",
+            "含 pre-tier-1 運輸",
+        ),
+        CONFIDENCE_MEDIUM: (),
+    },
+    "includes_tier1_to_reporting_company_transport": {
+        CONFIDENCE_HIGH: (
+            "includes_tier1_to_reporting_company_transport",
+            "includes tier1 to reporting company transport",
+            "含入廠運輸",
+            "含供應商到申報公司運輸",
         ),
         CONFIDENCE_MEDIUM: (),
     },
@@ -820,8 +955,13 @@ def reference_only_columns(columns: list[str] | tuple[str, ...]) -> list[str]:
     return [col for col in columns if is_reference_only_column(col)]
 
 
-def _alias_match_confidence(column_name: str, field_name: str) -> str:
-    if is_reference_only_column(column_name):
+def _alias_match_confidence(
+    column_name: str,
+    field_name: str,
+    *,
+    allow_reference_only: bool = False,
+) -> str:
+    if not allow_reference_only and is_reference_only_column(column_name):
         return CONFIDENCE_LOW
     normalized = structural_normalize_header(column_name)
     if not normalized:
@@ -946,6 +1086,19 @@ def suggest_column_mapping_with_confidence(
         "refill_confirmed",
         "ownership_control",
         "organizational_boundary_status",
+        "calculation_method",
+        "supplier_name",
+        "steel_product_type",
+        "product_identifier",
+        "emission_factor_value",
+        "emission_factor_unit",
+        "factor_boundary",
+        "factor_geography",
+        "factor_year",
+        "factor_source_id",
+        "evidence_reference",
+        "includes_pre_tier1_supply_chain_transport",
+        "includes_tier1_to_reporting_company_transport",
     )
 
     for field_name in field_order:
@@ -1168,6 +1321,94 @@ def normalize_uploaded_refrigerant_code(value: Any) -> str:
     return canonical if canonical else text
 
 
+_STEEL_OPTIONAL_FIELDS = (
+    "calculation_method",
+    "supplier_name",
+    "steel_product_type",
+    "product_identifier",
+    "emission_factor_value",
+    "emission_factor_unit",
+    "factor_boundary",
+    "factor_geography",
+    "factor_year",
+    "factor_source_id",
+    "evidence_reference",
+    "includes_pre_tier1_supply_chain_transport",
+    "includes_tier1_to_reporting_company_transport",
+)
+_STEEL_CALCULATION_METHOD_ALIASES = {
+    "supplier_specific": "supplier_specific",
+    "supplier-specific": "supplier_specific",
+    "supplier specific": "supplier_specific",
+    "供應商特定": "supplier_specific",
+    "供應商特定法": "supplier_specific",
+    "供應商係數": "supplier_specific",
+    "供應商係數法": "supplier_specific",
+    "average_data": "average_data",
+    "average-data": "average_data",
+    "average data": "average_data",
+    "平均數據": "average_data",
+    "平均數據法": "average_data",
+    "產業平均": "average_data",
+    "二次係數": "average_data",
+}
+_STEEL_BOUNDARY_ALIASES = {
+    "cradle_to_gate": "cradle_to_gate",
+    "cradle-to-gate": "cradle_to_gate",
+    "cradle to gate": "cradle_to_gate",
+    "搖籃到大門": "cradle_to_gate",
+    "從搖籃到大門": "cradle_to_gate",
+}
+_UPLOADED_BOOLEAN_TRUE = frozenset({"true", "yes", "y", "1", "是"})
+_UPLOADED_BOOLEAN_FALSE = frozenset({"false", "no", "n", "0", "否"})
+
+
+def normalize_uploaded_boolean(value: Any) -> str:
+    """Return canonical true/false, or blank. Blank is not inferred as false."""
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "<na>", "none"}:
+        return ""
+    token = text.lower()
+    if token in _UPLOADED_BOOLEAN_TRUE or text == "是":
+        return "true"
+    if token in _UPLOADED_BOOLEAN_FALSE or text == "否":
+        return "false"
+    return ""
+
+
+def normalize_steel_calculation_method(value: Any) -> str:
+    """Canonical supplier_specific / average_data, or the uploaded token."""
+    text = _intake_cell_text(value)
+    if not text:
+        return ""
+    direct = _STEEL_CALCULATION_METHOD_ALIASES.get(text)
+    if direct:
+        return direct
+    return _STEEL_CALCULATION_METHOD_ALIASES.get(text.casefold(), text)
+
+
+def normalize_steel_factor_boundary(value: Any) -> str:
+    """Canonical cradle_to_gate when explicit; unknown tokens are kept."""
+    text = _intake_cell_text(value)
+    if not text:
+        return ""
+    direct = _STEEL_BOUNDARY_ALIASES.get(text)
+    if direct:
+        return direct
+    return _STEEL_BOUNDARY_ALIASES.get(text.casefold(), text)
+
+
 def _optional_field_column(
     *,
     mapping: ColumnMapping,
@@ -1184,8 +1425,16 @@ def _optional_field_column(
     mapped = str(getattr(mapping, attr_name, "") or "").strip() if attr_name else ""
     if mapped and mapped in source_frame.columns:
         return mapped
+    allow_reference_only = field_name in _STEEL_OPTIONAL_FIELDS
     for column in source_frame.columns:
-        if _alias_match_confidence(str(column), field_name) == CONFIDENCE_HIGH:
+        if (
+            _alias_match_confidence(
+                str(column),
+                field_name,
+                allow_reference_only=allow_reference_only,
+            )
+            == CONFIDENCE_HIGH
+        ):
             return str(column)
     return ""
 
@@ -2012,6 +2261,8 @@ def _inventory_ownership(mapped_activity: str, process_use: str) -> str:
 
 
 def _inventory_org_boundary(mapped_activity: str, process_use: str) -> str:
+    if mapped_activity == "purchased_steel":
+        return "not_applicable"
     if mapped_activity == "natural_gas":
         return "inside"
     if mapped_activity == "diesel" and process_use == "company_vehicle":
@@ -2031,11 +2282,40 @@ def classify_activity_analysis_readiness(
     process_use: str,
     activity_start: Any,
     activity_end: Any,
+    calculation_method: str = "",
+    supplier_name: str = "",
+    steel_product_type: str = "",
+    product_identifier: str = "",
+    emission_factor_value: Any = None,
+    emission_factor_unit: str = "",
+    factor_boundary: str = "",
+    factor_year: Any = None,
+    factor_source_id: str = "",
+    evidence_reference: str = "",
+    source_document_id: str = "",
+    includes_tier1_to_reporting_company_transport: Any = None,
+    factor_geography: str = "",
 ) -> str:
     """Classify one accepted row for the pre-analysis business summary."""
     year = _activity_year_from_dates(activity_start, activity_end)
     if activity_type == "purchased_steel":
-        return READINESS_UNSUPPORTED
+        return _classify_purchased_steel_readiness(
+            calculation_method=calculation_method,
+            supplier_name=supplier_name,
+            steel_product_type=steel_product_type,
+            product_identifier=product_identifier,
+            emission_factor_value=emission_factor_value,
+            emission_factor_unit=emission_factor_unit,
+            factor_boundary=factor_boundary,
+            factor_year=factor_year,
+            factor_source_id=factor_source_id,
+            evidence_reference=evidence_reference,
+            source_document_id=source_document_id,
+            includes_tier1_to_reporting_company_transport=(
+                includes_tier1_to_reporting_company_transport
+            ),
+            factor_geography=factor_geography,
+        )
     if activity_type == "natural_gas":
         if year is not None and year < HEATING_VALUE_READY_YEAR:
             return READINESS_UNSUPPORTED
@@ -2061,6 +2341,82 @@ def classify_activity_analysis_readiness(
     return READINESS_UNSUPPORTED
 
 
+def purchased_steel_missing_fields(
+    *,
+    calculation_method: str = "",
+    supplier_name: str = "",
+    steel_product_type: str = "",
+    product_identifier: str = "",
+    emission_factor_value: Any = None,
+    emission_factor_unit: str = "",
+    factor_boundary: str = "",
+    factor_year: Any = None,
+    factor_source_id: str = "",
+    evidence_reference: str = "",
+    source_document_id: str = "",
+    includes_tier1_to_reporting_company_transport: Any = None,
+    factor_geography: str = "",
+) -> tuple[str, ...]:
+    """Return canonical field names still required for steel Category 1."""
+    inbound = normalize_uploaded_boolean(
+        includes_tier1_to_reporting_company_transport
+    )
+    if inbound == "true":
+        return ("includes_tier1_to_reporting_company_transport",)
+    method = normalize_steel_calculation_method(calculation_method)
+    if not method:
+        return ("calculation_method",)
+    if method not in {"supplier_specific", "average_data"}:
+        return ("calculation_method",)
+    missing: list[str] = []
+    if method == "average_data":
+        if not _intake_cell_text(steel_product_type):
+            missing.append("steel_product_type")
+        if not _intake_cell_text(factor_geography):
+            missing.append("factor_geography")
+        return tuple(missing)
+    if not _intake_cell_text(supplier_name):
+        missing.append("supplier_name")
+    if not _intake_cell_text(steel_product_type) and not _intake_cell_text(
+        product_identifier
+    ):
+        missing.append("steel_product_type")
+    if normalize_steel_factor_boundary(factor_boundary) != "cradle_to_gate":
+        missing.append("factor_boundary")
+    if not _intake_cell_text(emission_factor_value):
+        missing.append("emission_factor_value")
+    from carbon_ledger.purchased_steel import parse_emission_factor_unit
+
+    if parse_emission_factor_unit(emission_factor_unit) is None:
+        missing.append("emission_factor_unit")
+    if not _intake_cell_text(factor_year):
+        missing.append("factor_year")
+    if not (
+        _intake_cell_text(factor_source_id)
+        or _intake_cell_text(evidence_reference)
+        or _intake_cell_text(source_document_id)
+    ):
+        missing.append("factor_source_id")
+    return tuple(missing)
+
+
+def _classify_purchased_steel_readiness(**fields: Any) -> str:
+    missing = purchased_steel_missing_fields(**fields)
+    if not missing:
+        return READINESS_READY
+    inbound = normalize_uploaded_boolean(
+        fields.get("includes_tier1_to_reporting_company_transport")
+    )
+    method = normalize_steel_calculation_method(fields.get("calculation_method"))
+    if inbound == "true":
+        return READINESS_NEEDS_CONFIRM
+    if method == "average_data" and missing:
+        return READINESS_NEEDS_CONFIRM
+    if method == "supplier_specific" or not method:
+        return READINESS_NEEDS_CONFIRM
+    return READINESS_NEEDS_CONFIRM
+
+
 def summarize_pre_analysis_readiness(accepted: pd.DataFrame) -> dict[str, int]:
     """Count ready / needs-confirm / unsupported accepted activities."""
     summary = {
@@ -2077,6 +2433,21 @@ def summarize_pre_analysis_readiness(accepted: pd.DataFrame) -> dict[str, int]:
             process_use=str(row.get("process_use") or ""),
             activity_start=row.get("activity_start_date"),
             activity_end=row.get("activity_end_date"),
+            calculation_method=str(row.get("calculation_method") or ""),
+            supplier_name=str(row.get("supplier_name") or ""),
+            steel_product_type=str(row.get("steel_product_type") or ""),
+            product_identifier=str(row.get("product_identifier") or ""),
+            emission_factor_value=row.get("emission_factor_value"),
+            emission_factor_unit=str(row.get("emission_factor_unit") or ""),
+            factor_boundary=str(row.get("factor_boundary") or ""),
+            factor_year=row.get("factor_year"),
+            factor_source_id=str(row.get("factor_source_id") or ""),
+            evidence_reference=str(row.get("evidence_reference") or ""),
+            source_document_id=str(row.get("source_document_id") or ""),
+            includes_tier1_to_reporting_company_transport=row.get(
+                "includes_tier1_to_reporting_company_transport"
+            ),
+            factor_geography=str(row.get("factor_geography") or ""),
         )
         summary[bucket] = int(summary.get(bucket, 0)) + 1
     return summary
@@ -2562,8 +2933,36 @@ def build_and_validate_intake(
                 row.get(boundary_column) if boundary_column else ""
             )
 
-        # Intentionally ignore uploaded emission-factor / emission-result columns.
-        # Those remain source/reference only; calculation uses the controlled registry.
+        steel_fields = {
+            field_name: "" for field_name in _STEEL_OPTIONAL_FIELDS
+        }
+        if mapped_activity == "purchased_steel":
+            for field_name in _STEEL_OPTIONAL_FIELDS:
+                column = _optional_field_column(
+                    mapping=mapping,
+                    field_name=field_name,
+                    source_frame=source_frame,
+                )
+                raw = row.get(column) if column else ""
+                if field_name == "calculation_method":
+                    steel_fields[field_name] = normalize_steel_calculation_method(
+                        raw
+                    )
+                elif field_name == "factor_boundary":
+                    steel_fields[field_name] = normalize_steel_factor_boundary(
+                        raw
+                    )
+                elif field_name in {
+                    "includes_pre_tier1_supply_chain_transport",
+                    "includes_tier1_to_reporting_company_transport",
+                }:
+                    steel_fields[field_name] = normalize_uploaded_boolean(raw)
+                else:
+                    steel_fields[field_name] = _intake_cell_text(raw)
+
+        # Uploaded emission-factor columns stay source/reference only for
+        # Scope 1/2 registry calculation. Purchased-steel supplier-specific
+        # evidence is copied only onto purchased_steel rows.
         activity_row = {
             "record_id": activity_record_id(uploaded.sha256, source_row),
             "source_document_id": source_doc["source_document_id"],
@@ -2594,6 +2993,7 @@ def build_and_validate_intake(
                 "needs_review" if needs_review else "not_required"
             ),
             "notes": notes,
+            **steel_fields,
         }
         candidates.append((source_row, activity_key, activity_row))
 

@@ -66,6 +66,7 @@ from carbon_ledger.ui.view_models import (
     inventory_status_counts,
     labeled_scope_hero_caption,
     reconcile_row_dispositions,
+    scope3_category1_emissions_summary,
     scope_kpi_states,
     should_show_coverage_chart,
     should_show_unresolved_cta,
@@ -353,6 +354,60 @@ with scope_cols[2]:
     )
 with st.expander(t("dash.scope_help_title", lang), expanded=False):
     st.markdown(t("dash.scope_help_body", lang))
+
+cat1 = scope3_category1_emissions_summary(result, lang)
+render_section_header(t("dash.scope3_cat1.title", lang))
+if cat1.get("row_count"):
+    st.markdown(f"**{t('dash.scope3_cat1.estimated', lang)}**")
+    st.write(f"{float(cat1['tco2e']):.4f} tCO₂e")
+    st.caption(str(cat1["not_in_inventory"]))
+    for row in cat1.get("rows") or []:
+        method_code = str(row.get("calculation_method") or "")
+        method_key = f"dash.scope3_cat1.method.{method_code}"
+        method_label = t(method_key, lang)
+        if method_label == method_key:
+            method_label = method_code
+        st.markdown(
+            f"- {t('dash.scope3_cat1.method', lang)}：{method_label}"
+        )
+        if row.get("supplier_name"):
+            st.markdown(
+                f"- {t('dash.scope3_cat1.supplier', lang)}："
+                f"{row['supplier_name']}"
+            )
+        if row.get("steel_product_type"):
+            st.markdown(
+                f"- {t('dash.scope3_cat1.product', lang)}："
+                f"{row['steel_product_type']}"
+            )
+        if row.get("factor_year"):
+            st.markdown(
+                f"- {t('dash.scope3_cat1.factor_year', lang)}："
+                f"{row['factor_year']}"
+            )
+        if row.get("factor_source_id"):
+            st.markdown(
+                f"- {t('dash.scope3_cat1.factor_source', lang)}："
+                f"{row['factor_source_id']}"
+            )
+        if row.get("factor_boundary"):
+            st.markdown(
+                f"- {t('dash.scope3_cat1.boundary', lang)}："
+                f"{row['factor_boundary']}"
+            )
+        st.caption(t("dash.scope3_cat1.boundary_note", lang))
+        if row.get("temporal_warning"):
+            st.info(
+                t(
+                    "dash.scope3_cat1.temporal",
+                    lang,
+                    factor_year=row.get("factor_year"),
+                    reporting_year=row.get("reporting_year")
+                    or row.get("factor_year"),
+                )
+            )
+else:
+    st.caption(t("dash.scope3_cat1.empty", lang))
 
 # 3. Insights — one primary, one optional
 if insights:
