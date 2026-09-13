@@ -1,7 +1,7 @@
 {
   "overall_regulatory_freshness": "SOURCE_CHECK_FAILED",
-  "last_global_check_at": "2026-09-12T18:21:51Z",
-  "last_successful_check_at": "2026-09-12T18:21:48Z",
+  "last_global_check_at": "2026-09-13T18:46:55Z",
+  "last_successful_check_at": "2026-09-13T18:46:52Z",
   "sources_current": 1,
   "sources_stale": 0,
   "sources_failed": 1,
@@ -12,7 +12,7 @@
   "regulatory_conflicts": 0,
   "review_required": true,
   "reviewable_new_changes": 1,
-  "generated_at": "2026-09-12T18:22:04Z",
+  "generated_at": "2026-09-13T18:47:08Z",
   "fail_safe_state": "SOURCE_CHECK_FAILED",
   "state_source": "durable_persisted_state",
   "consecutive_fetch_failures": 1,
