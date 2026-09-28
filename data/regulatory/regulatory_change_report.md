@@ -1,27 +1,16 @@
 # Regulatory change report
 
-Generated at: 2026-09-27T19:45:55Z
+Generated at: 2026-09-28T21:59:06Z
 Overall freshness: CURRENT
 Review required: True
 
 ## Reviewable changes
 
-### chg_src_tw_twse_portal_20260927T194548Z
+### chg_src_tw_twse_portal_20260928T215900Z
 - source_id: `src_tw_twse_portal`
 - change_type: `POTENTIAL_REGULATORY_CHANGE`
 - previous_hash: `dca8a2bdc9b4cfd9c049dc3f48692cff0bff1b010d6a48383b2ec1821d1f289f`
-- new_hash: `aa277098cc8ece6f495657421fc2ae140d0bce6f7acc133e87d91ac2ad970e0f`
-- previous_version: `portal_or_doc`
-- new_version: `portal_or_doc`
-- affected_rule_ids: ``
-- activation_status: `NOT_ACTIVATED`
-- notes: Detected change recorded; legal rules are NOT auto-activated.
-
-### chg_src_tw_tpex_portal_20260927T194550Z
-- source_id: `src_tw_tpex_portal`
-- change_type: `POTENTIAL_REGULATORY_CHANGE`
-- previous_hash: `121721d463f53715750768ec82cb6e4d09abca5ebb47665fe655de83a7981796`
-- new_hash: `c0a9cd89212e81550cd07898c1df820c54a626cb46975bdc96b3955de6dc81ee`
+- new_hash: `71f0528171bb9cbc9f5528a7b880252ce5652c7e8c3f82d293df0e7ac1c0ecf5`
 - previous_version: `portal_or_doc`
 - new_version: `portal_or_doc`
 - affected_rule_ids: ``
