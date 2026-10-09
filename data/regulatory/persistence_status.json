@@ -1,6 +1,6 @@
 {
   "status": "OK",
-  "persisted_at": "2026-10-08T21:18:27Z",
+  "persisted_at": "2026-10-09T20:52:37Z",
   "destination": "/home/runner/work/carbon-evidence-ledger-tw/carbon-evidence-ledger-tw/data/regulatory/durable_state",
   "files": [
     "source_freshness_state.csv",
