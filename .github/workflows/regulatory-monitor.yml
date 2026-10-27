@@ -207,7 +207,7 @@ jobs:
 
       - name: Upload regulatory monitoring artifacts (supplementary)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: regulatory-monitor-artifacts
           path: |
