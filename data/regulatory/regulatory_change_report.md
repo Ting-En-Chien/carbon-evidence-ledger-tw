@@ -1,16 +1,16 @@
 # Regulatory change report
 
-Generated at: 2026-11-04T21:51:36Z
+Generated at: 2026-11-05T21:58:39Z
 Overall freshness: CURRENT
 Review required: True
 
 ## Reviewable changes
 
-### chg_src_tw_twse_portal_20261104T215128Z
+### chg_src_tw_twse_portal_20261105T215831Z
 - source_id: `src_tw_twse_portal`
 - change_type: `POTENTIAL_REGULATORY_CHANGE`
 - previous_hash: `dca8a2bdc9b4cfd9c049dc3f48692cff0bff1b010d6a48383b2ec1821d1f289f`
-- new_hash: `aa277098cc8ece6f495657421fc2ae140d0bce6f7acc133e87d91ac2ad970e0f`
+- new_hash: `46b8975162a9e2eaa714d9359bc7673e0b18b0247b644b7f38855e17d4b05046`
 - previous_version: `portal_or_doc`
 - new_version: `portal_or_doc`
 - affected_rule_ids: ``
